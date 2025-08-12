@@ -182,8 +182,6 @@ void save_data() { // Save data to SD card
 void setup() {
   Serial.begin(9600);
 
-
-
   pinMode(batt_volt_mon, INPUT);
   pinMode(five_volt_mon, INPUT);
   pinMode(radio_volt_mon, INPUT);
@@ -289,6 +287,7 @@ void loop() {
     moveServo(1, digitalRead(fill_in));
     moveServo(2, digitalRead(vent_in));
     moveServo(3, digitalRead(mov_in));
+    Serial.print(digitalRead(fill_in));Serial.print(digitalRead(vent_in));Serial.println(digitalRead(mov_in));
     
     // Fire pyros if armed and signal sent
     if(digitalRead(arm_in) == 1){
