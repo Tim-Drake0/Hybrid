@@ -4,34 +4,28 @@
 #include "printf.h"
 #include <RH_RF95.h>
 
-// IO pins
-#define CP1  1
+//Pins
 #define CP2  0
+#define CP1  1
+#define RFM95_INT 2
 #define buzzerPin 3
 #define fill_out  4
 #define vent_out  5
 #define mov_out  6
 #define pyro_1_fire  7
 #define pyro_2_fire  8
-
-
-
-
-#define PTP1 15
-#define PTP2 16
+#define RFM95_CS 9
+#define RFM95_RST 10
+// pin 14 spare
+#define PT_TANK 20
+#define RADIO_LED 16
 #define lc_low_in 17
 #define lc_high_in 18
 #define arm_out 19
-
-
+// pin 20 spare
 #define batt_volt_mon  21
 
-int PT1int = 0; // int value of PT1 reading (tank ullage)
-int PT2int = 0; // int value of PT2 reading (ox injector)
-int PT3int = 0; // int value of PT3 reading (combustion chamber)
-int PT4int = 0; // int value of PT4 reading (fill)
-int PT5int = 0; // int value of PT5 reading (extra)
-int PT6int = 0; // int value of PT6 reading (extra)
+int PT_tank = 0; // int value of PT1 reading (tank ullage)
 int LCint = 0; // int value of load cell reading 
 bool C1bool = 0;
 bool C2bool = 0;
@@ -56,10 +50,7 @@ int dt_rx = dt_rx_slow; // Time between radio readings [ms]
 
 /// WIRELESS ========================================================================
 // Radio Transceiver
-#define RFM95_CS 9
-#define RFM95_RST 10
-#define RFM95_INT 2
-#define RADIO_LED 16
+
 #define RF95_FREQ 433.9869
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 
@@ -164,12 +155,12 @@ void ABORT_DAQ(void) { // ABORT ================================================
 }
 
 void setup() { // SETUP =================================================================================================
+  Serial.begin(9600);
   // Sensor setup
   pinMode(CP1,INPUT); // Continuity pins digital input
   pinMode(CP2,INPUT);
   
-  pinMode(PTP1,INPUT); // PT pins analog input 
-  pinMode(PTP2,INPUT);
+  pinMode(PT_TANK,INPUT); // PT pins analog input 
 
   pinMode(lc_low_in,INPUT);
   pinMode(lc_high_in,INPUT);
@@ -238,11 +229,11 @@ void loop() { // LOOP ==========================================================
   if (millis()-last_time_data > dt_data) { // Check time between data readings
     C1bool = !digitalRead(CP1); // Continuity channel 1
     C2bool = !digitalRead(CP2); // Continuity channel 2
-    PT1int = analogRead(PTP1); // PT channel 1
+    PT_tank = analogRead(PT_TANK); // PT channel 1
     
     lc_low = pulseIn(lc_low_in, HIGH, 10000L);
     lc_high = pulseIn(lc_high_in, HIGH, 10000L); // Load cell
-    //Serial.print(lc_low); Serial.print(", "); Serial.print(lc_high); Serial.print(", ");  Serial.print(word(lc_high,lc_low)); Serial.print(", ");  Serial.println(word(lc_high,lc_low)*0.939416365405);
+    Serial.print(PT_tank); Serial.print(", H:"); Serial.print(highByte(PT_tank)); Serial.print(", L:");  Serial.println(lowByte(PT_tank));
     
     batt_volt = analogRead(batt_volt_mon);// * 0.01700550500; //0.016917293233
 
@@ -293,8 +284,8 @@ void loop() { // LOOP ==========================================================
         switchstate.BU3 = buf[7];
         switchstate.BU4 = buf[8];
 
-        uint8_t data[] = {C1bool, C2bool, lc_high, lc_low, highByte(PT1int), lowByte(PT1int), highByte(batt_volt), lowByte(batt_volt)};
-        //uint8_t data[] = {C1bool, C2bool, LCint, PT1int, highByte(batt_volt), lowByte(batt_volt), 69, 69, 69, 69};
+        uint8_t data[] = {C1bool, C2bool, lc_high, lc_low, highByte(PT_tank), lowByte(PT_tank), highByte(batt_volt), lowByte(batt_volt)};
+        //uint8_t data[] = {C1bool, C2bool, LCint, PT_tank, highByte(batt_volt), lowByte(batt_volt), 69, 69, 69, 69};
         rf95.send(data, sizeof(data));
         rf95.waitPacketSent();
         digitalWrite(RADIO_LED, LOW);

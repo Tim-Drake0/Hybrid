@@ -18,7 +18,7 @@
 #define pt_1  14
 #define pt_2  15
 #define pt_3  16
-#define pt_4  17
+#define pt_4  17 // tank
 #define pyro_1_cont_in  18
 #define pyro_2_cont_in  19
 #define pt_5  20
@@ -287,8 +287,8 @@ void loop() {
     moveServo(1, digitalRead(fill_in));
     moveServo(2, digitalRead(vent_in));
     moveServo(3, digitalRead(mov_in));
-    Serial.print(digitalRead(fill_in));Serial.print(digitalRead(vent_in));Serial.println(digitalRead(mov_in));
-    
+    //Serial.print(digitalRead(fill_in));Serial.print(digitalRead(vent_in));Serial.println(digitalRead(mov_in));
+    Serial.print(PT1int); Serial.print(" | "); Serial.print(PT2int); Serial.print(" | "); Serial.print(PT3int); Serial.print(" | "); Serial.println(PT4int); 
     // Fire pyros if armed and signal sent
     if(digitalRead(arm_in) == 1){
       bitWrite(disWord, ARM, 1);

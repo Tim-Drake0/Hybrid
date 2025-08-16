@@ -78,7 +78,7 @@ void printlcd(uint8_t buf[9], int switch_data_count) {
   lcd.clear();
   lcd.setCursor(0,0); // set cursor to beginning of top row
   lcd.print("TANK:"); // Display tank pressure
-  lcd.print(word(buf[4], buf[5]));
+  lcd.print(buf[5]*3.90625);
 
   lcd.setCursor(13,0); // set cursor to column 10 of row 0
   lcd.print("C");
