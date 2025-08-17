@@ -7,7 +7,7 @@ import pandas as pd
 # Read the CSV file into a DataFrame
 
 #df = pd.read_csv(fd.askopenfilename())
-df = pd.read_csv('E:\data32.csv')
+df = pd.read_csv('E:\data12.csv')
 #df = pd.read_csv('E:\data3.csv')
 df["Time[ms]"] = round(df['Time[ms]'].multiply(0.001),1)
 #df['Time[ms]'] = pd.to_datetime(df['Time[ms]'], format = '%Y-%m-%d %H:%M')
@@ -49,10 +49,10 @@ voltages.grid()
 
 # Pressure Transducer Plot
 fig, pressures = plt.subplots(figsize = (20,5)) #figsize = (40,10)
-pressures.plot(df['Time[ms]'], df['PT1[psi]'], label = 'PT1')
-pressures.plot(df['Time[ms]'], df['PT2[psi]'], label = 'PT2')
-pressures.plot(df['Time[ms]'], df['PT3[psi]'], label = 'PT3')
-pressures.plot(df['Time[ms]'], df['PT4[psi]'], label = 'PT4')
+pressures.plot(df['Time[ms]'], df['PT1[psi]'], label = 'PHIL')
+pressures.plot(df['Time[ms]'], df['PT2[psi]'], label = 'OX INJECTOR')
+pressures.plot(df['Time[ms]'], df['PT3[psi]'], label = 'COMBUSTION CHAMBER')
+pressures.plot(df['Time[ms]'], df['PT4[psi]'], label = 'TANK')
 pressures.plot(df['Time[ms]'], df['PT5[psi]'], label = 'PT5')
 pressures.plot(df['Time[ms]'], df['PT6[psi]'], label = 'PT6')
 

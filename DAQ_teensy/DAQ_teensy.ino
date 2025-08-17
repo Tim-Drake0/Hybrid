@@ -18,7 +18,7 @@
 #define pt_1  14
 #define pt_2  15
 #define pt_3  16
-#define pt_4  17 // tank
+#define pt_4  17
 #define pyro_1_cont_in  18
 #define pyro_2_cont_in  19
 #define pt_5  20
@@ -86,12 +86,30 @@ bool servo4_bool = 0;
 int servo4on = servoclose + servo4_trim; // Dectuated state of servo4
 int servo4off = servoopen + servo4_trim; // Actuated state of servo4
 
-int PT1int = 0; // int value of PT1 reading (tank ullage)
+int PT1int = 0; // int value of PT1 reading (fill)
+float PT1float = 0;
+float PT1coeff = 2.536967997; float PT1gain = -110.1199292;
+
 int PT2int = 0; // int value of PT2 reading (ox injector)
+float PT2float = 0;
+float PT2coeff = 2.540186886; float PT2gain = -112.1752796;
+
 int PT3int = 0; // int value of PT3 reading (combustion chamber)
-int PT4int = 0; // int value of PT4 reading (fill)
-int PT5int = 0; // int value of PT5 reading (extra)
+float PT3float = 0;
+float PT3coeff = 2.463810563; float PT3gain = -115.7383118;
+
+int PT4int = 0; // int value of PT4 reading (tank)
+float PT4float = 0;
+float PT4coeff = 2.524649427; float PT4gain = -106.53278;
+
+// int value of PT5 reading (extra)
+int PT5int = 0; 
+float PT5float = 0;
+float PT5coeff = 0; float PT5gain = 0;
+
 int PT6int = 0; // int value of PT6 reading (extra)
+float PT6float = 0;
+float PT6coeff = 0; float PT6gain = 0;
 
 // 8bit Discrete Positions:
 byte disWord = B00000000;
@@ -103,9 +121,6 @@ int MOV = 4;
 int ARM = 5;
 int PY1 = 6;
 int PY2 = 7;
-
-bool C1bool = 0;
-bool C2bool = 0;
 
 // Loop timekeeping 
 const int dt_abort = 120*1000; // Time to abort if no signal received [ms] (120 seconds)
@@ -146,17 +161,17 @@ void save_data() { // Save data to SD card
     datafile.print(",");
     datafile.print(radio_volt);
     datafile.print(",");
-    datafile.print(PT1int);
+    datafile.print(PT1float);
     datafile.print(",");
-    datafile.print(PT2int);
+    datafile.print(PT2float);
     datafile.print(",");
-    datafile.print(PT3int);
+    datafile.print(PT3float);
     datafile.print(",");
-    datafile.print(PT4int);
+    datafile.print(PT4float);
     datafile.print(",");
-    datafile.print(PT5int);
+    datafile.print(PT5float);
     datafile.print(",");
-    datafile.print(PT6int);
+    datafile.print(PT6float);
     datafile.print(",");
     datafile.print(LC1float);
     datafile.print(",");
@@ -209,7 +224,7 @@ void setup() {
   servo4.attach(servo_4_out); // Attach servo4
 
   servo1.write(servo1off); // Set servo1 safe state (fill)
-  servo2.write(servo2off); // Set servo2 safe state (vent)
+  servo2.write(servo2on); // Set servo2 safe state (vent)
   servo3.write(servo3off); // Set servo3 safe state (mov)
   servo4.write(servo4off); // Set servo4 safe state (extra)
 
@@ -249,15 +264,14 @@ void setup() {
 void loop() {
   if (millis()-last_time_lc > dt_lc) { // Check time between LC readings
     LC1float = lc1.get_units(); // Load cell 1 
-    analogWrite(lc_out_low, lowByte(uint8_t(LC1float)));
-    analogWrite(lc_out_high, highByte(uint8_t(LC1float))); 
+    analogWrite(lc_out_low, lowByte(int8_t(LC1float)));
+    analogWrite(lc_out_high, highByte(int8_t(LC1float))); 
     last_time_lc = millis();  // Record time of load cell reading
   }  
 
   // Read sensor data
   if (millis()-last_time_data > dt_data) { // Check time between data readings
     if(analogRead(pyro_1_cont_in) > 100){
-      C1bool = 1; // Continuity channel 1
       bitWrite(disWord, C1, 1);
       digitalWrite(pyro_1_cont_out, HIGH);
     } else {
@@ -273,22 +287,21 @@ void loop() {
       digitalWrite(pyro_2_cont_out, LOW);
     }
 
-    //Serial.print(bitRead(disWord, C1)); Serial.println(bitRead(disWord, C2));
-    PT1int = analogRead(pt_1); // PT channel 1
-    PT2int = analogRead(pt_2); // PT channel 2
-    PT3int = analogRead(pt_3); // PT channel 3
-    PT4int = analogRead(pt_4); // PT channel 4
-    PT5int = analogRead(pt_5); // PT channel 5
-    PT6int = analogRead(pt_6); // PT channel 6
-    batt_volt = analogRead(batt_volt_mon) * 0.01700550500; //0.016917293233
+    PT1int = analogRead(pt_1); PT1float = (PT1int*PT1coeff) + PT1gain;
+    PT2int = analogRead(pt_2); PT2float = (PT2int*PT2coeff) + PT2gain;
+    PT3int = analogRead(pt_3); PT3float = (PT3int*PT3coeff) + PT3gain;
+    PT4int = analogRead(pt_4); PT4float = (PT4int*PT4coeff) + PT4gain;
+    PT5int = analogRead(pt_5); PT5float = (PT5int*PT5coeff) + PT5gain;
+    PT6int = analogRead(pt_6); PT6float = (PT6int*PT6coeff) + PT6gain;
+
+    batt_volt = analogRead(batt_volt_mon) * 0.01700550500;
     five_volt = analogRead(five_volt_mon) * 0.00518084066471;
     radio_volt = analogRead(radio_volt_mon) * 0.00387096774194;
     
     moveServo(1, digitalRead(fill_in));
     moveServo(2, digitalRead(vent_in));
     moveServo(3, digitalRead(mov_in));
-    //Serial.print(digitalRead(fill_in));Serial.print(digitalRead(vent_in));Serial.println(digitalRead(mov_in));
-    Serial.print(PT1int); Serial.print(" | "); Serial.print(PT2int); Serial.print(" | "); Serial.print(PT3int); Serial.print(" | "); Serial.println(PT4int); 
+    
     // Fire pyros if armed and signal sent
     if(digitalRead(arm_in) == 1){
       bitWrite(disWord, ARM, 1);

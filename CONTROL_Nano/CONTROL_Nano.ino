@@ -78,7 +78,7 @@ void printlcd(uint8_t buf[9], int switch_data_count) {
   lcd.clear();
   lcd.setCursor(0,0); // set cursor to beginning of top row
   lcd.print("TANK:"); // Display tank pressure
-  lcd.print(buf[5]*3.90625);
+  lcd.print((word(buf[4],buf[5])*3.255177532)+(-123.3104072));
 
   lcd.setCursor(13,0); // set cursor to column 10 of row 0
   lcd.print("C");
@@ -134,8 +134,8 @@ void printlcd(uint8_t buf[9], int switch_data_count) {
 
 void readswitches(void) {
   switchstate[0] = !digitalRead(SWP1); // get state of switch 1 for transmission
-  switchstate[1] = !digitalRead(SWP2); // get state of switch 2 for transmission
-  switchstate[2] = !digitalRead(SWP3); // get state of switch 3 for transmission
+  switchstate[1] = digitalRead(SWP2); // get state of switch 2 for transmission
+  switchstate[2] = !digitalRead(SWP3); // mov
   switchstate[3] = !digitalRead(SWP4); // get state of switch 4 for transmission
   switchstate[4] = !digitalRead(BUP1); // get state of button 1 for transmission
   switchstate[5] = !digitalRead(BUP2); // get state of button 2 for transmission
