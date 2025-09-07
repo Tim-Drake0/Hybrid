@@ -3,7 +3,8 @@ import pandas as pd
 from math import sin
 import csv
     
-df = pd.read_csv("data12.csv")
+df = pd.read_csv("E:data14.csv")
+#df = pd.read_csv("/media/timdrake/8GB SD2/data12.csv")
 dpg.create_context()
 
 with dpg.font_registry():     
@@ -14,8 +15,9 @@ with dpg.font_registry():
 
 class Stats:
     def __init__(self):
-        self.op_time = time_list#[100:1425]
-        self.burn_time = 5.34
+        self.op_time = time_list
+        
+        
         self.max_thrust = max(load_cell)
         self.max_pressure = max(pt1+pt2+pt3+pt4+pt5+pt6)
         self.max_tank_pressure = max(pt4)
@@ -32,14 +34,15 @@ class Stats:
         
         self.arm_range = self.get_range(arm, 4, 5)
         self.arm_time = time_list[self.get_index(arm, 4, 5)[1]]-time_list[self.get_index(arm, 4, 5)[0]]
-        #[0 time, 1 zeros, 2 discrete, 3 pressure, 4 load cell, 5 battery voltage]
         
         self.batt_start = voltage_batt[0]
         self.batt_end = voltage_batt[len(voltage_batt)-1]
+        
+        self.burn_time = self.mov_time # need to edit this after hot fire
 
     def get_range(self,event,min,max):
         start,stop = self.get_index(event,min,max)
-        return [self.op_time[start:stop], [0.0] * len(self.op_time[start:stop]), [14.0] * len(self.op_time[start:stop]), [self.max_pressure] * len(self.op_time[start:stop]), [self.max_thrust] * len(self.op_time[start:stop]), [10.0] * len(self.op_time[start:stop])]
+        return [time_list[start:stop], [0.0] * len(time_list[start:stop]), [14.0] * len(time_list[start:stop]), [self.max_pressure] * len(time_list[start:stop]), [self.max_thrust] * len(time_list[start:stop]), [10.0] * len(time_list[start:stop])]
 
     def get_index(self,event,min,max):
         a = 0
@@ -113,6 +116,18 @@ def toggle_plot_visibility(sender, app_data):
         dpg.configure_item("mov_shade_t", show= not dpg.is_item_shown("mov_shade_t"))
         dpg.configure_item("mov_shade_v", show= not dpg.is_item_shown("mov_shade_v"))
         
+    if app_data == 557: 
+        dpg.set_axis_limits("x_axis_p", time_list[stats.get_index(arm, 4, 5)[0]], time_list[stats.get_index(arm, 4, 5)[1]])
+        dpg.set_axis_limits("x_axis_d", time_list[stats.get_index(arm, 4, 5)[0]], time_list[stats.get_index(arm, 4, 5)[1]])
+        dpg.set_axis_limits("x_axis_t", time_list[stats.get_index(arm, 4, 5)[0]], time_list[stats.get_index(arm, 4, 5)[1]])
+        dpg.set_axis_limits("x_axis_v", time_list[stats.get_index(arm, 4, 5)[0]], time_list[stats.get_index(arm, 4, 5)[1]])
+        
+    if app_data == 556: 
+        dpg.set_axis_limits("x_axis_p", 0, time_list[len(time_list)-1])
+        dpg.set_axis_limits("x_axis_d", 0, time_list[len(time_list)-1])
+        dpg.set_axis_limits("x_axis_t", 0, time_list[len(time_list)-1])
+        dpg.set_axis_limits("x_axis_v", 0, time_list[len(time_list)-1])
+        
 df["Time[ms]"] = round(df['Time[ms]'].multiply(0.001),1)
 time_list = df["Time[ms]"].to_list()
 pt1 = df['PT1[psi]'].to_list()
@@ -167,7 +182,7 @@ with dpg.window(label="Plots",
     with dpg.plot(label="Pressure Transducers", height=plotWindow_dim[1], width=plotWindow_dim[0]-30, tag="pressure_plot"):
         dpg.add_plot_legend(horizontal = True, outside = True)
         # REQUIRED: create x and y axes
-        dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]")
+        dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]", tag = "x_axis_p")
         with dpg.plot_axis(dpg.mvYAxis, label="Pressure [PSI]", tag="y_axis_p"):
             dpg.add_shade_series(stats.arm_range[0], stats.arm_range[1], y2=stats.arm_range[3], label="ARM", tag = "arm_shade_p", show = False)
             dpg.add_shade_series(stats.fill_range[0], stats.fill_range[1], y2=stats.fill_range[3], label="FILL", tag = "fill_shade_p", show = False)
@@ -189,7 +204,7 @@ with dpg.window(label="Plots",
     with dpg.plot(label="Discrete Logic", height=plotWindow_dim[1], width=plotWindow_dim[0]-30, tag = "discrete_plot", show = False):
         dpg.add_plot_legend(horizontal = True, outside = True)
         # REQUIRED: create x and y axes
-        dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]")
+        dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]", tag = "x_axis_d")
         #dpg.add_plot_axis(dpg.mvYAxis, label="Logic", tag="y_axis_d")
         with dpg.plot_axis(dpg.mvYAxis, label="Logic", tag="y_axis_d"):
             dpg.add_shade_series(stats.arm_range[0], stats.arm_range[1], y2=stats.arm_range[2], label="ARM", tag = "arm_shade_d", show = False)
@@ -213,7 +228,7 @@ with dpg.window(label="Plots",
     with dpg.plot(label="Load Cell Thrust", height=plotWindow_dim[1], width=plotWindow_dim[0]-30, tag = "load_cell_plot", show = False):
         dpg.add_plot_legend(horizontal = True, outside = True)
         # REQUIRED: create x and y axes
-        dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]")
+        dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]", tag = "x_axis_t")
         with dpg.plot_axis(dpg.mvYAxis, label="Thrust [Lbf]", tag="y_axis_t"):
             dpg.add_shade_series(stats.arm_range[0], stats.arm_range[1], y2=stats.arm_range[4], label="ARM", tag = "arm_shade_t", show = False)
             dpg.add_shade_series(stats.fill_range[0], stats.fill_range[1], y2=stats.fill_range[4], label="FILL", tag = "fill_shade_t", show = False)
@@ -228,7 +243,7 @@ with dpg.window(label="Plots",
     with dpg.plot(label="Voltages", height=plotWindow_dim[1], width=plotWindow_dim[0]-30, tag="voltage_plot", show = False):
         dpg.add_plot_legend(horizontal = True, outside = True)
         # REQUIRED: create x and y axes
-        dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]")
+        dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]", tag = "x_axis_v")
         with dpg.plot_axis(dpg.mvYAxis, label="Voltage [V]", tag="y_axis_v"):
             dpg.add_shade_series(stats.arm_range[0], stats.arm_range[1], y2=stats.arm_range[5], label="ARM", tag = "arm_shade_v", show = False)
             dpg.add_shade_series(stats.fill_range[0], stats.fill_range[1], y2=stats.fill_range[5], label="FILL", tag = "fill_shade_v", show = False)
@@ -242,8 +257,6 @@ with dpg.window(label="Plots",
         dpg.add_line_series(stats.op_time, voltage_radio, label="RADIO", parent="y_axis_v") 
 
     dpg.bind_font(default_font)
-
-
  
 with dpg.window(label="Stats",
                 no_title_bar = True,
@@ -254,11 +267,11 @@ with dpg.window(label="Stats",
     with dpg.child_window(width=statsWindow_dim[0]-20, height=statsWindow_dim[1]-20, menubar=False):
         #dpg.add_separator(label="This is a separator with text")
         h1 = dpg.add_text("Burn Time")
-        d1 = dpg.add_text(f"{stats.burn_time} sec")
+        d1 = dpg.add_text(f"{round(stats.burn_time,2)} sec")
         
         dpg.add_separator()
         h2 = dpg.add_text(f"Max Thrust")  
-        d2 = dpg.add_text(f"{stats.max_thrust} lbf")
+        d2 = dpg.add_text(f"{round(stats.max_thrust,2)} lbf")
         
         dpg.add_separator(label="Pressure") 
         dpg.add_text(f"Max:  {stats.max_pressure} PSI")
@@ -274,10 +287,7 @@ with dpg.window(label="Stats",
         t1 = dpg.add_text(f"Change plots: 1-4")
         t2 = dpg.add_text(f"Show/hide shaded events:")
         t3 = dpg.add_text(f"A, V, P, M")
-        t4 = dpg.add_text(f"Fullscreen: F")
-        
-        
-        
+        t4 = dpg.add_text(f"Fullscreen: F")       
         
         dpg.bind_font(default_font)        
         dpg.bind_item_font(h1,header_font)
@@ -288,10 +298,6 @@ with dpg.window(label="Stats",
         dpg.bind_item_font(t2,small_font)
         dpg.bind_item_font(t3,small_font)
         dpg.bind_item_font(t4,small_font)
-        
-        
-        
-        
         
 # Register the key press handler
 with dpg.handler_registry():
