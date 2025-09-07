@@ -8,7 +8,43 @@ dpg.create_context()
 
 with dpg.font_registry():     
     default_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 25)
+    header_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 35)
+    data_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 30)
 
+class Stats:
+    def __init__(self):
+        self.op_time = time_list#[100:1425]
+        self.burn_time = 5.34
+        self.max_thrust = max(load_cell)
+        self.max_pressure = max(pt1+pt2+pt3+pt4+pt5+pt6)
+        self.max_tank_pressure = max(pt4)
+        
+        a = 0
+        start = 0
+        stop = 0
+        
+        for index, i in enumerate(fill):
+            if i == 11 and a == 0:
+                a = 1
+                start = index
+            if i == 10 and a == 1:
+                a = 2
+                stop = index
+        print(self.op_time[start], self.op_time[stop])
+        self.fill_range = [self.op_time[start:stop], [0.0] * len(self.op_time[start:stop]), [14.0] * len(self.op_time[start:stop]), [self.max_pressure] * len(self.op_time[start:stop]), [self.max_thrust] * len(self.op_time[start:stop]), [10.0] * len(self.op_time[start:stop])]
+        self.fill_time = self.op_time[stop] - self.op_time[start]
+
+        #[0 time, 1 zeros, 2 discrete, 3 pressure, 4 load cell, 5 battery voltage]
+
+def to_minutes(seconds):
+    seconds = seconds % (24 * 3600)
+    hour = seconds // 3600
+    seconds %= 3600
+    minutes = seconds // 60
+    seconds %= 60
+    
+    return "%02d:%02d" % (minutes, seconds)
+        
 def toggle_plot_visibility(sender, app_data):
     """Callback function to toggle the plot's visibility."""
     # Toggle the plot's visibility using configure_item
@@ -32,8 +68,7 @@ def toggle_plot_visibility(sender, app_data):
         dpg.configure_item("discrete_plot", show= False)
         dpg.configure_item("load_cell_plot", show= False)
         dpg.configure_item("voltage_plot", show= True)
-   
-    
+
 df["Time[ms]"] = round(df['Time[ms]'].multiply(0.001),1)
 time_list = df["Time[ms]"].to_list()
 pt1 = df['PT1[psi]'].to_list()
@@ -58,14 +93,12 @@ voltage_batt = df['BATT[V]'].to_list()
 voltage_5v = df['5V[V]'].to_list()
 voltage_radio = df['RADIO[V]'].to_list()
 
-op_time = time_list[100:1425]
-   
- 
-thrust = df['LC[lbf]'].to_list()
-max_thrust = max(thrust)
+stats = Stats()
 
+viewport_dim = [1280, 720]  
+statsWindow_dim = [250, viewport_dim[1]]
+plotWindow_dim = [viewport_dim[0]-statsWindow_dim[0], viewport_dim[1]]
 
-viewport_dim = [1280, 720]    
 dpg.create_viewport(title='Custom Title', 
                     width=viewport_dim[0], 
                     height=viewport_dim[1],
@@ -77,87 +110,120 @@ dpg.create_viewport(title='Custom Title',
 
 with dpg.window(label="Plots",
                 no_title_bar = True,
-                width=1080, 
-                height=720,
-                pos = [200,0]):
+                width=plotWindow_dim[0], 
+                height=plotWindow_dim[1],
+                pos = [statsWindow_dim[0],0]):
 
-    window_dim = [1050, 720]
-    plot_dim = [1050, 690]
-
-    # Pressure plot
-    with dpg.plot(label="Pressure Transducers", height=plot_dim[1], width=plot_dim[0], tag="pressure_plot"):
+    
+    with dpg.theme() as alpha_theme:
+        with dpg.theme_component(0):
+            dpg.add_theme_style(dpg.mvPlotStyleVar_FillAlpha, .25, category=dpg.mvThemeCat_Plots)
+            
+    # Pressure plot        
+    with dpg.plot(label="Pressure Transducers", height=plotWindow_dim[1], width=plotWindow_dim[0]-30, tag="pressure_plot"):
         dpg.add_plot_legend()
         # REQUIRED: create x and y axes
         dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]")
-        dpg.add_plot_axis(dpg.mvYAxis, label="Pressure [PSI]", tag="y_axis_p")
+        with dpg.plot_axis(dpg.mvYAxis, label="Pressure [PSI]", tag="y_axis_p"):
+            dpg.add_shade_series(stats.fill_range[0], stats.fill_range[1], y2=stats.fill_range[3], label="FILL")
+        dpg.bind_item_theme("pressure_plot", alpha_theme)
 
         # lines
-        dpg.add_line_series(op_time, pt1, label="PHIL", parent="y_axis_p")
-        dpg.add_line_series(op_time, pt2, label="INJECTOR", parent="y_axis_p")
-        dpg.add_line_series(op_time, pt3, label="COMBUSTION CHAMBER", parent="y_axis_p")
-        dpg.add_line_series(op_time, pt4, label="TANK", parent="y_axis_p")
+        dpg.add_line_series(stats.op_time, pt1, label="PHIL", parent="y_axis_p")
+        dpg.add_line_series(stats.op_time, pt2, label="INJECTOR", parent="y_axis_p")
+        dpg.add_line_series(stats.op_time, pt3, label="COMBUSTION CHAMBER", parent="y_axis_p")
+        dpg.add_line_series(stats.op_time, pt4, label="TANK", parent="y_axis_p")
         #dpg.add_line_series(op_time, pt5, label="PT5", parent="y_axis_p")
         #dpg.add_line_series(op_time, pt6, label="PT6", parent="y_axis_p")
-                    
+        
+    #[0 time, 1 zeros, 2 discrete, 3 pressure, 4 load cell, 5 battery voltage]  
+                  
     # Discretes Plot
-    with dpg.plot(label="Discrete Logic", height=plot_dim[1], width=plot_dim[0], tag = "discrete_plot", show = False):
+    with dpg.plot(label="Discrete Logic", height=plotWindow_dim[1], width=plotWindow_dim[0]-30, tag = "discrete_plot", show = False):
         dpg.add_plot_legend()
         # REQUIRED: create x and y axes
         dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]")
-        dpg.add_plot_axis(dpg.mvYAxis, label="Pressure [PSI]", tag="y_axis")
-        #dpg.set_axis_limits(dpg.mvYAxis, 0, 16)
-
+        #dpg.add_plot_axis(dpg.mvYAxis, label="Logic", tag="y_axis_d")
+        with dpg.plot_axis(dpg.mvYAxis, label="Logic", tag="y_axis_d"):
+            dpg.add_shade_series(stats.fill_range[0], stats.fill_range[1], y2=stats.fill_range[2], label="FILL")
+        dpg.bind_item_theme("discrete_plot", alpha_theme)
+        
         # lines
-        dpg.add_line_series(op_time, c1, label="CONTINUITY 1", parent="y_axis")
-        dpg.add_line_series(op_time, c2, label="CONTINUITY 2", parent="y_axis")
-        dpg.add_line_series(op_time, fill, label="FILL", parent="y_axis")
-        dpg.add_line_series(op_time, vent, label="VENT", parent="y_axis")
-        dpg.add_line_series(op_time, mov, label="MOV", parent="y_axis")
-        dpg.add_line_series(op_time, arm, label="ARM", parent="y_axis")
-        dpg.add_line_series(op_time, py1, label="PY1", parent="y_axis")
-        dpg.add_line_series(op_time, py2, label="PY2", parent="y_axis")
+        dpg.add_line_series(stats.op_time, c1, label="CONTINUITY 1", parent="y_axis_d")
+        dpg.add_line_series(stats.op_time, c2, label="CONTINUITY 2", parent="y_axis_d")
+        dpg.add_line_series(stats.op_time, fill, label="FILL", parent="y_axis_d")
+        dpg.add_line_series(stats.op_time, vent, label="VENT", parent="y_axis_d")
+        dpg.add_line_series(stats.op_time, mov, label="MOV", parent="y_axis_d")
+        dpg.add_line_series(stats.op_time, arm, label="ARM", parent="y_axis_d")
+        dpg.add_line_series(stats.op_time, py1, label="PY1", parent="y_axis_d")
+        dpg.add_line_series(stats.op_time, py2, label="PY2", parent="y_axis_d")
                     
      # Load Cell Plot
-    with dpg.plot(label="Load Cell Thrust", height=plot_dim[1], width=plot_dim[0], tag = "load_cell_plot", show = False):
+    with dpg.theme() as alpha_theme:
+        with dpg.theme_component(0):
+            dpg.add_theme_style(dpg.mvPlotStyleVar_FillAlpha, .25, category=dpg.mvThemeCat_Plots)
+    with dpg.plot(label="Load Cell Thrust", height=plotWindow_dim[1], width=plotWindow_dim[0]-30, tag = "load_cell_plot", show = False):
         dpg.add_plot_legend()
         # REQUIRED: create x and y axes
         dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]")
-        dpg.add_plot_axis(dpg.mvYAxis, label="Thrust [Lbf]", tag="y_axis_t")
+        with dpg.plot_axis(dpg.mvYAxis, label="Thrust [Lbf]", tag="y_axis_t"):
+            dpg.add_shade_series(stats.fill_range[0], stats.fill_range[1], y2=stats.fill_range[4], label="FILL")
+        dpg.bind_item_theme("load_cell_plot", alpha_theme)
 
         # lines
-        dpg.add_line_series(op_time, load_cell, label="Load Cell", parent="y_axis_t")
-        
+        dpg.add_line_series(stats.op_time, load_cell, label="Load Cell", parent="y_axis_t")
+    
     # Voltage plot
-    with dpg.plot(label="Voltages", height=plot_dim[1], width=plot_dim[0], tag="voltage_plot"):
+    with dpg.theme() as alpha_theme:
+        with dpg.theme_component(0):
+            dpg.add_theme_style(dpg.mvPlotStyleVar_FillAlpha, .25, category=dpg.mvThemeCat_Plots)    
+    with dpg.plot(label="Voltages", height=plotWindow_dim[1], width=plotWindow_dim[0]-30, tag="voltage_plot", show = False):
         dpg.add_plot_legend()
         # REQUIRED: create x and y axes
         dpg.add_plot_axis(dpg.mvXAxis, label="Time [sec]")
-        dpg.add_plot_axis(dpg.mvYAxis, label="Voltage [V]", tag="y_axis_v")
+        with dpg.plot_axis(dpg.mvYAxis, label="Voltage [V]", tag="y_axis_v"):
+            dpg.add_shade_series(stats.fill_range[0], stats.fill_range[1], y2=stats.fill_range[5], label="FILL")
+        dpg.bind_item_theme("voltage_plot", alpha_theme)
 
         # lines
-        dpg.add_line_series(op_time, voltage_batt, label="BATT", parent="y_axis_v")
-        dpg.add_line_series(op_time, voltage_5v, label="5V", parent="y_axis_v")
-        dpg.add_line_series(op_time, voltage_radio, label="RADIO", parent="y_axis_v") 
+        dpg.add_line_series(stats.op_time, voltage_batt, label="BATT", parent="y_axis_v")
+        dpg.add_line_series(stats.op_time, voltage_5v, label="5V", parent="y_axis_v")
+        dpg.add_line_series(stats.op_time, voltage_radio, label="RADIO", parent="y_axis_v") 
 
     dpg.bind_font(default_font)
-    
+
+
+ 
 with dpg.window(label="Stats",
                 no_title_bar = True,
-                width=200, 
-                height=720,
+                width=statsWindow_dim[0], 
+                height=statsWindow_dim[1],
                 pos = [0,0]):
-    with dpg.table(header_row=False):
-        dpg.add_table_column()
-        with dpg.table_row():
-            dpg.add_text("Burn Time")
-        with dpg.table_row():
-            dpg.add_text("   "+str(5)+" sec")
-            
-        with dpg.table_row():
-            dpg.add_text(f"Max Thrust: {max_thrust} lbf")
-            
-         
-    dpg.bind_font(default_font) 
+    with dpg.child_window(width=statsWindow_dim[0]-20, height=statsWindow_dim[1]-20, menubar=False):
+        #dpg.add_separator(label="This is a separator with text")
+        h1 = dpg.add_text("Burn Time")
+        d1 = dpg.add_text(f"{stats.burn_time} sec")
+        dpg.add_separator()
+        h2 = dpg.add_text(f"Max Thrust")  
+        d2 = dpg.add_text(f"{stats.max_thrust} lbf")
+        dpg.add_separator(label="Pressure") 
+        #h3 = dpg.add_text(f"Max Pressure")  
+        dpg.add_text(f"Max:  {stats.max_pressure} PSI")
+        dpg.add_text(f"Tank: {stats.max_tank_pressure} PSI")
+        dpg.add_separator()
+        dpg.add_text(f"Fill Time: {to_minutes(stats.fill_time)}") 
+        dpg.add_text(f"Vent Time: 0:02") 
+        dpg.add_separator(label="Battery") 
+        dpg.add_text(f"Start Volts: 8.24V") 
+        dpg.add_text(f"End Volts  : 8.12V")
+        
+        dpg.bind_font(default_font)        
+        dpg.bind_item_font(h1,header_font)
+        dpg.bind_item_font(d1,data_font)
+        dpg.bind_item_font(h2,header_font)
+        dpg.bind_item_font(d2,data_font)
+        
+        
 # Register the key press handler
 with dpg.handler_registry():
     dpg.add_key_press_handler(callback=toggle_plot_visibility)
