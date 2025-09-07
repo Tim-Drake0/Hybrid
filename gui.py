@@ -19,18 +19,19 @@ class Stats:
         self.max_thrust = max(load_cell)
         self.max_pressure = max(pt1+pt2+pt3+pt4+pt5+pt6)
         self.max_tank_pressure = max(pt4)
+        self.test_time = time_list[len(voltage_batt)-1]
         
         self.fill_range = self.get_range(fill, 10, 11)
-        self.fill_time = self.get_index(fill, 10, 11)[0]-self.get_index(fill, 10, 11)[1]
+        self.fill_time = time_list[self.get_index(fill, 10, 11)[1]]-time_list[self.get_index(fill, 10, 11)[0]]
         
         self.vent_range = self.get_range(vent, 8, 9)
-        self.vent_time = self.get_index(vent, 8, 9)[0]-self.get_index(vent, 8, 9)[1]
+        self.vent_time = time_list[self.get_index(vent, 8, 9)[1]]-time_list[self.get_index(vent, 8, 9)[0]]
         
         self.mov_range = self.get_range(mov, 6, 7)
-        self.mov_time = self.get_index(mov, 6, 7)[0]-self.get_index(mov, 6, 7)[1]
+        self.mov_time = time_list[self.get_index(mov, 6, 7)[1]]-time_list[self.get_index(mov, 6, 7)[0]]
         
         self.arm_range = self.get_range(arm, 4, 5)
-        self.arm_time = self.get_index(arm, 4, 5)[0]-self.get_index(arm, 4, 5)[1]
+        self.arm_time = time_list[self.get_index(arm, 4, 5)[1]]-time_list[self.get_index(arm, 4, 5)[0]]
         #[0 time, 1 zeros, 2 discrete, 3 pressure, 4 load cell, 5 battery voltage]
         
         self.batt_start = voltage_batt[0]
@@ -38,7 +39,6 @@ class Stats:
 
     def get_range(self,event,min,max):
         start,stop = self.get_index(event,min,max)
-        print(self.get_index(event,min,max)[0])
         return [self.op_time[start:stop], [0.0] * len(self.op_time[start:stop]), [14.0] * len(self.op_time[start:stop]), [self.max_pressure] * len(self.op_time[start:stop]), [self.max_thrust] * len(self.op_time[start:stop]), [10.0] * len(self.op_time[start:stop])]
 
     def get_index(self,event,min,max):
@@ -264,6 +264,7 @@ with dpg.window(label="Stats",
         dpg.add_text(f"Max:  {stats.max_pressure} PSI")
         dpg.add_text(f"Tank: {stats.max_tank_pressure} PSI")
         dpg.add_text(f"Fill Time: {to_minutes(stats.fill_time)}") 
+        dpg.add_text(f"Test Time: {to_minutes(stats.test_time)}") 
         
         dpg.add_separator(label="Battery") 
         dpg.add_text(f"Start Volts: {stats.batt_start}V") 
