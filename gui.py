@@ -4,7 +4,7 @@ from math import sin
 import csv
 
 
-df = pd.read_csv("E:data12.csv")
+df = pd.read_csv("data12.csv")
 dpg.create_context()
 
 
