@@ -161,7 +161,7 @@ with dpg.window(label="Stats",
 # Register the key press handler
 with dpg.handler_registry():
     dpg.add_key_press_handler(callback=toggle_plot_visibility)
-    dpg.add_key_press_handler(dpg.mvKey_F, callback=dpg.toggle_viewport_fullscreen())
+    dpg.add_key_press_handler(dpg.mvKey_F, callback=lambda:dpg.toggle_viewport_fullscreen())
 
 dpg.setup_dearpygui()
 dpg.show_viewport()
