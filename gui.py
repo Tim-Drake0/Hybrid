@@ -8,8 +8,8 @@ dpg.create_context()
 
 with dpg.font_registry():     
     default_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 25)
-    header_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 35)
-    data_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 30)
+    header_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 40)
+    data_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 35)
     small_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 20)
 
 class Stats:
