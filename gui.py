@@ -2,8 +2,21 @@ import dearpygui.dearpygui as dpg
 import pandas as pd
 from math import sin
 import csv
-    
-df = pd.read_csv("E:data14.csv")
+import os
+import platform
+
+if platform.system() == "Windows":
+    sd_path = "G:"
+
+if platform.system() == "Linux":
+    sd_path = "/media/timdrake/8GB SD2/"
+
+arr = os.listdir(sd_path)
+
+recent_file = arr[len(arr)-2]
+
+df = pd.read_csv(sd_path + recent_file)
+#df = pd.read_csv("G:data12.csv")
 #df = pd.read_csv("/media/timdrake/8GB SD2/data12.csv")
 dpg.create_context()
 
@@ -13,7 +26,7 @@ with dpg.font_registry():
     data_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 35)
     small_font = dpg.add_font("Assets/RobotoMono-Regular.ttf", 20)
 
-class Stats:
+class Stats:   
     def __init__(self):
         self.op_time = time_list
         
@@ -31,15 +44,27 @@ class Stats:
         
         self.mov_range = self.get_range(mov, 6, 7)
         self.mov_time = time_list[self.get_index(mov, 6, 7)[1]]-time_list[self.get_index(mov, 6, 7)[0]]
-        
+        print(self.mov_time)
         self.arm_range = self.get_range(arm, 4, 5)
         self.arm_time = time_list[self.get_index(arm, 4, 5)[1]]-time_list[self.get_index(arm, 4, 5)[0]]
         
         self.batt_start = voltage_batt[0]
         self.batt_end = voltage_batt[len(voltage_batt)-1]
         
-        self.burn_time = self.mov_time # need to edit this after hot fire
+        burn_begin = self.get_index(mov, 6, 7)[0] #begins when MOV opens
 
+        
+        lc_end = get_burn_end(load_cell, burn_begin)
+        pt2_end = get_burn_end(pt2, burn_begin)
+        pt3_end = get_burn_end(pt3, burn_begin)
+        
+        burn_end = int(round((lc_end + pt2_end + pt3_end)/3,0))
+        
+        if self.mov_time > 0:
+            self.burn_time = time_list[burn_end]-time_list[burn_begin]
+        else:
+            self.burn_time = 0
+        
     def get_range(self,event,min,max):
         start,stop = self.get_index(event,min,max)
         return [time_list[start:stop], [0.0] * len(time_list[start:stop]), [14.0] * len(time_list[start:stop]), [self.max_pressure] * len(time_list[start:stop]), [self.max_thrust] * len(time_list[start:stop]), [10.0] * len(time_list[start:stop])]
@@ -55,8 +80,14 @@ class Stats:
             if i == min and a == 1:
                 a = 2
                 stop = index
-        return start, stop        
-                
+        return start, stop   
+         
+def get_burn_end(input_list, burn_begin):
+    for i, j in enumerate(input_list):
+        if i >= burn_begin + 5:
+            if j < 10:
+                return i        
+                    
 def to_minutes(seconds):
     seconds = seconds % (24 * 3600)
     hour = seconds // 3600
