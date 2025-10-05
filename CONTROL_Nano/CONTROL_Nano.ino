@@ -48,8 +48,27 @@ struct DAQ_Payload // ACK Payload from DAQ
   char PTC1[5] = {}; // PT channel 1 (tank)
   char LC1[7] = {}; // Load Cell reading
 };
-uint8_t switchstate[9];
 DAQ_Payload daqstate;
+
+//uint8_t data[] = {C1bool, C2bool, lc_high, lc_low, highByte(PT_tank), lowByte(PT_tank), highByte(batt_volt), lowByte(batt_volt)};
+struct Serial_Payload // Payload to serial
+{
+  uint32_t time = 0; 
+  bool C1 = 0;
+  bool C2 = 0;
+  float loadCell = 0;
+  float PT_tank = 0;
+  float battVolts = 0;
+  int RSSI = 0;
+};
+Serial_Payload serPyld ;
+const byte START_MARKER = 0xAA; // Unique sync byte
+
+byte serPacket[] = {millis()};
+
+
+
+uint8_t switchstate[9];
 
 #define RFM95_CS 9
 #define RFM95_RST 10
@@ -65,7 +84,7 @@ bool RECV_ERR = 0;
 
 // Loop parameters
 const int dt_tx = 100; // Loop transmission speed [ms]
-const int dt_lcd = 1000; // Loop lcd print speed [ms] 
+const int dt_lcd = 100; // Loop lcd print speed [ms] 
 long int last_time_tx = 0; // Last transmission completion time tracking [ms]
 long int last_time_lcd = 0; // Last lcd time tracking [ms]
 int switch_data_count = 0;
@@ -154,13 +173,14 @@ void readswitches(void) {
 }
 
 void setup() {
+  Serial.begin(9600);
   // LCD setup
-  lcd.begin(16,2); // LCD has 16 cols, 2 rows
-  lcd.setCursor(0,0); // Set cursor at beginning
-  lcd.print("Sup..."); // Print startup message
-  lcd.setCursor(0,1); // Set cursor at beginning of second row
-  lcd.print("Starting Radio");
-  delay(1000);
+  //lcd.begin(16,2); // LCD has 16 cols, 2 rows
+  //lcd.setCursor(0,0); // Set cursor at beginning
+  //lcd.print("Sup..."); // Print startup message
+  //lcd.setCursor(0,1); // Set cursor at beginning of second row
+  //lcd.print("Starting Radio");
+  //delay(1000);
   // Arduino setup
   pinMode(SWP1,INPUT_PULLUP); // Switch 1 pin
   pinMode(SWP2,INPUT_PULLUP); // Switch 2 pin
@@ -183,16 +203,16 @@ void setup() {
   delay(10);
 
   while (!rf95.init()) {
-    lcd.clear(); 
-    lcd.setCursor(0,0);
-    lcd.print("Radio Failed! :(");
+    //lcd.clear(); 
+    //lcd.setCursor(0,0);
+    //lcd.print("Radio Failed! :(");
     while (1);
   }
   // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM
   if (!rf95.setFrequency(RF95_FREQ)) {
-    lcd.clear();
-    lcd.setCursor(0,0);
-    lcd.print("setFrequency failed! :(");
+    //lcd.clear();
+    //lcd.setCursor(0,0);
+    //lcd.print("setFrequency failed! :(");
     while (1);
   }
   // Defaults after init are 434.0MHz, 13dBm, Bw = 125 kHz, Cr = 4/5, Sf = 128chips/symbol, CRC on
@@ -201,19 +221,19 @@ void setup() {
   // you can set transmitter powers from 5 to 23 dBm:
   rf95.setTxPower(RFM95_PWR, false);
 
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Set Freq to: "); lcd.print(RF95_FREQ);
-  lcd.setCursor(0,1);
-  lcd.print("Radio Power: "); lcd.print(RFM95_PWR);
-  delay(1000); 
+  //lcd.clear();
+  //lcd.setCursor(0,0);
+  //lcd.print("Set Freq to: "); lcd.print(RF95_FREQ);
+  //lcd.setCursor(0,1);
+  //lcd.print("Radio Power: "); lcd.print(RFM95_PWR);
+  //delay(1000); 
 
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("Startup");
-  lcd.setCursor(0,1);
-  lcd.print("Complete");
-  delay(1000); // delay for begin
+  //lcd.clear();
+  //lcd.setCursor(0,0);
+  //lcd.print("Startup");
+  //lcd.setCursor(0,1);
+  //lcd.print("Complete");
+  //delay(1000); // delay for begin
 }
 
 void loop() {
@@ -228,20 +248,30 @@ void loop() {
     rf95.waitPacketSent();
     // Now wait for a reply
     
-    if (rf95.waitAvailableTimeout(5000)) { 
+    if (rf95.waitAvailableTimeout(5)) {
       // Should be a reply message for us now   
       rf95.recv(buf, &len);
+
+      uint32_t timestamp = millis();
+      serPyld.battVolts = word(buf[6], buf[7])*0.0213;
+      serPyld.loadCell = word(buf[2], buf[3])*0.939416365405;
+      serPyld.PT_tank = (word(buf[4],buf[5])*3.255177532)+(-123.3104072);
+      serPyld.RSII = abs(rf95.lastRssi());
+
+      Serial.write(START_MARKER); // send a fixed byte to mark the start
+      Serial.write((uint8_t*)&timestamp, 4); 
+      Serial.write((uint8_t*)&serPyld.battVolts, 4);
+      Serial.write((uint8_t*)&serPyld.loadCell, 4);
+      Serial.write((uint8_t*)&serPyld.PT_tank, 4);
+      Serial.write(serPyld.RSII);
+      Serial.write(!buf[0]);
+      Serial.write(!buf[1]);
+      //length = 19 bytes
+
     } else {
       CON_ERR = 1;
     }
     last_time_tx = millis(); // Save time at end of transceiver loop for tracking
   }
-  // Display DAQ on LCD
-  if (millis()-last_time_lcd > dt_lcd) {
-    switch_data_count++;
-    printlcd(buf,switch_data_count); // Prints current DAQ data on LCD
-    last_time_lcd = millis(); // Save time at end of lcd display loop for tracking
-    if(switch_data_count == 40){switch_data_count = 0;}
-  }
-        
+
 }
