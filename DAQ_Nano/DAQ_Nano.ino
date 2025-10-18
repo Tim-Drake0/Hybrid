@@ -34,16 +34,16 @@ int lc_low = 0;
 int lc_high = 0;
 
 // Loop timekeeping 
-const int dt_abort = 120*1000; // Time to abort if no signal received [ms] (120 seconds)
+const int32_t dt_abort = 120 * 1000; // Time to abort if no signal received [ms] (120 seconds)
 unsigned long int last_time_rx = 0; // Last receive time (tracking rx for abort) [ms]
-const int dt_rx_slow = 1000; // Time between radio readings [ms]
+const int dt_rx_slow = 100; // Time between radio readings [ms]
 const int dt_rx_fast = 0; // Time between radio readings [ms]
 const int dt_data_fast = 10; // Time between data readings [ms]
 unsigned long int last_time_data = 0; // Last time data readings were taken (tracking for next read cycle) [ms]
 unsigned long int last_time_teensy = 0;
 const int dt_lc_fast = 100; // Time between LC readings [ms]
 unsigned long int last_time_lc = 0; // Last time LC readings were taken (tracking for next read cycle) [ms]
-const int dt_sd_slow = 1000; // Time between slow readings [ms]
+const int dt_sd_slow = 100; // Time between slow readings [ms]
 int dt_data = dt_sd_slow; // Variable to use for dt between data readings
 int dt_lc = dt_sd_slow; // Variable to use for dt between lc readings
 int dt_rx = dt_rx_slow; // Time between radio readings [ms]
@@ -142,6 +142,7 @@ void ABORT_DAQ(void) { // ABORT ================================================
   // Wait for switchstate transmission, do not break until switch payload received
   while (true)
   {
+    Serial.println("ABORT");
     tone(buzzerPin, 4750);
     delay(1000);
     noTone(buzzerPin);
@@ -233,7 +234,7 @@ void loop() { // LOOP ==========================================================
     
     lc_low = pulseIn(lc_low_in, HIGH, 10000L);
     lc_high = pulseIn(lc_high_in, HIGH, 10000L); // Load cell
-    Serial.print(PT_tank); Serial.print(", H:"); Serial.print(highByte(PT_tank)); Serial.print(", L:");  Serial.println(lowByte(PT_tank));
+    //Serial.print(PT_tank); Serial.print(", H:"); Serial.print(highByte(PT_tank)); Serial.print(", L:");  Serial.println(lowByte(PT_tank));
     
     batt_volt = analogRead(batt_volt_mon);// * 0.01700550500; //0.016917293233
 
@@ -289,13 +290,14 @@ void loop() { // LOOP ==========================================================
         rf95.send(data, sizeof(data));
         rf95.waitPacketSent();
         digitalWrite(RADIO_LED, LOW);
+        last_time_rx = millis(); // save new time of most recent transmission
       } else {
         //Serial.println("Receive failed");
         digitalWrite(RADIO_LED, HIGH);
       }
       // DECODE SWITCH STATE ====================================================================================================
       decodestate(switchstate); // Call function to decode switchstate and issue control commands
-      last_time_rx = millis(); // save new time of most recent transmission
+      
     }
     
   }
@@ -303,6 +305,7 @@ void loop() { // LOOP ==========================================================
   // AUTO ABORT
   // if the last received transmission happened longer than abort time ago
   if (millis() - last_time_rx > 60000){ABORT_DAQ();}
+  Serial.print(millis() - last_time_rx); Serial.println(dt_abort); 
 
   if(switchstate.ARM){
     tone(buzzerPin, 4750);
