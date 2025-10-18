@@ -177,7 +177,7 @@ void setup() { // SETUP ========================================================
   digitalWrite(pyro_1_fire, LOW);
   digitalWrite(pyro_2_fire, LOW);
   digitalWrite(fill_out, LOW);
-  digitalWrite(vent_out, LOW);
+  digitalWrite(vent_out, HIGH);
   digitalWrite(mov_out, LOW);
   //digitalWrite(spare1_out, LOW);
   digitalWrite(arm_out, LOW);
@@ -302,7 +302,7 @@ void loop() { // LOOP ==========================================================
   
   // AUTO ABORT
   // if the last received transmission happened longer than abort time ago
-  if (millis() - last_time_rx > dt_abort){ABORT_DAQ();}
+  if (millis() - last_time_rx > 60000){ABORT_DAQ();}
 
   if(switchstate.ARM){
     tone(buzzerPin, 4750);
