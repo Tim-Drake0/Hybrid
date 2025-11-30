@@ -1,0 +1,23 @@
+---
+
+name: "busPwr"
+id: 100
+battVolts:
+  length: 8
+  offset: 0
+  endian: "little"
+  cal: 1.00 
+voltage3V:
+  length: 8
+  offset: 8
+  endian: "little"
+  cal: 1.00
+voltage5V:
+  length: 8
+  offset: 16
+  endian: "little"
+  cal: 1.00 
+
+
+
+
