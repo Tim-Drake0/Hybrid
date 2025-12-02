@@ -1,8 +1,0 @@
----
-testBus:
-  - word0:
-    - id: 100
-    - length: 8
-    - offset: 0
-    - endian: "little"
-    - cal: 1.00 
