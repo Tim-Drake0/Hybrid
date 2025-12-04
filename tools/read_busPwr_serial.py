@@ -4,7 +4,7 @@ import time
 # -------------------------
 # Configure your serial port
 # -------------------------
-SERIAL_PORT = "COM3"      # Replace with your port
+SERIAL_PORT = "COM4"      # Replace with your port
 BAUD_RATE = 115200
 PACKET_SIZE = 12           # 2 bytes header + 4 bytes timestamp + 2 bytes batt
 
@@ -17,7 +17,7 @@ print("Listening for packets...")
 def bytes2Volts(startByte):
     raw_volts = (packet[startByte] << 8) | packet[startByte+1]
     
-    return round(((raw_volts / 1024) * 5),2)
+    return round(((raw_volts / 1024) * 3.3),3)
     
     
 def find_and_read_packet():

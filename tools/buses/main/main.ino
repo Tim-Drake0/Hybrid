@@ -1,8 +1,8 @@
 #include "src/busPwr.h"
+#include <Arduino.h>
+#include <HardwareSerial.h>
 
-const int PIN_BATT = A3;
-const int PIN_3V   = A1;
-const int PIN_5V   = A2;
+HardwareSerial MySerial(USART1);
 
 uint8_t packet[12];  // 3x10 bits -> 30 bits -> 4 bytes
 unsigned long lastSendTime = 0;
@@ -14,7 +14,7 @@ uint16_t readVoltage(int pin) {
 }
 
 void setup() {
-    Serial.begin(115200);
+    MySerial.begin(115200);
     memset(packet, 0, busPwr.size);
 }
 
@@ -48,6 +48,6 @@ void loop() {
         packet[11] = volt5V & 0xFF;         // Low byte (bits 7–0)
         
         // Send packet
-        Serial.write(packet, busPwr.size);
+        MySerial.write(packet, busPwr.size);
     }
 }

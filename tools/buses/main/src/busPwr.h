@@ -11,7 +11,7 @@ struct FieldConfig {
     int bits;
     double c0;
     double c1;
-    const int* pin;
+    uint32_t pin;
 };
 
 struct BusPwrConfig {
