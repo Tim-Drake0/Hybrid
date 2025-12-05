@@ -3,13 +3,13 @@
 #include <Arduino.h>
 
 const BusPwrConfig busPwr = {
-    100,
+    6910,
     12,
     50,
     "little",
-    { 65535, "V", 0, 2, 10, -4.368197737, 0.01759218372, PA5},
-    { 65535, "V", 2, 2, 10, 0.00,         1.00         , PA6},
-    { 65535, "V", 4, 2, 10, 0.00,         1.00         , PA7}
+    { 65535, "V", 0, 2, 10, -4.368197737, 0.01759218372, PA0},
+    { 65535, "V", 2, 2, 10, 0.00,         1.00         , PA1},
+    { 65535, "V", 4, 2, 10, 0.00,         1.00         , PA2}
 };
 
 const FieldConfig* BusPwrConfig::getField(const char* fieldName) const {
