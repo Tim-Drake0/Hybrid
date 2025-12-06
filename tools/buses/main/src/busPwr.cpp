@@ -5,12 +5,13 @@
 #include <string.h>
 #include <Arduino.h>
 
-const busPwrConfig busPwr = {
+busPwrConfig busPwr = {
     6910,
     6,
     50,
     "little",
-    { 1023, "V", "uint16_t", 0, 2, 10, 0.0, 1.0, A3},
+    "PWR",
+    { 1023, "V", "uint16_t", 0, 2, 10, 0.3009149658, 4.098150873, A0},
     { 1023, "V", "uint16_t", 2, 2, 10, 0.0, 1.0, A1},
     { 1023, "V", "uint16_t", 4, 2, 10, 0.0, 1.0, A2}
 };
@@ -24,20 +25,26 @@ const busPwrFieldConfig* busPwrConfig::getField(const char* fieldName) const {
     
 }
 
-std::array<uint8_t, 6> busPwrConfig::serialize(uint16_t battVolts, uint16_t voltage3V, uint16_t voltage5V) const {
+void busPwrConfig::readSensor(){
+    sensor_battVolts = (analogRead(busPwr.battVolts.pin) * busPwr.battVolts.c1) + busPwr.battVolts.c1;
+    sensor_voltage3V = (analogRead(busPwr.voltage3V.pin) * busPwr.voltage3V.c1) + busPwr.voltage3V.c1;
+    sensor_voltage5V = (analogRead(busPwr.voltage5V.pin) * busPwr.voltage5V.c1) + busPwr.voltage5V.c1;
+}
+
+std::array<uint8_t, 6> busPwrConfig::serialize() const {
     std::array<uint8_t, 6> buffer{};
     buffer.fill(0);
     
     
     
-    buffer[0] = (battVolts >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[1] = battVolts & 0xFF;         // Low byte (bits 7-0)
+    buffer[0] = (sensor_battVolts >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[1] = sensor_battVolts & 0xFF;         // Low byte (bits 7-0)
 
-    buffer[2] = (voltage3V >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[3] = voltage3V & 0xFF;         // Low byte (bits 7-0)
+    buffer[2] = (sensor_voltage3V >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[3] = sensor_voltage3V & 0xFF;         // Low byte (bits 7-0)
 
-    buffer[4] = (voltage5V >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[5] = voltage5V & 0xFF;         // Low byte (bits 7-0)
+    buffer[4] = (sensor_voltage5V >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[5] = sensor_voltage5V & 0xFF;         // Low byte (bits 7-0)
     
     return buffer;
 }

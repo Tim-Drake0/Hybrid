@@ -5,36 +5,48 @@
 #include <string.h>
 #include <Arduino.h>
 
-const busBME280Config busBME280 = {
+busBME280Config busBME280 = {
     6911,
-    12,
+    16,
     50,
     "little",
+    "BME280",
     { 9999, "C", "float", 0, 4, 32, 0.0, 1.0, 0},
     { 9999, "Pa", "float", 4, 4, 32, 0.0, 1.0, 0},
-    { 9999, "%", "float", 8, 4, 32, 0.0, 1.0, 0}
+    { 9999, "%", "float", 8, 4, 32, 0.0, 1.0, 0},
+    { 9999, "m", "float", 12, 4, 32, 0.0, 1.0, 0}
 };
 
 const busBME280FieldConfig* busBME280Config::getField(const char* fieldName) const {
    if (strcmp(fieldName, "temperatureC") == 0) return &temperatureC;
    if (strcmp(fieldName, "pressurePasc") == 0) return &pressurePasc;
    if (strcmp(fieldName, "humidityRH") == 0) return &humidityRH;
+   if (strcmp(fieldName, "altitudeM") == 0) return &altitudeM;
 
     return nullptr;
     
 }
 
-std::array<uint8_t, 12> busBME280Config::serialize(float temperatureC, float pressurePasc, float humidityRH) const {
-    std::array<uint8_t, 12> buffer{};
+void busBME280Config::readSensor(Adafruit_BME280& bme){
+    sensor_temperatureC = (bme.readTemperature() * busBME280.temperatureC.c1) + busBME280.temperatureC.c0;
+    sensor_pressurePasc = (bme.readPressure() * busBME280.pressurePasc.c1) + busBME280.pressurePasc.c0;
+    sensor_humidityRH   = (bme.readHumidity() * busBME280.humidityRH.c1) + busBME280.humidityRH.c0;
+    sensor_altitudeM    = (bme.readAltitude(1013.25) * busBME280.altitudeM.c1) + busBME280.altitudeM.c0;
+}
+
+std::array<uint8_t, 16> busBME280Config::serialize() const {
+    std::array<uint8_t, 16> buffer{};
     buffer.fill(0);
     
     union {float f;uint32_t u;} temperatureC_u;
     union {float f;uint32_t u;} pressurePasc_u;
     union {float f;uint32_t u;} humidityRH_u;
+    union {float f;uint32_t u;} altitudeM_u;
     
-    temperatureC_u.f = temperatureC;
-    pressurePasc_u.f = pressurePasc;
-    humidityRH_u.f = humidityRH;
+    temperatureC_u.f = sensor_temperatureC;
+    pressurePasc_u.f = sensor_pressurePasc;
+    humidityRH_u.f = sensor_humidityRH;
+    altitudeM_u.f = sensor_altitudeM;
     
     buffer[0] = (temperatureC_u.u >> 24) & 0xFF; // Most significant byte (MSB)
     buffer[1] = (temperatureC_u.u >> 16) & 0xFF;
@@ -50,6 +62,11 @@ std::array<uint8_t, 12> busBME280Config::serialize(float temperatureC, float pre
     buffer[9] = (humidityRH_u.u >> 16) & 0xFF;
     buffer[10] = (humidityRH_u.u >> 8)  & 0xFF;
     buffer[11] = humidityRH_u.u & 0xFF;         // Least significant byte (LSB)
+
+    buffer[12] = (altitudeM_u.u >> 24) & 0xFF; // Most significant byte (MSB)
+    buffer[13] = (altitudeM_u.u >> 16) & 0xFF;
+    buffer[14] = (altitudeM_u.u >> 8)  & 0xFF;
+    buffer[15] = altitudeM_u.u & 0xFF;         // Least significant byte (LSB)
     
     return buffer;
 }

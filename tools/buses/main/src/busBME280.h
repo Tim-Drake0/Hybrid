@@ -3,7 +3,9 @@
 
 #ifndef BUSBME280_H
 #define BUSBME280_H
+
 #include <Arduino.h>
+#include <Adafruit_BME280.h>
 
 struct busBME280FieldConfig {
     int initVal;
@@ -21,17 +23,24 @@ struct busBME280Config {
     int id;
     int size;
     int frequency;
+    const char* sensorName;
     const char* endian;
     busBME280FieldConfig temperatureC;
     busBME280FieldConfig pressurePasc;
     busBME280FieldConfig humidityRH;
+    busBME280FieldConfig altitudeM;
  
+    float sensor_temperatureC; 
+    float sensor_pressurePasc; 
+    float sensor_humidityRH; 
+    float sensor_altitudeM; 
+
     const busBME280FieldConfig* getField(const char* fieldName) const;
-    int bufferSize() const;
-    std::array<uint8_t, 12> serialize(float temperatureC, float pressurePasc, float humidityRH) const;
+    void readSensor(Adafruit_BME280& bme);
+    std::array<uint8_t, 16> serialize() const;
 };
 
-extern const busBME280Config busBME280;
+extern busBME280Config busBME280;
 
 #endif
 

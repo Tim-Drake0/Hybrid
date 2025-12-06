@@ -13,15 +13,13 @@
 
 TwoWire Wire2(PB11, PB10); // SDA, SCL for I2C2
 
-#define SEALEVELPRESSURE_HPA (1013.25)
-
 Adafruit_BME280 bme;
 
 byte sensorsBIT = B11111111; 
 
 HardwareSerial MySerial(USART1);
 
-uint8_t packet[26]; 
+uint8_t packet[30]; 
 
 unsigned long lastSendTime = 0;
 
@@ -47,18 +45,14 @@ void loop() {
         lastSendTime = currentMillis;
 
         //Gather data
+        //uint16_t batt = analogRead(busPwr.battVolts.pin); 
+        //uint16_t volt3V = analogRead(busPwr.voltage3V.pin); 
+        //uint16_t volt5V = analogRead(busPwr.voltage5V.pin); 
 
-        uint16_t batt = analogRead(busPwr.battVolts.pin); 
-        uint16_t volt3V = analogRead(busPwr.voltage3V.pin); 
-        uint16_t volt5V = analogRead(busPwr.voltage5V.pin); 
+        busPwr.readSensor();
+        busBME280.readSensor(bme);
 
-        float temp = bme.readTemperature();
-        float pressure = bme.readPressure();
-        float humidity = bme.readHumidity();
-
-
-
-        // header is ABBA
+        // header is ABBA and timestamp
         packet[0] = 0xAB;
         packet[1] = 0xBA;
 
@@ -72,21 +66,20 @@ void loop() {
         packet[7] = currentMillis & 0xFF;         // Least significant byte (LSB)
 
         //Votlage packets =============================================================
-        auto voltage_serialized = busPwr.serialize(batt, volt3V, volt5V);
+        auto voltage_serialized = busPwr.serialize();
 
         for (size_t i = 0; i < voltage_serialized.size(); i++) {
             packet[8 + i] = voltage_serialized[i];
         }
-
+ 
         //BME280 packets =============================================================
-        auto BME280_serialized = busBME280.serialize(temp, pressure, humidity);
+        auto BME280_serialized = busBME280.serialize();
 
         for (size_t i = 0; i < BME280_serialized.size(); i++) {
             packet[14 + i] = BME280_serialized[i];
         }
 
         // Send packet
-        //MySerial.write(packet, busPwr.size);
         MySerial.write(packet, sizeof(packet));
     }
 }

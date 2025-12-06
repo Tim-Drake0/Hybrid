@@ -1,0 +1,6 @@
+streamSerialTelem:
+  id: 6900
+  freq: 50 # [Hz]
+  buses:
+    - busPwr
+    - busBME280

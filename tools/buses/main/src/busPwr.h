@@ -3,7 +3,9 @@
 
 #ifndef BUSPWR_H
 #define BUSPWR_H
+
 #include <Arduino.h>
+#include <Adafruit_BME280.h>
 
 struct busPwrFieldConfig {
     int initVal;
@@ -21,17 +23,22 @@ struct busPwrConfig {
     int id;
     int size;
     int frequency;
+    const char* sensorName;
     const char* endian;
     busPwrFieldConfig battVolts;
     busPwrFieldConfig voltage3V;
     busPwrFieldConfig voltage5V;
  
+    uint16_t sensor_battVolts; 
+    uint16_t sensor_voltage3V; 
+    uint16_t sensor_voltage5V; 
+
     const busPwrFieldConfig* getField(const char* fieldName) const;
-    int bufferSize() const;
-    std::array<uint8_t, 6> serialize(uint16_t battVolts, uint16_t voltage3V, uint16_t voltage5V) const;
+    void readSensor();
+    std::array<uint8_t, 6> serialize() const;
 };
 
-extern const busPwrConfig busPwr;
+extern busPwrConfig busPwr;
 
 #endif
 

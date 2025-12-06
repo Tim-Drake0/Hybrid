@@ -3,17 +3,18 @@ busPwr:
   size: 6 # [Bytes]
   freq: 50 # [Hz]
   endian: "little"
+  sensorName: "PWR"
   data:
     battVolts:
-      initVal: 1023
+      initinitVal: 1023
       unit: "V"
       type: "uint16_t"
       startByte: 0 
       bytes: 2
       bits: 10
-      c0: 0.00
-      c1: 1.00
-      pin: A3
+      c0: 0.3009149658
+      c1: 4.098150873
+      pin: A0
     voltage3V:
       initVal: 1023
       unit: "V"
@@ -37,9 +38,10 @@ busPwr:
 
 busBME280:
   id: 6911
-  size: 12 # [Bytes]
+  size: 16 # [Bytes]
   freq: 50 # [Hz]
   endian: "little"
+  sensorName: "BME280"
   data:
     temperatureC:
       initVal: 9999
@@ -66,6 +68,16 @@ busBME280:
       unit: "%"  
       type: "float"
       startByte: 8
+      bytes: 4
+      bits: 32
+      c0: 0.00
+      c1: 1.00
+      pin: 0
+    altitudeM:
+      initVal: 9999
+      unit: "m"  
+      type: "float"
+      startByte: 12
       bytes: 4
       bits: 32
       c0: 0.00

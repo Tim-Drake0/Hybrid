@@ -8,13 +8,23 @@ output_dir = os.path.join(arduino_sketch_dir, "src")
 os.makedirs(output_dir, exist_ok=True)
 # ---------------------------------------
 
-type_map = {
-    int: "int",
-    float: "double",
-    str: "char",
-    bool: "bool"
-}
 
+def getReadSensorLines(sensorName):
+    
+    sensorFunction = {
+        "NA":" ",
+        "PWR":"void busPwrConfig::readSensor(){\n    sensor_battVolts = (analogRead(busPwr.battVolts.pin) * busPwr.battVolts.c1) + busPwr.battVolts.c1;\n    sensor_voltage3V = (analogRead(busPwr.voltage3V.pin) * busPwr.voltage3V.c1) + busPwr.voltage3V.c1;\n    sensor_voltage5V = (analogRead(busPwr.voltage5V.pin) * busPwr.voltage5V.c1) + busPwr.voltage5V.c1;\n}",
+        "BME280":"void busBME280Config::readSensor(Adafruit_BME280& bme){\n    sensor_temperatureC = (bme.readTemperature() * busBME280.temperatureC.c1) + busBME280.temperatureC.c0;\n    sensor_pressurePasc = (bme.readPressure() * busBME280.pressurePasc.c1) + busBME280.pressurePasc.c0;\n    sensor_humidityRH   = (bme.readHumidity() * busBME280.humidityRH.c1) + busBME280.humidityRH.c0;\n    sensor_altitudeM    = (bme.readAltitude(1013.25) * busBME280.altitudeM.c1) + busBME280.altitudeM.c0;\n}"
+    }
+    
+    sensorDef = {
+        "NA":" ",
+        "PWR":"    void readSensor();",
+        "BME280":"    void readSensor(Adafruit_BME280& bme);"
+    }
+    return sensorFunction.get(sensorName), sensorDef.get(sensorName)
+    
+    
 # Load YAML
 with open(yaml_file, "r") as f:
     buses = yaml.safe_load(f)
@@ -24,10 +34,13 @@ for bus_name, bus_info in buses.items():
     
     valuesLines = ""
     ifLines = ""
-    serializeInputLine = ""
+    #serializeInputLine = ""
     floatUn = ""
     floatVar=""
     buffer = ""
+    readSensorH = ""
+    sensorLines = ""
+    readSensorLines = ""
     
     i=0
     buff_index = 0
@@ -45,15 +58,15 @@ for bus_name, bus_info in buses.items():
                 
         if field_props['type'] == "float":
             floatUn += f"union {{float f;uint32_t u;}} {field_name}_u;\n    "
-            floatVar += f"{field_name}_u.f = {field_name};\n    "
+            floatVar += f"{field_name}_u.f = sensor_{field_name};\n    "
             tempName = field_name + "_u.u"
         else:
-            tempName = field_name
+            tempName = "sensor_" + field_name
             
         # do bit math    
         if i == len(bus_info['data'].items()): # double indent if not the last one
             valuesLines += f"    {thisLine}"
-            serializeInputLine += f"{field_props['type']} {field_name}"
+            #serializeInputLine += f"{field_props['type']} {field_name}"
             if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
                 buffer += f"buffer[{buff_index}] = ({tempName} >> 24) & 0xFF; // Most significant byte (MSB)\n    buffer[{buff_index+1}] = ({tempName} >> 16) & 0xFF;\n    buffer[{buff_index+2}] = ({tempName} >> 8)  & 0xFF;\n    buffer[{buff_index+3}] = {tempName} & 0xFF;         // Least significant byte (LSB)"
                 buff_index = buff_index+4
@@ -63,7 +76,7 @@ for bus_name, bus_info in buses.items():
                                     
         else:
             valuesLines += f"    {thisLine},\n"
-            serializeInputLine += f"{field_props['type']} {field_name}, "
+            #serializeInputLine += f"{field_props['type']} {field_name}, "
             if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
                 buffer += f"buffer[{buff_index}] = ({tempName} >> 24) & 0xFF; // Most significant byte (MSB)\n    buffer[{buff_index+1}] = ({tempName} >> 16) & 0xFF;\n    buffer[{buff_index+2}] = ({tempName} >> 8)  & 0xFF;\n    buffer[{buff_index+3}] = {tempName} & 0xFF;         // Least significant byte (LSB)\n\n    "
                 buff_index = buff_index+4
@@ -72,6 +85,12 @@ for bus_name, bus_info in buses.items():
                 buff_index = buff_index+2    
                 
         ifLines += f'   if (strcmp(fieldName, "{field_name}") == 0) return &{field_name};\n'
+        
+        # Sensor lines
+        sensorLines += f"    {field_props['type']} sensor_{field_name}; \n"
+
+    readSensorLines,readSensorH = getReadSensorLines(bus_info['sensorName'])
+
 
     # -------- busPwr.h ---------------------------------------------------------------------------------------------------------
     header_path = os.path.join(output_dir, bus_name + ".h")
@@ -81,7 +100,9 @@ for bus_name, bus_info in buses.items():
 
 #ifndef {ifndef}
 #define {ifndef}
+
 #include <Arduino.h>
+#include <Adafruit_BME280.h>
 
 struct {fieldConfig} {{
     int initVal;
@@ -99,14 +120,16 @@ struct {busConfig} {{
     int id;
     int size;
     int frequency;
+    const char* sensorName;
     const char* endian;
 {fieldConfigLines} 
+{sensorLines}
     const {fieldConfig}* getField(const char* fieldName) const;
-    int bufferSize() const;
-    std::array<uint8_t, {size}> serialize({serializeInputLine}) const;
+{readSensorH}
+    std::array<uint8_t, {size}> serialize() const;
 }};
 
-extern const {busConfig} {busName};
+extern {busConfig} {busName};
 
 #endif
 
@@ -123,7 +146,8 @@ extern const {busConfig} {busName};
         busConfig=bus_name + "Config",
         fieldConfigLines=fieldConfigLines,
         size=bus_info['size'],
-        serializeInputLine=serializeInputLine,
+        sensorLines=sensorLines,
+        readSensorH=readSensorH,
     )
     
     with open(header_path, "w") as f:
@@ -140,11 +164,12 @@ extern const {busConfig} {busName};
 #include <string.h>
 #include <Arduino.h>
 
-const {busConfig} {busName} = {{
+{busConfig} {busName} = {{
     {id},
     {size},
     {freq},
     {endian},
+    {sensorName},
 {vals}
 }};
 
@@ -154,7 +179,9 @@ const {fieldConfig}* {busConfig}::getField(const char* fieldName) const {{
     
 }}
 
-std::array<uint8_t, {size}> {busConfig}::serialize({serializeInputLine}) const {{
+{readSensor}
+
+std::array<uint8_t, {size}> {busConfig}::serialize() const {{
     std::array<uint8_t, {size}> buffer{{}};
     buffer.fill(0);
     
@@ -167,12 +194,7 @@ std::array<uint8_t, {size}> {busConfig}::serialize({serializeInputLine}) const {
 
 
 """
-
  
-  
-        
-        
-        
     output = cpp_template.format(
         busName=bus_name,
         busdotH=f'"{bus_name}.h"',
@@ -182,12 +204,14 @@ std::array<uint8_t, {size}> {busConfig}::serialize({serializeInputLine}) const {
         size=bus_info['size'],
         freq=bus_info['freq'],
         endian=f'"{bus_info['endian']}"',
+        sensorName=f'"{bus_info['sensorName']}"',
         vals=valuesLines,
         ifLines=ifLines,
-        serializeInputLine=serializeInputLine,
+        #serializeInputLine=serializeInputLine,
         floatUn=floatUn,
         floatVar=floatVar,
         buffer=buffer,
+        readSensor=readSensorLines,
     )
     with open(cpp_path, "w") as f:
         f.write(output)
