@@ -5,17 +5,23 @@ import csv
 import os
 import platform
 
+# Set path based on platform
 if platform.system() == "Windows":
     sd_path = "G:"
-
-if platform.system() == "Linux":
+elif platform.system() == "Linux":
     sd_path = "/media/timdrake/8GB SD2/"
+else:
+    raise Exception("Unsupported OS")
 
-arr = os.listdir(sd_path)
+# Get list of files only (ignore folders)
+files_only = [f for f in os.listdir(sd_path) if os.path.isfile(os.path.join(sd_path, f))]
+# Optional: sort by last modified time (newest last)
+files_only.sort(key=lambda f: os.path.getmtime(os.path.join(sd_path, f)))
+# Choose the most recent file (or second most recent if needed)
+recent_file = files_only[-1]  # Use [-2] if you have a reason to skip the newest
 
-recent_file = arr[len(arr)-2]
-
-df = pd.read_csv(sd_path + recent_file)
+full_path = os.path.join(sd_path, recent_file)
+df = pd.read_csv(full_path)
 #df = pd.read_csv("G:data12.csv")
 #df = pd.read_csv("/media/timdrake/8GB SD2/data12.csv")
 dpg.create_context()
@@ -44,26 +50,13 @@ class Stats:
         
         self.mov_range = self.get_range(mov, 6, 7)
         self.mov_time = time_list[self.get_index(mov, 6, 7)[1]]-time_list[self.get_index(mov, 6, 7)[0]]
-        print(self.mov_time)
         self.arm_range = self.get_range(arm, 4, 5)
         self.arm_time = time_list[self.get_index(arm, 4, 5)[1]]-time_list[self.get_index(arm, 4, 5)[0]]
         
         self.batt_start = voltage_batt[0]
         self.batt_end = voltage_batt[len(voltage_batt)-1]
         
-        burn_begin = self.get_index(mov, 6, 7)[0] #begins when MOV opens
-
-        
-        lc_end = get_burn_end(load_cell, burn_begin)
-        pt2_end = get_burn_end(pt2, burn_begin)
-        pt3_end = get_burn_end(pt3, burn_begin)
-        
-        burn_end = int(round((lc_end + pt2_end + pt3_end)/3,0))
-        
-        if self.mov_time > 0:
-            self.burn_time = time_list[burn_end]-time_list[burn_begin]
-        else:
-            self.burn_time = 0
+        self.burn_time = time_list[self.get_index(mov, 6, 7)[1]] - time_list[self.get_index(mov, 6, 7)[0]]
         
     def get_range(self,event,min,max):
         start,stop = self.get_index(event,min,max)

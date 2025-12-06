@@ -134,6 +134,11 @@ const int dt_sd_slow = 1000; // Time between slow readings [ms]
 int dt_data = dt_sd_slow; // Variable to use for dt between data readings
 int dt_lc = dt_sd_slow; // Variable to use for dt between lc readings
 
+int burn_time = 5000; // [ms] burn time
+unsigned long int burn_start = 0;
+bool burn_started = 0;
+bool burn_ended = 0;
+
 void moveServo(int servo, bool state){
   if(state == 0){
     if(servo == 1){bitWrite(disWord, FILL, 0); servo1.write(servo1off);}
@@ -298,9 +303,7 @@ void loop() {
     five_volt = analogRead(five_volt_mon) * 0.00518084066471;
     radio_volt = analogRead(radio_volt_mon) * 0.00387096774194;
     
-    moveServo(1, digitalRead(fill_in));
-    moveServo(2, digitalRead(vent_in));
-    moveServo(3, digitalRead(mov_in));
+
     
     // Fire pyros if armed and signal sent
     if(digitalRead(arm_in) == 1){
@@ -330,6 +333,37 @@ void loop() {
       digitalWrite(pyro_1_fire, HIGH);
       digitalWrite(pyro_2_fire, HIGH);
     }
+
+
+    moveServo(1, digitalRead(fill_in));
+    moveServo(2, digitalRead(vent_in));
+
+
+    moveServo(3, digitalRead(mov_in));
+
+
+    // This limits the burn time to set variable 'burn_time'
+    if(digitalRead(pyro_1_fire_in) || digitalRead(pyro_2_fire_in)){ // If pyros fired, or burn started 
+      if(digitalRead(mov_in) == 1){
+        if(burn_started == 0){ // Need to get start time of burn, only when MOV is open
+          burn_start = millis();
+          burn_started = 1;
+        }
+      }
+    }
+    if(burn_started == 1){
+      if(millis() - burn_start >= burn_time){ // close mov when burn time elapsed
+        moveServo(3, 0);
+        burn_start = 0;
+        burn_started == 0;
+      }
+    }
+    
+
+
+    
+
+
     last_time_nano = millis();
     last_time_data = millis(); // Record time of data reading
     save_data(); // Save data
