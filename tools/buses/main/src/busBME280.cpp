@@ -7,12 +7,12 @@
 
 const busBME280Config busBME280 = {
     6911,
-    20,
+    12,
     50,
     "little",
-    { 9999, "C", 0, 4, 32, 0.0, 1.0, 0},
-    { 9999, "Pa", 4, 4, 32, 0.0, 1.0, 0},
-    { 9999, "%", 8, 4, 32, 0.0, 1.0, 0}
+    { 9999, "C", "float", 0, 4, 32, 0.0, 1.0, 0},
+    { 9999, "Pa", "float", 4, 4, 32, 0.0, 1.0, 0},
+    { 9999, "%", "float", 8, 4, 32, 0.0, 1.0, 0}
 };
 
 const busBME280FieldConfig* busBME280Config::getField(const char* fieldName) const {
@@ -24,9 +24,34 @@ const busBME280FieldConfig* busBME280Config::getField(const char* fieldName) con
     
 }
 
-void busBME280Config::serialize(uint16_t* values, uint8_t* buffer) const {
-    memset(buffer, 0, busBME280.size);
+std::array<uint8_t, 12> busBME280Config::serialize(float temperatureC, float pressurePasc, float humidityRH) const {
+    std::array<uint8_t, 12> buffer{};
+    buffer.fill(0);
     
+    union {float f;uint32_t u;} temperatureC_u;
+    union {float f;uint32_t u;} pressurePasc_u;
+    union {float f;uint32_t u;} humidityRH_u;
+    
+    temperatureC_u.f = temperatureC;
+    pressurePasc_u.f = pressurePasc;
+    humidityRH_u.f = humidityRH;
+    
+    buffer[0] = (temperatureC_u.u >> 24) & 0xFF; // Most significant byte (MSB)
+    buffer[1] = (temperatureC_u.u >> 16) & 0xFF;
+    buffer[2] = (temperatureC_u.u >> 8)  & 0xFF;
+    buffer[3] = temperatureC_u.u & 0xFF;         // Least significant byte (LSB)
+
+    buffer[4] = (pressurePasc_u.u >> 24) & 0xFF; // Most significant byte (MSB)
+    buffer[5] = (pressurePasc_u.u >> 16) & 0xFF;
+    buffer[6] = (pressurePasc_u.u >> 8)  & 0xFF;
+    buffer[7] = pressurePasc_u.u & 0xFF;         // Least significant byte (LSB)
+
+    buffer[8] = (humidityRH_u.u >> 24) & 0xFF; // Most significant byte (MSB)
+    buffer[9] = (humidityRH_u.u >> 16) & 0xFF;
+    buffer[10] = (humidityRH_u.u >> 8)  & 0xFF;
+    buffer[11] = humidityRH_u.u & 0xFF;         // Least significant byte (LSB)
+    
+    return buffer;
 }
 
 

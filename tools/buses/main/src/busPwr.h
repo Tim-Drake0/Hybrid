@@ -8,6 +8,7 @@
 struct busPwrFieldConfig {
     int initVal;
     const char* unit;
+    const char* type;
     int startByte;
     int bytes;
     int bits;
@@ -27,7 +28,7 @@ struct busPwrConfig {
  
     const busPwrFieldConfig* getField(const char* fieldName) const;
     int bufferSize() const;
-    void serialize(uint16_t* values, uint8_t* buffer) const;
+    std::array<uint8_t, 6> serialize(uint16_t battVolts, uint16_t voltage3V, uint16_t voltage5V) const;
 };
 
 extern const busPwrConfig busPwr;

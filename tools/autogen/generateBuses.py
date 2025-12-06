@@ -21,6 +21,57 @@ with open(yaml_file, "r") as f:
     
 for bus_name, bus_info in buses.items():
     print(bus_name)
+    
+    valuesLines = ""
+    ifLines = ""
+    serializeInputLine = ""
+    floatUn = ""
+    floatVar=""
+    buffer = ""
+    
+    i=0
+    buff_index = 0
+    for field_name, field_props in bus_info['data'].items(): # look at each variable
+        i=i+1
+        #valuesLines += f"    {field_props.values()},\n"
+        thisLine = "{"
+        for index, value in enumerate(field_props.values()): # get properties of each variable
+            if index == len(field_props.values())-1:
+                thisLine += f" {value}}}"
+            elif index == 1 or index == 2:
+                thisLine += f' "{value}",'
+            else:
+                thisLine += f" {value},"
+                
+        if field_props['type'] == "float":
+            floatUn += f"union {{float f;uint32_t u;}} {field_name}_u;\n    "
+            floatVar += f"{field_name}_u.f = {field_name};\n    "
+            tempName = field_name + "_u.u"
+        else:
+            tempName = field_name
+            
+        # do bit math    
+        if i == len(bus_info['data'].items()): # double indent if not the last one
+            valuesLines += f"    {thisLine}"
+            serializeInputLine += f"{field_props['type']} {field_name}"
+            if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
+                buffer += f"buffer[{buff_index}] = ({tempName} >> 24) & 0xFF; // Most significant byte (MSB)\n    buffer[{buff_index+1}] = ({tempName} >> 16) & 0xFF;\n    buffer[{buff_index+2}] = ({tempName} >> 8)  & 0xFF;\n    buffer[{buff_index+3}] = {tempName} & 0xFF;         // Least significant byte (LSB)"
+                buff_index = buff_index+4
+            elif field_props['type'] == "uint16_t": # if 16bit int then split up into 2 bytes
+                buffer += f"buffer[{buff_index}] = ({tempName} >> 8) & 0xFF;  // High byte (bits 9-8)\n    buffer[{buff_index+1}] = {tempName} & 0xFF;         // Low byte (bits 7-0)"
+                buff_index = buff_index+2
+                                    
+        else:
+            valuesLines += f"    {thisLine},\n"
+            serializeInputLine += f"{field_props['type']} {field_name}, "
+            if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
+                buffer += f"buffer[{buff_index}] = ({tempName} >> 24) & 0xFF; // Most significant byte (MSB)\n    buffer[{buff_index+1}] = ({tempName} >> 16) & 0xFF;\n    buffer[{buff_index+2}] = ({tempName} >> 8)  & 0xFF;\n    buffer[{buff_index+3}] = {tempName} & 0xFF;         // Least significant byte (LSB)\n\n    "
+                buff_index = buff_index+4
+            elif field_props['type'] == "uint16_t": # if 16bit int then split up into 2 bytes
+                buffer += f"buffer[{buff_index}] = ({tempName} >> 8) & 0xFF;  // High byte (bits 9-8)\n    buffer[{buff_index+1}] = {tempName} & 0xFF;         // Low byte (bits 7-0)\n\n    "
+                buff_index = buff_index+2    
+                
+        ifLines += f'   if (strcmp(fieldName, "{field_name}") == 0) return &{field_name};\n'
 
     # -------- busPwr.h ---------------------------------------------------------------------------------------------------------
     header_path = os.path.join(output_dir, bus_name + ".h")
@@ -35,6 +86,7 @@ for bus_name, bus_info in buses.items():
 struct {fieldConfig} {{
     int initVal;
     const char* unit;
+    const char* type;
     int startByte;
     int bytes;
     int bits;
@@ -51,7 +103,7 @@ struct {busConfig} {{
 {fieldConfigLines} 
     const {fieldConfig}* getField(const char* fieldName) const;
     int bufferSize() const;
-    void serialize(uint16_t* values, uint8_t* buffer) const;
+    std::array<uint8_t, {size}> serialize({serializeInputLine}) const;
 }};
 
 extern const {busConfig} {busName};
@@ -69,7 +121,9 @@ extern const {busConfig} {busName};
         ifndef=bus_name.upper() + "_H",
         fieldConfig=bus_name + "FieldConfig",
         busConfig=bus_name + "Config",
-        fieldConfigLines=fieldConfigLines
+        fieldConfigLines=fieldConfigLines,
+        size=bus_info['size'],
+        serializeInputLine=serializeInputLine,
     )
     
     with open(header_path, "w") as f:
@@ -100,35 +154,21 @@ const {fieldConfig}* {busConfig}::getField(const char* fieldName) const {{
     
 }}
 
-void {busConfig}::serialize(uint16_t* values, uint8_t* buffer) const {{
-    memset(buffer, 0, {busName}.size);
+std::array<uint8_t, {size}> {busConfig}::serialize({serializeInputLine}) const {{
+    std::array<uint8_t, {size}> buffer{{}};
+    buffer.fill(0);
     
+    {floatUn}
+    {floatVar}
+    {buffer}
+    
+    return buffer;
 }}
 
 
 """
-    valuesLines = ""
-    ifLines = ""
-    i=0
-    for field_name, field_props in bus_info['data'].items(): # look at each variable
-        i=i+1
-        #valuesLines += f"    {field_props.values()},\n"
-        thisLine = "{"
-        for index, value in enumerate(field_props.values()): # get properties of each variable
-            if index == len(field_props.values())-1:
-                thisLine += f" {value}}}"
-            elif index == 1:
-                thisLine += f' "{value}",'
-            else:
-                thisLine += f" {value},"
-        if i == len(bus_info['data'].items()):
-            valuesLines += f"    {thisLine}"
-        else:
-            valuesLines += f"    {thisLine},\n"
-    
-        ifLines += f'   if (strcmp(fieldName, "{field_name}") == 0) return &{field_name};\n'
-    
 
+ 
   
         
         
@@ -143,7 +183,11 @@ void {busConfig}::serialize(uint16_t* values, uint8_t* buffer) const {{
         freq=bus_info['freq'],
         endian=f'"{bus_info['endian']}"',
         vals=valuesLines,
-        ifLines=ifLines
+        ifLines=ifLines,
+        serializeInputLine=serializeInputLine,
+        floatUn=floatUn,
+        floatVar=floatVar,
+        buffer=buffer,
     )
     with open(cpp_path, "w") as f:
         f.write(output)

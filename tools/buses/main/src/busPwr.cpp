@@ -7,12 +7,12 @@
 
 const busPwrConfig busPwr = {
     6910,
-    14,
+    6,
     50,
     "little",
-    { 1023, "V", 0, 2, 10, 0.0, 1.0, A3},
-    { 1023, "V", 2, 2, 10, 0.0, 1.0, A1},
-    { 1023, "V", 4, 2, 10, 0.0, 1.0, A2}
+    { 1023, "V", "uint16_t", 0, 2, 10, 0.0, 1.0, A3},
+    { 1023, "V", "uint16_t", 2, 2, 10, 0.0, 1.0, A1},
+    { 1023, "V", "uint16_t", 4, 2, 10, 0.0, 1.0, A2}
 };
 
 const busPwrFieldConfig* busPwrConfig::getField(const char* fieldName) const {
@@ -24,9 +24,22 @@ const busPwrFieldConfig* busPwrConfig::getField(const char* fieldName) const {
     
 }
 
-void busPwrConfig::serialize(uint16_t* values, uint8_t* buffer) const {
-    memset(buffer, 0, busPwr.size);
+std::array<uint8_t, 6> busPwrConfig::serialize(uint16_t battVolts, uint16_t voltage3V, uint16_t voltage5V) const {
+    std::array<uint8_t, 6> buffer{};
+    buffer.fill(0);
     
+    
+    
+    buffer[0] = (battVolts >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[1] = battVolts & 0xFF;         // Low byte (bits 7-0)
+
+    buffer[2] = (voltage3V >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[3] = voltage3V & 0xFF;         // Low byte (bits 7-0)
+
+    buffer[4] = (voltage5V >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[5] = voltage5V & 0xFF;         // Low byte (bits 7-0)
+    
+    return buffer;
 }
 
 

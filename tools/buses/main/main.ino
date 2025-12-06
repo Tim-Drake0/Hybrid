@@ -21,9 +21,7 @@ byte sensorsBIT = B11111111;
 
 HardwareSerial MySerial(USART1);
 
-uint8_t packet[14]; 
-
-uint8_t packetBME[20]; 
+uint8_t packet[26]; 
 
 unsigned long lastSendTime = 0;
 
@@ -48,16 +46,24 @@ void loop() {
     if (currentMillis - lastSendTime >= 1000 / busPwr.frequency) {
         lastSendTime = currentMillis;
 
+        //Gather data
+
         uint16_t batt = analogRead(busPwr.battVolts.pin); 
         uint16_t volt3V = analogRead(busPwr.voltage3V.pin); 
         uint16_t volt5V = analogRead(busPwr.voltage5V.pin); 
+
+        float temp = bme.readTemperature();
+        float pressure = bme.readPressure();
+        float humidity = bme.readHumidity();
+
+
 
         // header is ABBA
         packet[0] = 0xAB;
         packet[1] = 0xBA;
 
         packet[2] = 0x1A;
-        packet[3] = 0xFE; // 6910
+        packet[3] = 0xFF; // 6910
 
         // time in milliseconds
         packet[4] = (currentMillis >> 24) & 0xFF; // Most significant byte (MSB)
@@ -65,56 +71,22 @@ void loop() {
         packet[6] = (currentMillis >> 8)  & 0xFF;
         packet[7] = currentMillis & 0xFF;         // Least significant byte (LSB)
 
-        // battery voltage
-        packet[8] = (batt >> 8) & 0xFF;  // High byte (bits 9–8)
-        packet[9] = batt & 0xFF;         // Low byte (bits 7–0)
+        //Votlage packets =============================================================
+        auto voltage_serialized = busPwr.serialize(batt, volt3V, volt5V);
 
-        packet[10] = (volt3V >> 8) & 0xFF;  // High byte (bits 9–8)
-        packet[11] = volt3V & 0xFF;         // Low byte (bits 7–0)
+        for (size_t i = 0; i < voltage_serialized.size(); i++) {
+            packet[8 + i] = voltage_serialized[i];
+        }
 
-        packet[12] = (volt5V >> 8) & 0xFF;  // High byte (bits 9–8)
-        packet[13] = volt5V & 0xFF;         // Low byte (bits 7–0)
+        //BME280 packets =============================================================
+        auto BME280_serialized = busBME280.serialize(temp, pressure, humidity);
 
-        //packet[14] = sensorsBIT;
-//
-        //packet[15] = (temp >> 8) & 0xFF;  // High byte (bits 9–8)
-        //packet[16] = temp & 0xFF;         // Low byte (bits 7–0)
-
-        // BME280 packet
-        uint32_t temp = bme.readTemperature();
-        uint32_t pressure = bme.readPressure();
-        uint32_t humidity = bme.readHumidity();
-
-        // header is ABBA
-        packetBME[0] = 0xAB;
-        packetBME[1] = 0xBA;
-
-        packetBME[2] = 0x1A;
-        packetBME[3] = 0xFF; // 6910
-
-        // time in milliseconds
-        packetBME[4] = (currentMillis >> 24) & 0xFF; // Most significant byte (MSB)
-        packetBME[5] = (currentMillis >> 16) & 0xFF;
-        packetBME[6] = (currentMillis >> 8)  & 0xFF;
-        packetBME[7] = currentMillis & 0xFF;         // Least significant byte (LSB)
-
-        packetBME[8] = (temp >> 24) & 0xFF; // Most significant byte (MSB)
-        packetBME[9] = (temp >> 16) & 0xFF;
-        packetBME[10] = (temp >> 8)  & 0xFF;
-        packetBME[11] = temp & 0xFF;         // Least significant byte (LSB)
-
-        packetBME[12] = (pressure >> 24) & 0xFF; // Most significant byte (MSB)
-        packetBME[13] = (pressure >> 16) & 0xFF;
-        packetBME[14] = (pressure >> 8)  & 0xFF;
-        packetBME[15] = pressure & 0xFF;         // Least significant byte (LSB)
-
-        packetBME[16] = (humidity >> 24) & 0xFF; // Most significant byte (MSB)
-        packetBME[17] = (humidity >> 16) & 0xFF;
-        packetBME[18] = (humidity >> 8)  & 0xFF;
-        packetBME[19] = humidity & 0xFF;         // Least significant byte (LSB)
+        for (size_t i = 0; i < BME280_serialized.size(); i++) {
+            packet[14 + i] = BME280_serialized[i];
+        }
 
         // Send packet
         //MySerial.write(packet, busPwr.size);
-        MySerial.write(packetBME, busBME280.size);
+        MySerial.write(packet, sizeof(packet));
     }
 }

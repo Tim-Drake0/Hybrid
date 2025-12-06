@@ -1,12 +1,13 @@
 busPwr:
   id: 6910
-  size: 14 # [Bytes]
+  size: 6 # [Bytes]
   freq: 50 # [Hz]
   endian: "little"
   data:
     battVolts:
       initVal: 1023
       unit: "V"
+      type: "uint16_t"
       startByte: 0 
       bytes: 2
       bits: 10
@@ -16,6 +17,7 @@ busPwr:
     voltage3V:
       initVal: 1023
       unit: "V"
+      type: "uint16_t"
       startByte: 2
       bytes: 2
       bits: 10
@@ -25,6 +27,7 @@ busPwr:
     voltage5V:
       initVal: 1023
       unit: "V"  
+      type: "uint16_t"
       startByte: 4
       bytes: 2
       bits: 10
@@ -34,13 +37,14 @@ busPwr:
 
 busBME280:
   id: 6911
-  size: 20 # [Bytes]
+  size: 12 # [Bytes]
   freq: 50 # [Hz]
   endian: "little"
   data:
     temperatureC:
       initVal: 9999
       unit: "C"  
+      type: "float"
       startByte: 0
       bytes: 4
       bits: 32
@@ -50,6 +54,7 @@ busBME280:
     pressurePasc:
       initVal: 9999
       unit: "Pa"  
+      type: "float"
       startByte: 4
       bytes: 4
       bits: 32
@@ -59,6 +64,7 @@ busBME280:
     humidityRH:
       initVal: 9999
       unit: "%"  
+      type: "float"
       startByte: 8
       bytes: 4
       bits: 32

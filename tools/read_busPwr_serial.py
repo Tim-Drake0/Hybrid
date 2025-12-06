@@ -1,12 +1,12 @@
 import serial
 import time
-
+import struct
 # -------------------------
 # Configure your serial port
 # -------------------------
 SERIAL_PORT = "COM4"      # Replace with your port
 BAUD_RATE = 115200
-PACKET_SIZE = 20           # 2 bytes header + 4 bytes timestamp + 2 bytes batt
+PACKET_SIZE = 26           # 2 bytes header + 4 bytes timestamp + 2 bytes batt
 
 # Open the serial port
 ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
@@ -28,6 +28,12 @@ def bytes2Num(startByte, bytes):
         return (packet[startByte] << 8) | packet[startByte+1]
     if bytes == 4:
         return (packet[startByte] << 24) | (packet[startByte+1] << 16) | (packet[startByte+2] << 8) | packet[startByte+3]
+    
+def bytes2Float(startByte):
+    # take 4 bytes and convert to float (IEEE 754)
+    raw_bytes = bytes(packet[startByte:startByte+4])
+    return struct.unpack('>f', raw_bytes)[0]  # >f = big-endian float
+
     
 def find_and_read_packet():
     """Read bytes until we find the header 0xABBA, then read the rest of the packet"""
@@ -79,7 +85,7 @@ try:
         # Print raw bytes in hex
         hex_values = [f"{b:02X}" for b in packet]
         
-        #battVolts = (bytes2Volts(6) *9870) / 3250 #9.87k, 3.25k
+        battVolts = (bytes2Volts(8) *9870) / 3250 #9.87k, 3.25k
         
         # Print interpreted values
         # print(
@@ -92,11 +98,15 @@ try:
         # )
         
         # BME280:
+        pressurePSI = bytes2Float(18) / 6895
         print(
             f"{timestamp:<10} "  # timestamp left-aligned, 20 chars wide
-            f"Temp: {bytes2Num(8,4):6.2f} "  # 6 chars wide, 2 decimals
-            f"Pressure: {bytes2Num(12,4):6.2f} "
-            f"Humidity: {bytes2Num(16,4):6.2f} "
+            f"Batt: {battVolts:5.2f}V "  # 6 chars wide, 2 decimals
+            f"3V: {bytes2Volts(10):4.2f}V "
+            f"5V: {bytes2Volts(12):4.2f}V "
+            f"Temp: {bytes2Float(14):4.1f}C "  # 6 chars wide, 2 decimals
+            f"Pressure: {pressurePSI:4.2f}PSI "
+            f"Humidity: {bytes2Float(22):4.1f}% "
         )
         
         #print(hex_values)
