@@ -9,6 +9,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <Adafruit_LSM9DS1.h>
+#include <Adafruit_ADXL375.h>
 
 
 void readPWR(SensorDataFrame &frame){
@@ -61,4 +62,14 @@ void readLSM9DS1(SensorDataFrame &frame){
     frame.gyrox = g.gyro.x; 
     frame.gyroy = g.gyro.y; 
     frame.gyroz = g.gyro.z;
+}
+
+void readADXL375(SensorDataFrame &frame){
+    sensors_event_t event;
+    adx.getEvent(&event);
+
+    frame.highG_accelx = event.acceleration.x; 
+    frame.highG_accely = event.acceleration.y; 
+    frame.highG_accelz = event.acceleration.z; 
+
 }

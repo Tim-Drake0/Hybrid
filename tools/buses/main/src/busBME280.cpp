@@ -12,10 +12,10 @@ busBME280Config busBME280 = {
     50,
     "little",
     "BME280",
-    { 9999, "C", "float", 6, 4, 32, 0.0, 1.0, 0},
-    { 9999, "Pa", "float", 10, 4, 32, 0.0, 1.0, 0},
-    { 9999, "%", "float", 14, 4, 32, 0.0, 1.0, 0},
-    { 9999, "m", "float", 18, 4, 32, 0.0, 1.0, 0}
+    { 9999, "C", "float", 2, 4, 32, 0.0, 1.0, 0},
+    { 9999, "Pa", "float", 6, 4, 32, 0.0, 1.0, 0},
+    { 9999, "%", "float", 10, 4, 32, 0.0, 1.0, 0},
+    { 9999, "m", "float", 14, 4, 32, 0.0, 1.0, 0}
 };
 
 const busBME280FieldConfig* busBME280Config::getField(const char* fieldName) const {

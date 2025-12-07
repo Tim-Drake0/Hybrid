@@ -26,6 +26,9 @@ magz = deque([sr.latest_frame.magz], maxlen=MAX_POINTS)
 gyrox = deque([sr.latest_frame.gyrox], maxlen=MAX_POINTS)
 gyroy = deque([sr.latest_frame.gyroy], maxlen=MAX_POINTS)
 gyroz = deque([sr.latest_frame.gyroz], maxlen=MAX_POINTS)
+highG_accelx = deque([sr.latest_frame.highG_accelx], maxlen=MAX_POINTS)
+highG_accely = deque([sr.latest_frame.highG_accely], maxlen=MAX_POINTS)
+highG_accelz = deque([sr.latest_frame.highG_accelz], maxlen=MAX_POINTS)
 
 dpg.create_context()
 
@@ -40,6 +43,9 @@ with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
             dpg.add_line_series([], [], label="accelx", tag="accelx")
             dpg.add_line_series([], [], label="accely", tag="accely")
             dpg.add_line_series([], [], label="accelz", tag="accelz")
+            dpg.add_line_series([], [], label="highG_accelx", tag="highG_accelx")
+            dpg.add_line_series([], [], label="highG_accely", tag="highG_accely")
+            dpg.add_line_series([], [], label="highG_accelz", tag="highG_accelz")
             
     with dpg.plot(label="busIMU Gyro", width=2000, height=300, pos=[0,315]):
         dpg.add_plot_legend()
@@ -89,6 +95,9 @@ try:
         gyrox.append(sr.latest_frame.gyrox) 
         gyroy.append(sr.latest_frame.gyroy) 
         gyroz.append(sr.latest_frame.gyroz) 
+        highG_accelx.append(sr.latest_frame.highG_accelx) 
+        highG_accely.append(sr.latest_frame.highG_accely) 
+        highG_accelz.append(sr.latest_frame.highG_accelz) 
         
         # Update line series
         # dpg.set_value("volt_batt", [list(timestamps), list(volt_batt)])
@@ -107,7 +116,11 @@ try:
         dpg.set_value("gyrox", [list(timestamps), list(gyrox)]) 
         dpg.set_value("gyroy", [list(timestamps), list(gyroy)]) 
         dpg.set_value("gyroz", [list(timestamps), list(gyroz)]) 
-
+        dpg.set_value("highG_accelx", [list(timestamps), list(highG_accelx)]) 
+        dpg.set_value("highG_accely", [list(timestamps), list(highG_accely)]) 
+        dpg.set_value("highG_accelz", [list(timestamps), list(highG_accelz)]) 
+        
+        
         # Update x-axis limits to show a moving window
         if timestamps:
             latest = timestamps[-1]

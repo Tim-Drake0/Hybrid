@@ -12,9 +12,9 @@ busPwrConfig busPwr = {
     50,
     "little",
     "PWR",
-    { 1023, "V", "uint16_t", 4, 2, 10, 0.3009149658, 4.098150873, A0},
-    { 1023, "V", "uint16_t", 6, 2, 10, 0.0, 1.0, A1},
-    { 1023, "V", "uint16_t", 8, 2, 10, 0.0, 1.0, A2}
+    { 1023, "V", "uint16_t", 2, 2, 10, 0.3009149658, 4.098150873, A0},
+    { 1023, "V", "uint16_t", 4, 2, 10, 0.0, 1.0, A1},
+    { 1023, "V", "uint16_t", 6, 2, 10, 0.0, 1.0, A2}
 };
 
 const busPwrFieldConfig* busPwrConfig::getField(const char* fieldName) const {

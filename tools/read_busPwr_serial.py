@@ -40,6 +40,12 @@ def bytes2Float(startByte):
     raw_bytes = bytes(packet[startByte:startByte+4])
     return struct.unpack('>f', raw_bytes)[0]  # >f = big-endian float
 
+def bytes2Int16(i):
+    val = (packet[i] << 8) | packet[i+1]
+    #if val & 0x8000:
+    #    val -= 0x10000
+    return val
+
 def find_and_read_packet():
     """Read bytes for the header and ID, then read the rest of the packet"""
     while True:
@@ -86,26 +92,56 @@ try:
         # Print raw bytes in hex
         hex_values = [f"{b:02X}" for b in packet]
         
-        pressurePSI = bytes2Float(23) / 6895
+        idx = 9
+        id1   = bytes2Num(idx, 2); idx += 2
+        batt  = bytes2Volts(idx); idx += 2
+        v3    = bytes2Volts(idx); idx += 2
+        v5    = bytes2Volts(idx); idx += 2
+        id2   = bytes2Num(idx, 2); idx += 2
+        temp  = bytes2Float(idx); idx += 4
+        pressure = bytes2Float(idx); idx += 4
+        humidity = bytes2Float(idx); idx += 4
+        alt    = bytes2Float(idx); idx += 4
+        id3    = bytes2Num(idx, 2); idx += 2
+
+        # IMU values
+        accelX = bytes2Float(idx); idx += 4
+        accelY = bytes2Float(idx); idx += 4
+        accelZ = bytes2Float(idx); idx += 4
+        magX   = bytes2Float(idx); idx += 4
+        magY   = bytes2Float(idx); idx += 4
+        magZ   = bytes2Float(idx); idx += 4
+        gyroX  = bytes2Float(idx); idx += 4
+        gyroY  = bytes2Float(idx); idx += 4
+        gyroZ  = bytes2Float(idx); idx += 4
+        
+        
+        id4    = bytes2Num(idx, 2); idx += 2
+        # High-G IMU values
+        highG_accelX = bytes2Float(idx); idx += 4
+        highG_accelY = bytes2Float(idx); idx += 4
+        highG_accelZ = bytes2Float(idx); 
         
         print(
-            f"{timestamp:<10} "  # timestamp left-aligned, 20 chars wide
-            f" ||  BIT: {sensorBIT} "  
-            f" ||  ID: {bytes2Num(9,2):5.0f} | "  
-            f"Batt: {bytes2Volts(11):5.2f}V | "  # 6 chars wide, 2 decimals
-            f"3V: {bytes2Volts(13):4.2f}V | "
-            f"5V: {bytes2Volts(15):4.1f}V "
-            f" ||  ID: {bytes2Num(17,2):5.0f} | "
-            f"Temp: {bytes2Float(19):4.1f}C | "  # 6 chars wide, 2 decimals
-            f"Press: {pressurePSI:4.2f}PSI | "
-            f"Hum: {bytes2Float(27):4.1f}% | "
-            f"Alt: {bytes2Float(31):4.1f}m "
-            f" ||  ID: {bytes2Num(35,2):5.0f} | "
-            f"Accel XYZ: {bytes2Float(37):4.1f} {bytes2Float(37+4):4.1f} {bytes2Float(37+8):4.1f} | "  
-            f"Mag XYZ: {bytes2Float(49):4.1f} {bytes2Float(49+4):4.1f} {bytes2Float(49+8):4.1f} | "  
-            f"Gyro XYZ: {bytes2Float(61):4.1f} {bytes2Float(61+4):4.1f} {bytes2Float(61+8):4.1f} | "  
+            f"{timestamp:<10} "
+            f"|| BIT: {sensorBIT} "
+            f"|| ID: {id1:5d} | "
+            f"Batt: {batt:5.2f}V | "
+            f"3V: {v3:4.2f}V | "
+            f"5V: {v5:4.1f}V | "
+            f"|| ID: {id2:5d} | "
+            f"Temp: {temp:4.1f}C | "
+            f"Press: {(pressure/6895):4.2f}PSI | "
+            f"Hum: {humidity:4.1f}% | "
+            f"Alt: {alt:4.1f}m | "
+            f"|| ID: {id3:5d} | "
+            f"Accel: {accelX:5.1f} {accelY:5.1f} {accelZ:5.1f} | "
+            f"Mag: {magX:5.1f} {magY:5.1f} {magZ:5.1f} | "
+            f"Gyro: {gyroX:5.1f} {gyroY:5.1f} {gyroZ:5.1f} "
+            f"|| ID: {id4:5d} | "
+            f"High-G Accel XYZ: {highG_accelX:5.1f} {highG_accelY:5.1f} {highG_accelZ:5.1f} | "
         )
-        
+
         #print(hex_values)
 
 

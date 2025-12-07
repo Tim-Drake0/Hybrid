@@ -8,6 +8,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <Adafruit_LSM9DS1.h>
+#include <Adafruit_ADXL375.h>
 
 /*======================================================================
 Author: Tim Drake
@@ -28,6 +29,7 @@ HardwareSerial MySerial(USART1);
 
 Adafruit_BME280 bme;
 Adafruit_LSM9DS1 lsm = Adafruit_LSM9DS1(&Wire2, 0x1E6B);
+Adafruit_ADXL375 adx = Adafruit_ADXL375(12345, &Wire2);
 
 unsigned long lastSendTime = 0;
 
@@ -46,6 +48,10 @@ void setup() {
     if(lsm.begin()) {
         bitSet(thisFrame.sensorsBIT, 1);
     }
+
+    if(adx.begin(0x53)) {
+        bitSet(thisFrame.sensorsBIT, 2);
+    }   
 }
 
 void loop() {
@@ -57,6 +63,7 @@ void loop() {
         readPWR(thisFrame);
         readBME280(thisFrame);
         readLSM9DS1(thisFrame);
+        readADXL375(thisFrame);
 
         // Generate packet
         auto packet = streamSerialTelem.serialize(thisFrame);

@@ -179,3 +179,40 @@ busLSM9DS1:
       c0: 0.0
       c1: 1.0
       pin: 0
+busADXL375:
+  id: 6913
+  size: 14
+  freq: 50
+  endian: little
+  sensorName: ADXL375
+  data:
+    highG_accelx:
+      initVal: 9999
+      unit: m/s^2
+      type: float
+      byteOffset: 2
+      bytes: 4
+      bits: 13
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    highG_accely:
+      initVal: 9999
+      unit: m/s^2
+      type: float
+      byteOffset: 6
+      bytes: 4
+      bits: 13
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    highG_accelz:
+      initVal: 9999
+      unit: m/s^2
+      type: float
+      byteOffset: 10
+      bytes: 4
+      bits: 13
+      c0: 0.0
+      c1: 1.0
+      pin: 0

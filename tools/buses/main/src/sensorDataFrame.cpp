@@ -19,5 +19,8 @@ SensorDataFrame thisFrame = {
     0,          // magz
     0,          // gyrox
     0,          // gyroy
-    0           // gyroz
+    0,          // gyroz
+    0,          // highG_accelx
+    0,          // highG_accely
+    0           // highG_accelz
 };

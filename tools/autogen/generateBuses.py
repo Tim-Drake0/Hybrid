@@ -73,7 +73,7 @@ for bus_name, bus_info in buses.items():
             buffer += f"buffer[{buff_index+3}] = {tempName} & 0xFF;         // Least significant byte (LSB)\n\n    "
             buff_index = buff_index+4
             
-        elif field_props['type'] == "uint16_t": # if 16bit int then split up into 2 bytes
+        elif field_props['type'] == "uint16_t" or field_props['type'] == "int16_t": # if 16bit int then split up into 2 bytes
             buffer += f"buffer[{buff_index}] = ({tempName} >> 8) & 0xFF;  // High byte (bits 9-8)\n    "
             buffer += f"buffer[{buff_index+1}] = {tempName} & 0xFF;         // Low byte (bits 7-0)\n\n    "
             buff_index = buff_index+2    

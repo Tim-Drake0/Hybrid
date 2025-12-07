@@ -28,6 +28,10 @@ struct SensorDataFrame {
     float gyrox;
     float gyroy;
     float gyroz;
+
+    float highG_accelx;
+    float highG_accely;
+    float highG_accelz;
 };
 
 extern SensorDataFrame thisFrame;
