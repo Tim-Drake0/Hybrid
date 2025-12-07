@@ -10,13 +10,13 @@
 
 streamSerialTelemConfig streamSerialTelem = {
     6900,
-    30,
+    34,
     50,
     43962
 };
 
-std::array<uint8_t, 30> streamSerialTelemConfig::serialize(uint32_t currentMillis) const {
-    std::array<uint8_t, 30> buffer{}; // initialize all to 0
+std::array<uint8_t, 34> streamSerialTelemConfig::serialize(uint32_t currentMillis) const {
+    std::array<uint8_t, 34> buffer{}; // initialize all to 0
 
     auto busPwr_serialized = busPwr.serialize();
     auto busBME280_serialized = busBME280.serialize();

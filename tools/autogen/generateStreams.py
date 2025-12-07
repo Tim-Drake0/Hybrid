@@ -27,7 +27,7 @@ for stream_name, stream_info in streams.items():
     for index, busName in enumerate(stream_info['buses']): # look at each variable
         
         includeBusesLines += f'#include "{busName}.h"\n'
-        print(busName)
+
         
         for bus_name, bus_info in buses.items():
             if bus_name == busName:
@@ -40,6 +40,7 @@ for stream_name, stream_info in streams.items():
         else: # include the offset if not the last bus
             copyArraysLines += f"    copy_array_into_buffer(buffer, offset, {busName}_serialized);\n    offset += {busName}_serialized.size();\n"
     
+    streams[stream_name]['size'] = streamSize
     # -------- busPwr.h ---------------------------------------------------------------------------------------------------------
     header_path = os.path.join(output_dir, stream_name + ".h")
 
@@ -152,11 +153,9 @@ std::array<uint8_t, {size}> streamSerialTelemConfig::serialize(uint32_t currentM
 
     print(f"Generated files in Arduino sketch folder:\n- {header_path}\n- {cpp_path}")
     #print(f"{stream_name} length: {streamSize} bytes")
+
+
+with open(yaml_file, "w") as f:
+    yaml.safe_dump(streams, f, sort_keys=False)
     
-    if stream_info['size'] != streamSize: # Check if size matches. need the yaml to be correct for deserialization
-        print(f"**************************************************")
-        print(f"Need to update {stream_name} size in this file:  ")
-        print(f"{yaml_file} ")
-        print(f"          YAML: {stream_info['size']}   Calculated: {streamSize}")
-        print(f"**************************************************")
         

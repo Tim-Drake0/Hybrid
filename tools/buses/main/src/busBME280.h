@@ -37,7 +37,7 @@ struct busBME280Config {
 
     const busBME280FieldConfig* getField(const char* fieldName) const;
     void readSensor(Adafruit_BME280& bme);
-    std::array<uint8_t, 16> serialize() const;
+    std::array<uint8_t, 18> serialize() const;
 };
 
 extern busBME280Config busBME280;

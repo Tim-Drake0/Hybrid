@@ -43,7 +43,7 @@ for bus_name, bus_info in buses.items():
     readSensorLines = ""
     
     i=0
-    buff_index = 0
+    buff_index = 2
     for field_name, field_props in bus_info['data'].items(): # look at each variable
         i=i+1
         #valuesLines += f"    {field_props.values()},\n"
@@ -63,27 +63,24 @@ for bus_name, bus_info in buses.items():
         else:
             tempName = "sensor_" + field_name
             
-        # do bit math    
+        # do bit math 
+        if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
+            buffer += f"buffer[{buff_index}] = ({tempName} >> 24) & 0xFF; // Most significant byte (MSB)\n    "
+            buffer += f"buffer[{buff_index+1}] = ({tempName} >> 16) & 0xFF;\n    "
+            buffer += f"buffer[{buff_index+2}] = ({tempName} >> 8)  & 0xFF;\n    "
+            buffer += f"buffer[{buff_index+3}] = {tempName} & 0xFF;         // Least significant byte (LSB)\n\n    "
+            buff_index = buff_index+4
+            
+        elif field_props['type'] == "uint16_t": # if 16bit int then split up into 2 bytes
+            buffer += f"buffer[{buff_index}] = ({tempName} >> 8) & 0xFF;  // High byte (bits 9-8)\n    "
+            buffer += f"buffer[{buff_index+1}] = {tempName} & 0xFF;         // Low byte (bits 7-0)\n\n    "
+            buff_index = buff_index+2    
+               
         if i == len(bus_info['data'].items()): # double indent if not the last one
-            valuesLines += f"    {thisLine}"
-            #serializeInputLine += f"{field_props['type']} {field_name}"
-            if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
-                buffer += f"buffer[{buff_index}] = ({tempName} >> 24) & 0xFF; // Most significant byte (MSB)\n    buffer[{buff_index+1}] = ({tempName} >> 16) & 0xFF;\n    buffer[{buff_index+2}] = ({tempName} >> 8)  & 0xFF;\n    buffer[{buff_index+3}] = {tempName} & 0xFF;         // Least significant byte (LSB)"
-                buff_index = buff_index+4
-            elif field_props['type'] == "uint16_t": # if 16bit int then split up into 2 bytes
-                buffer += f"buffer[{buff_index}] = ({tempName} >> 8) & 0xFF;  // High byte (bits 9-8)\n    buffer[{buff_index+1}] = {tempName} & 0xFF;         // Low byte (bits 7-0)"
-                buff_index = buff_index+2
-                                    
+            valuesLines += f"    {thisLine}"                          
         else:
             valuesLines += f"    {thisLine},\n"
-            #serializeInputLine += f"{field_props['type']} {field_name}, "
-            if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
-                buffer += f"buffer[{buff_index}] = ({tempName} >> 24) & 0xFF; // Most significant byte (MSB)\n    buffer[{buff_index+1}] = ({tempName} >> 16) & 0xFF;\n    buffer[{buff_index+2}] = ({tempName} >> 8)  & 0xFF;\n    buffer[{buff_index+3}] = {tempName} & 0xFF;         // Least significant byte (LSB)\n\n    "
-                buff_index = buff_index+4
-            elif field_props['type'] == "uint16_t": # if 16bit int then split up into 2 bytes
-                buffer += f"buffer[{buff_index}] = ({tempName} >> 8) & 0xFF;  // High byte (bits 9-8)\n    buffer[{buff_index+1}] = {tempName} & 0xFF;         // Low byte (bits 7-0)\n\n    "
-                buff_index = buff_index+2    
-                
+       
         ifLines += f'   if (strcmp(fieldName, "{field_name}") == 0) return &{field_name};\n'
         
         # Sensor lines
@@ -91,7 +88,8 @@ for bus_name, bus_info in buses.items():
 
     readSensorLines,readSensorH = getReadSensorLines(bus_info['sensorName'])
 
-
+    buses[bus_name]['size'] = buff_index
+    
     # -------- busPwr.h ---------------------------------------------------------------------------------------------------------
     header_path = os.path.join(output_dir, bus_name + ".h")
 
@@ -145,7 +143,7 @@ extern {busConfig} {busName};
         fieldConfig=bus_name + "FieldConfig",
         busConfig=bus_name + "Config",
         fieldConfigLines=fieldConfigLines,
-        size=bus_info['size'],
+        size=buff_index,
         sensorLines=sensorLines,
         readSensorH=readSensorH,
     )
@@ -187,6 +185,11 @@ std::array<uint8_t, {size}> {busConfig}::serialize() const {{
     
     {floatUn}
     {floatVar}
+    // ID
+    buffer[0] = ({id} >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[1] = {id} & 0xFF;         // Low byte (bits 7-0)
+    
+    //Data
     {buffer}
     
     return buffer;
@@ -201,7 +204,7 @@ std::array<uint8_t, {size}> {busConfig}::serialize() const {{
         fieldConfig=bus_name + "FieldConfig",
         busConfig=bus_name + "Config",
         id=bus_info['id'],
-        size=bus_info['size'],
+        size=buff_index,
         freq=bus_info['freq'],
         endian=f'"{bus_info['endian']}"',
         sensorName=f'"{bus_info['sensorName']}"',
@@ -217,3 +220,6 @@ std::array<uint8_t, {size}> {busConfig}::serialize() const {{
         f.write(output)
 
     print(f"Generated files in Arduino sketch folder:\n- {header_path}\n- {cpp_path}")
+
+with open(yaml_file, "w") as f:
+    yaml.safe_dump(buses, f, sort_keys=False)

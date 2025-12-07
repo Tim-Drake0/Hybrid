@@ -23,7 +23,7 @@ unsigned long lastSendTime = 0;
 
 void setup() {
     MySerial.begin(115200);
-    memset(packet, 0, busPwr.size);
+    //memset(packet, 0, busPwr.size);
 
     Wire2.begin(PB11, PB10);  
     if(!bme.begin(0x77, &Wire2)){

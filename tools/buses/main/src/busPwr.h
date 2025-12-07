@@ -35,7 +35,7 @@ struct busPwrConfig {
 
     const busPwrFieldConfig* getField(const char* fieldName) const;
     void readSensor();
-    std::array<uint8_t, 6> serialize() const;
+    std::array<uint8_t, 8> serialize() const;
 };
 
 extern busPwrConfig busPwr;

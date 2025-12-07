@@ -7,7 +7,7 @@
 
 busPwrConfig busPwr = {
     6910,
-    6,
+    8,
     50,
     "little",
     "PWR",
@@ -31,20 +31,27 @@ void busPwrConfig::readSensor(){
     sensor_voltage5V = (analogRead(busPwr.voltage5V.pin) * busPwr.voltage5V.c1) + busPwr.voltage5V.c1;
 }
 
-std::array<uint8_t, 6> busPwrConfig::serialize() const {
-    std::array<uint8_t, 6> buffer{};
+std::array<uint8_t, 8> busPwrConfig::serialize() const {
+    std::array<uint8_t, 8> buffer{};
     buffer.fill(0);
     
     
     
-    buffer[0] = (sensor_battVolts >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[1] = sensor_battVolts & 0xFF;         // Low byte (bits 7-0)
+    // ID
+    buffer[0] = (6910 >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[1] = 6910 & 0xFF;         // Low byte (bits 7-0)
+    
+    //Data
+    buffer[2] = (sensor_battVolts >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[3] = sensor_battVolts & 0xFF;         // Low byte (bits 7-0)
 
-    buffer[2] = (sensor_voltage3V >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[3] = sensor_voltage3V & 0xFF;         // Low byte (bits 7-0)
+    buffer[4] = (sensor_voltage3V >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[5] = sensor_voltage3V & 0xFF;         // Low byte (bits 7-0)
 
-    buffer[4] = (sensor_voltage5V >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[5] = sensor_voltage5V & 0xFF;         // Low byte (bits 7-0)
+    buffer[6] = (sensor_voltage5V >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[7] = sensor_voltage5V & 0xFF;         // Low byte (bits 7-0)
+
+    
     
     return buffer;
 }

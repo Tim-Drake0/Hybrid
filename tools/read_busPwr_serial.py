@@ -5,6 +5,7 @@ import yaml
 
 # ---------------- CONFIG ----------------
 STREAMS_YAML_FILE = "C:/Git/Hybrid/tools/buses/streamDef.yaml"
+BUS_YAML_FILE = "C:/Git/Hybrid/tools/buses/busDef.yaml"
 SERIAL_PORT = "COM4"     
 BAUD_RATE = 115200
 STREAM_NAME = "streamSerialTelem"
@@ -13,6 +14,9 @@ STREAM_NAME = "streamSerialTelem"
 # Load YAML
 with open(STREAMS_YAML_FILE, "r") as f:
     streams = yaml.safe_load(f)
+
+with open(BUS_YAML_FILE, "r") as f:
+    buses = yaml.safe_load(f)
     
 thisStream = streams[STREAM_NAME]
 
@@ -46,16 +50,25 @@ def find_and_read_packet():
     """Read bytes for the header and ID, then read the rest of the packet"""
     while True:
         # Read bytes until we find 0xAB
-        bytes = ser.read(4)
-        if len(bytes) == 0:
+        b1 = ser.read(1)
+        if len(b1) == 0:
             continue
-        if bytes[0] != (thisStream['header'] >> 8) & 0xFF:
+        if b1[0] != (thisStream['header'] >> 8) & 0xFF:
             continue
-        if bytes[1] != thisStream['header'] & 0xFF:
+        b2 = ser.read(1)
+        if len(b2) == 0:
             continue
-        if bytes[2] != (thisStream['id'] >> 8) & 0xFF:
+        if b2[0] != thisStream['header'] & 0xFF:
             continue
-        if bytes[3] != thisStream['id'] & 0xFF:
+        b3 = ser.read(1)
+        if len(b3) == 0:           
+            continue
+        if b3[0] != (thisStream['id'] >> 8) & 0xFF:
+            continue
+        b4 = ser.read(1)
+        if len(b4) == 0:
+            continue
+        if b4[0] != thisStream['id'] & 0xFF:
             continue
         
         # Header found, read remaining bytes
@@ -65,7 +78,7 @@ def find_and_read_packet():
             continue
 
         # Full packet
-        packet = list(bytes) + list(remaining)
+        packet = list(b1) + list(b2) + list(b3) + list(b4) + list(remaining)
         return packet
 
 try:
@@ -78,17 +91,19 @@ try:
         # Print raw bytes in hex
         hex_values = [f"{b:02X}" for b in packet]
         
-        pressurePSI = bytes2Float(18) / 6895
+        pressurePSI = bytes2Float(22) / 6895
         
         print(
             f"{timestamp:<10} "  # timestamp left-aligned, 20 chars wide
-            f"Batt: {bytes2Volts(8):5.2f}V "  # 6 chars wide, 2 decimals
-            f"3V: {bytes2Volts(10):4.2f}V "
-            f"5V: {bytes2Volts(12):4.1f}V "
-            f"Temp: {bytes2Float(14):4.1f}C "  # 6 chars wide, 2 decimals
+            f"ID: {bytes2Num(8,2):5.0f} "  
+            f"Batt: {bytes2Volts(10):5.2f}V "  # 6 chars wide, 2 decimals
+            f"3V: {bytes2Volts(12):4.2f}V "
+            f"5V: {bytes2Volts(14):4.1f}V "
+            f"      ID: {bytes2Num(16,2):5.0f} "
+            f"Temp: {bytes2Float(18):4.1f}C "  # 6 chars wide, 2 decimals
             f"Press: {pressurePSI:4.2f}PSI "
-            f"Hum: {bytes2Float(22):4.1f}% "
-            f"Alt: {bytes2Float(26):4.1f}m "
+            f"Hum: {bytes2Float(26):4.1f}% "
+            f"Alt: {bytes2Float(30):4.1f}m "
         )
         
         #print(hex_values)

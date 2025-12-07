@@ -7,7 +7,7 @@
 
 busBME280Config busBME280 = {
     6911,
-    16,
+    18,
     50,
     "little",
     "BME280",
@@ -34,8 +34,8 @@ void busBME280Config::readSensor(Adafruit_BME280& bme){
     sensor_altitudeM    = (bme.readAltitude(1013.25) * busBME280.altitudeM.c1) + busBME280.altitudeM.c0;
 }
 
-std::array<uint8_t, 16> busBME280Config::serialize() const {
-    std::array<uint8_t, 16> buffer{};
+std::array<uint8_t, 18> busBME280Config::serialize() const {
+    std::array<uint8_t, 18> buffer{};
     buffer.fill(0);
     
     union {float f;uint32_t u;} temperatureC_u;
@@ -48,25 +48,32 @@ std::array<uint8_t, 16> busBME280Config::serialize() const {
     humidityRH_u.f = sensor_humidityRH;
     altitudeM_u.f = sensor_altitudeM;
     
-    buffer[0] = (temperatureC_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[1] = (temperatureC_u.u >> 16) & 0xFF;
-    buffer[2] = (temperatureC_u.u >> 8)  & 0xFF;
-    buffer[3] = temperatureC_u.u & 0xFF;         // Least significant byte (LSB)
+    // ID
+    buffer[0] = (6911 >> 8) & 0xFF;  // High byte (bits 9-8)
+    buffer[1] = 6911 & 0xFF;         // Low byte (bits 7-0)
+    
+    //Data
+    buffer[2] = (temperatureC_u.u >> 24) & 0xFF; // Most significant byte (MSB)
+    buffer[3] = (temperatureC_u.u >> 16) & 0xFF;
+    buffer[4] = (temperatureC_u.u >> 8)  & 0xFF;
+    buffer[5] = temperatureC_u.u & 0xFF;         // Least significant byte (LSB)
 
-    buffer[4] = (pressurePasc_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[5] = (pressurePasc_u.u >> 16) & 0xFF;
-    buffer[6] = (pressurePasc_u.u >> 8)  & 0xFF;
-    buffer[7] = pressurePasc_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[6] = (pressurePasc_u.u >> 24) & 0xFF; // Most significant byte (MSB)
+    buffer[7] = (pressurePasc_u.u >> 16) & 0xFF;
+    buffer[8] = (pressurePasc_u.u >> 8)  & 0xFF;
+    buffer[9] = pressurePasc_u.u & 0xFF;         // Least significant byte (LSB)
 
-    buffer[8] = (humidityRH_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[9] = (humidityRH_u.u >> 16) & 0xFF;
-    buffer[10] = (humidityRH_u.u >> 8)  & 0xFF;
-    buffer[11] = humidityRH_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[10] = (humidityRH_u.u >> 24) & 0xFF; // Most significant byte (MSB)
+    buffer[11] = (humidityRH_u.u >> 16) & 0xFF;
+    buffer[12] = (humidityRH_u.u >> 8)  & 0xFF;
+    buffer[13] = humidityRH_u.u & 0xFF;         // Least significant byte (LSB)
 
-    buffer[12] = (altitudeM_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[13] = (altitudeM_u.u >> 16) & 0xFF;
-    buffer[14] = (altitudeM_u.u >> 8)  & 0xFF;
-    buffer[15] = altitudeM_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[14] = (altitudeM_u.u >> 24) & 0xFF; // Most significant byte (MSB)
+    buffer[15] = (altitudeM_u.u >> 16) & 0xFF;
+    buffer[16] = (altitudeM_u.u >> 8)  & 0xFF;
+    buffer[17] = altitudeM_u.u & 0xFF;         // Least significant byte (LSB)
+
+    
     
     return buffer;
 }
