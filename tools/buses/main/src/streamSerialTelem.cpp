@@ -10,13 +10,13 @@
 
 streamSerialTelemConfig streamSerialTelem = {
     6900,
-    34,
+    35,
     50,
     43962
 };
 
-std::array<uint8_t, 34> streamSerialTelemConfig::serialize(uint32_t currentMillis) const {
-    std::array<uint8_t, 34> buffer{}; // initialize all to 0
+std::array<uint8_t, 35> streamSerialTelemConfig::serialize(uint32_t currentMillis, uint8_t sensorsBIT) const {
+    std::array<uint8_t, 35> buffer{}; // initialize all to 0
 
     auto busPwr_serialized = busPwr.serialize();
     auto busBME280_serialized = busBME280.serialize();
@@ -35,8 +35,11 @@ std::array<uint8_t, 34> streamSerialTelemConfig::serialize(uint32_t currentMilli
     buffer[6] = (currentMillis >> 8)  & 0xFF;
     buffer[7] = currentMillis & 0xFF;
     
+    // Sensor Built in Test
+    buffer[8] = sensorsBIT;
+    
     // Copy serialized sub-arrays
-    size_t offset = 8; 
+    size_t offset = 9; 
     copy_array_into_buffer(buffer, offset, busPwr_serialized);
     offset += busPwr_serialized.size();
     copy_array_into_buffer(buffer, offset, busBME280_serialized);

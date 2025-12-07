@@ -88,22 +88,24 @@ try:
         # Decode timestamp (4 bytes)
         timestamp = (packet[4] << 24) | (packet[5] << 16) | (packet[6] << 8) | packet[7]
 
+        sensorBIT = f"{packet[8]:08b}"
         # Print raw bytes in hex
         hex_values = [f"{b:02X}" for b in packet]
         
-        pressurePSI = bytes2Float(22) / 6895
+        pressurePSI = bytes2Float(23) / 6895
         
         print(
             f"{timestamp:<10} "  # timestamp left-aligned, 20 chars wide
-            f"ID: {bytes2Num(8,2):5.0f} "  
-            f"Batt: {bytes2Volts(10):5.2f}V "  # 6 chars wide, 2 decimals
-            f"3V: {bytes2Volts(12):4.2f}V "
-            f"5V: {bytes2Volts(14):4.1f}V "
-            f"      ID: {bytes2Num(16,2):5.0f} "
-            f"Temp: {bytes2Float(18):4.1f}C "  # 6 chars wide, 2 decimals
+            f"BIT: {sensorBIT} "  
+            f"ID: {bytes2Num(9,2):5.0f} "  
+            f"Batt: {bytes2Volts(11):5.2f}V "  # 6 chars wide, 2 decimals
+            f"3V: {bytes2Volts(13):4.2f}V "
+            f"5V: {bytes2Volts(15):4.1f}V "
+            f"      ID: {bytes2Num(17,2):5.0f} "
+            f"Temp: {bytes2Float(19):4.1f}C "  # 6 chars wide, 2 decimals
             f"Press: {pressurePSI:4.2f}PSI "
-            f"Hum: {bytes2Float(26):4.1f}% "
-            f"Alt: {bytes2Float(30):4.1f}m "
+            f"Hum: {bytes2Float(27):4.1f}% "
+            f"Alt: {bytes2Float(31):4.1f}m "
         )
         
         #print(hex_values)

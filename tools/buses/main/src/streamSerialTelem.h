@@ -15,7 +15,7 @@ struct streamSerialTelemConfig {
     int frequency;
     uint16_t header;
     
-    std::array<uint8_t, 34> serialize(uint32_t currentMillis) const;
+    std::array<uint8_t, 35> serialize(uint32_t currentMillis, uint8_t sensorsBIT) const;
     
 };
 

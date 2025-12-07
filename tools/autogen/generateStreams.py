@@ -16,7 +16,7 @@ with open(yaml_file, "r") as f:
 with open(bus_yaml_file, "r") as f:
     buses = yaml.safe_load(f)
 
-streamSize = 8 #header, id, and timestamp
+streamSize = 9 #header, id, and timestamp
 for stream_name, stream_info in streams.items():
     print(stream_name)
     
@@ -59,7 +59,7 @@ struct {streamName}Config {{
     int frequency;
     uint16_t header;
     
-    std::array<uint8_t, {streamSize}> serialize(uint32_t currentMillis) const;
+    std::array<uint8_t, {streamSize}> serialize(uint32_t currentMillis, uint8_t sensorsBIT) const;
     
 }};
 
@@ -110,7 +110,7 @@ extern streamSerialTelemConfig streamSerialTelem;
     {header}
 }};
 
-std::array<uint8_t, {size}> streamSerialTelemConfig::serialize(uint32_t currentMillis) const {{
+std::array<uint8_t, {size}> streamSerialTelemConfig::serialize(uint32_t currentMillis, uint8_t sensorsBIT) const {{
     std::array<uint8_t, {size}> buffer{{}}; // initialize all to 0
 
 {serializeBuses}
@@ -128,8 +128,11 @@ std::array<uint8_t, {size}> streamSerialTelemConfig::serialize(uint32_t currentM
     buffer[6] = (currentMillis >> 8)  & 0xFF;
     buffer[7] = currentMillis & 0xFF;
     
+    // Sensor Built in Test
+    buffer[8] = sensorsBIT;
+    
     // Copy serialized sub-arrays
-    size_t offset = 8; 
+    size_t offset = 9; 
 {copyArrays}   
     return buffer;
 }}
