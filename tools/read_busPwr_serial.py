@@ -1,12 +1,20 @@
 import serial
 import time
 import struct
-# -------------------------
-# Configure your serial port
-# -------------------------
-SERIAL_PORT = "COM4"      # Replace with your port
+import yaml
+
+# ---------------- CONFIG ----------------
+STREAMS_YAML_FILE = "C:/Git/Hybrid/tools/buses/streamDef.yaml"
+SERIAL_PORT = "COM4"     
 BAUD_RATE = 115200
-PACKET_SIZE = 30           # 2 bytes header + 4 bytes timestamp + 2 bytes batt
+STREAM_NAME = "streamSerialTelem"
+# ---------------------------------------
+
+# Load YAML
+with open(STREAMS_YAML_FILE, "r") as f:
+    streams = yaml.safe_load(f)
+    
+thisStream = streams[STREAM_NAME]
 
 # Open the serial port
 ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
@@ -34,48 +42,31 @@ def bytes2Float(startByte):
     raw_bytes = bytes(packet[startByte:startByte+4])
     return struct.unpack('>f', raw_bytes)[0]  # >f = big-endian float
 
-    
 def find_and_read_packet():
-    """Read bytes until we find the header 0xABBA, then read the rest of the packet"""
+    """Read bytes for the header and ID, then read the rest of the packet"""
     while True:
         # Read bytes until we find 0xAB
-        b1 = ser.read(1)
-        if len(b1) == 0:
+        bytes = ser.read(4)
+        if len(bytes) == 0:
             continue
-        if b1[0] != 0xAB:
+        if bytes[0] != (thisStream['header'] >> 8) & 0xFF:
             continue
-
-        # Next byte must be 0xBA
-        b2 = ser.read(1)
-        if len(b2) == 0:
+        if bytes[1] != thisStream['header'] & 0xFF:
             continue
-        if b2[0] != 0xBA:
+        if bytes[2] != (thisStream['id'] >> 8) & 0xFF:
+            continue
+        if bytes[3] != thisStream['id'] & 0xFF:
             continue
         
-        b3 = ser.read(1)
-        if len(b3) == 0:
-            continue
-        if b3[0] != 0x1A:
-            continue
-
-        # Next byte must be 0xBA
-        b4 = ser.read(1)
-        if len(b4) == 0:
-            continue
-        if b4[0] != 0xFF:
-            continue
-
         # Header found, read remaining bytes
-        remaining = ser.read(PACKET_SIZE - 4)
-        if len(remaining) != PACKET_SIZE - 4:
+        remaining = ser.read(thisStream['size'] - 4)
+        if len(remaining) != thisStream['size'] - 4:
             print("Incomplete packet, skipping...")
             continue
 
         # Full packet
-        packet = [0xAB, 0xBA, 0x1A, 0xFF] + list(remaining)
+        packet = list(bytes) + list(remaining)
         return packet
-
-
 
 try:
     while True:
@@ -88,8 +79,6 @@ try:
         hex_values = [f"{b:02X}" for b in packet]
         
         pressurePSI = bytes2Float(18) / 6895
-        
-        
         
         print(
             f"{timestamp:<10} "  # timestamp left-aligned, 20 chars wide

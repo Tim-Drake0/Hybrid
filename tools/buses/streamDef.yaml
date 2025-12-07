@@ -1,6 +1,8 @@
 streamSerialTelem:
   id: 6900
-  freq: 50 # [Hz]
+  size: 30
+  freq: 50 
+  header: 0xABBA
   buses:
     - busPwr
     - busBME280
