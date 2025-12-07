@@ -27,9 +27,9 @@ void readBME280(SensorDataFrame &frame){
 
 void setupLSM9DS1() {
     // 1.) Set the accelerometer range
-    lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_2G, lsm.LSM9DS1_ACCELDATARATE_10HZ);
+    //lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_2G, lsm.LSM9DS1_ACCELDATARATE_10HZ);
     //lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_4G, lsm.LSM9DS1_ACCELDATARATE_119HZ);
-    //lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_8G, lsm.LSM9DS1_ACCELDATARATE_476HZ);
+    lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_8G, lsm.LSM9DS1_ACCELDATARATE_476HZ);
     //lsm.setupAccel(lsm.LSM9DS1_ACCELRANGE_16G, lsm.LSM9DS1_ACCELDATARATE_952HZ);
 
     // 2.) Set the magnetometer sensitivity
@@ -37,10 +37,10 @@ void setupLSM9DS1() {
     //lsm.setupMag(lsm.LSM9DS1_MAGGAIN_8GAUSS);
     //lsm.setupMag(lsm.LSM9DS1_MAGGAIN_12GAUSS);
     //lsm.setupMag(lsm.LSM9DS1_MAGGAIN_16GAUSS);  
-      
+
     // 3.) Setup the gyroscope
-    lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_245DPS);
-    //lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_500DPS);
+    //lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_245DPS);
+    lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_500DPS);
     //lsm.setupGyro(lsm.LSM9DS1_GYROSCALE_2000DPS);
 }
 

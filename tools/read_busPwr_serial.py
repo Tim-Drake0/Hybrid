@@ -1,5 +1,4 @@
 import serial
-import time
 import struct
 import yaml
 
@@ -29,11 +28,6 @@ def bytes2Volts(startByte):
     raw_volts = (packet[startByte] << 8) | packet[startByte+1]
     
     return (raw_volts / 1024) * 3.3
-  
-def bytes2Temp(startByte):
-    raw_temp = (packet[startByte] << 8) | packet[startByte+1]
-    
-    return raw_temp
 
 def bytes2Num(startByte, bytes):
     if bytes == 2:
@@ -96,20 +90,20 @@ try:
         
         print(
             f"{timestamp:<10} "  # timestamp left-aligned, 20 chars wide
-            f"BIT: {sensorBIT} "  
-            f"ID: {bytes2Num(9,2):5.0f} "  
-            f"Batt: {bytes2Volts(11):5.2f}V "  # 6 chars wide, 2 decimals
-            f"3V: {bytes2Volts(13):4.2f}V "
+            f" ||  BIT: {sensorBIT} "  
+            f" ||  ID: {bytes2Num(9,2):5.0f} | "  
+            f"Batt: {bytes2Volts(11):5.2f}V | "  # 6 chars wide, 2 decimals
+            f"3V: {bytes2Volts(13):4.2f}V | "
             f"5V: {bytes2Volts(15):4.1f}V "
-            f"      ID: {bytes2Num(17,2):5.0f} "
-            f"Temp: {bytes2Float(19):4.1f}C "  # 6 chars wide, 2 decimals
-            f"Press: {pressurePSI:4.2f}PSI "
-            f"Hum: {bytes2Float(27):4.1f}% "
+            f" ||  ID: {bytes2Num(17,2):5.0f} | "
+            f"Temp: {bytes2Float(19):4.1f}C | "  # 6 chars wide, 2 decimals
+            f"Press: {pressurePSI:4.2f}PSI | "
+            f"Hum: {bytes2Float(27):4.1f}% | "
             f"Alt: {bytes2Float(31):4.1f}m "
-            f"      ID: {bytes2Num(35,2):5.0f} "
-            f"Accel XYZ: {bytes2Float(37):4.1f} {bytes2Float(37+4):4.1f} {bytes2Float(37+8):4.1f} "  
-            f"Mag XYZ: {bytes2Float(49):4.1f} {bytes2Float(49+4):4.1f} {bytes2Float(49+8):4.1f} "  
-            f"Gyro XYZ: {bytes2Float(61):4.1f} {bytes2Float(61+4):4.1f} {bytes2Float(61+8):4.1f} "  
+            f" ||  ID: {bytes2Num(35,2):5.0f} | "
+            f"Accel XYZ: {bytes2Float(37):4.1f} {bytes2Float(37+4):4.1f} {bytes2Float(37+8):4.1f} | "  
+            f"Mag XYZ: {bytes2Float(49):4.1f} {bytes2Float(49+4):4.1f} {bytes2Float(49+8):4.1f} | "  
+            f"Gyro XYZ: {bytes2Float(61):4.1f} {bytes2Float(61+4):4.1f} {bytes2Float(61+8):4.1f} | "  
         )
         
         #print(hex_values)

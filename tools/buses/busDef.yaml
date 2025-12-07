@@ -9,7 +9,7 @@ busPwr:
       initinitVal: 1023
       unit: V
       type: uint16_t
-      startByte: 0
+      byteOffset: 2
       bytes: 2
       bits: 10
       c0: 0.3009149658
@@ -19,7 +19,7 @@ busPwr:
       initVal: 1023
       unit: V
       type: uint16_t
-      startByte: 2
+      byteOffset: 4
       bytes: 2
       bits: 10
       c0: 0.0
@@ -29,7 +29,7 @@ busPwr:
       initVal: 1023
       unit: V
       type: uint16_t
-      startByte: 4
+      byteOffset: 6
       bytes: 2
       bits: 10
       c0: 0.0
@@ -46,7 +46,7 @@ busBME280:
       initVal: 9999
       unit: C
       type: float
-      startByte: 0
+      byteOffset: 2
       bytes: 4
       bits: 32
       c0: 0.0
@@ -56,7 +56,7 @@ busBME280:
       initVal: 9999
       unit: Pa
       type: float
-      startByte: 4
+      byteOffset: 6
       bytes: 4
       bits: 32
       c0: 0.0
@@ -66,7 +66,7 @@ busBME280:
       initVal: 9999
       unit: '%'
       type: float
-      startByte: 8
+      byteOffset: 10
       bytes: 4
       bits: 32
       c0: 0.0
@@ -76,7 +76,7 @@ busBME280:
       initVal: 9999
       unit: m
       type: float
-      startByte: 12
+      byteOffset: 14
       bytes: 4
       bits: 32
       c0: 0.0
@@ -93,7 +93,7 @@ busLSM9DS1:
       initVal: 9999
       unit: m/s^2
       type: float
-      startByte: 0
+      byteOffset: 2
       bytes: 4
       bits: 32
       c0: 0.0
@@ -103,7 +103,7 @@ busLSM9DS1:
       initVal: 9999
       unit: m/s^2
       type: float
-      startByte: 0
+      byteOffset: 6
       bytes: 4
       bits: 32
       c0: 0.0
@@ -113,7 +113,7 @@ busLSM9DS1:
       initVal: 9999
       unit: m/s^2
       type: float
-      startByte: 0
+      byteOffset: 10
       bytes: 4
       bits: 32
       c0: 0.0
@@ -123,7 +123,7 @@ busLSM9DS1:
       initVal: 9999
       unit: gauss
       type: float
-      startByte: 0
+      byteOffset: 14
       bytes: 4
       bits: 32
       c0: 0.0
@@ -133,7 +133,7 @@ busLSM9DS1:
       initVal: 9999
       unit: gauss
       type: float
-      startByte: 0
+      byteOffset: 18
       bytes: 4
       bits: 32
       c0: 0.0
@@ -143,7 +143,7 @@ busLSM9DS1:
       initVal: 9999
       unit: gauss
       type: float
-      startByte: 0
+      byteOffset: 22
       bytes: 4
       bits: 32
       c0: 0.0
@@ -153,7 +153,7 @@ busLSM9DS1:
       initVal: 9999
       unit: dps
       type: float
-      startByte: 0
+      byteOffset: 26
       bytes: 4
       bits: 32
       c0: 0.0
@@ -163,7 +163,7 @@ busLSM9DS1:
       initVal: 9999
       unit: dps
       type: float
-      startByte: 0
+      byteOffset: 30
       bytes: 4
       bits: 32
       c0: 0.0
@@ -173,7 +173,7 @@ busLSM9DS1:
       initVal: 9999
       unit: dps
       type: float
-      startByte: 0
+      byteOffset: 34
       bytes: 4
       bits: 32
       c0: 0.0

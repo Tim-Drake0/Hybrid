@@ -34,7 +34,6 @@ for bus_name, bus_info in buses.items():
     
     valuesLines = ""
     ifLines = ""
-    #serializeInputLine = ""
     floatUn = ""
     floatVar=""
     buffer = ""
@@ -62,7 +61,10 @@ for bus_name, bus_info in buses.items():
             tempName = field_name + "_u.u"
         else:
             tempName = "frame." + field_name
-            
+        
+        # edit byte offset in yaml
+        field_props['byteOffset'] = buff_index
+
         # do bit math 
         if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
             buffer += f"buffer[{buff_index}] = ({tempName} >> 24) & 0xFF; // Most significant byte (MSB)\n    "
@@ -83,11 +85,8 @@ for bus_name, bus_info in buses.items():
        
         ifLines += f'   if (strcmp(fieldName, "{field_name}") == 0) return &{field_name};\n'
         
-        # Sensor lines
-        #sensorLines += f"    {field_props['type']} sensor_{field_name}; \n"
-
-    #readSensorLines,readSensorH = getReadSensorLines(bus_info['sensorName'])
-
+        
+        
     buses[bus_name]['size'] = buff_index
     
     # -------- busPwr.h ---------------------------------------------------------------------------------------------------------
@@ -143,8 +142,6 @@ extern {busConfig} {busName};
         busConfig=bus_name + "Config",
         fieldConfigLines=fieldConfigLines,
         size=buff_index,
-        #sensorLines=sensorLines,
-        #readSensorH=readSensorH,
     )
     
     with open(header_path, "w") as f:
@@ -208,11 +205,9 @@ std::array<uint8_t, {size}> {busConfig}::serialize(SensorDataFrame &frame) const
         sensorName=f'"{bus_info['sensorName']}"',
         vals=valuesLines,
         ifLines=ifLines,
-        #serializeInputLine=serializeInputLine,
         floatUn=floatUn,
         floatVar=floatVar,
         buffer=buffer,
-        #readSensor=readSensorLines,
     )
     with open(cpp_path, "w") as f:
         f.write(output)
