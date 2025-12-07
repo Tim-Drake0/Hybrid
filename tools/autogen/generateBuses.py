@@ -58,10 +58,10 @@ for bus_name, bus_info in buses.items():
                 
         if field_props['type'] == "float":
             floatUn += f"union {{float f;uint32_t u;}} {field_name}_u;\n    "
-            floatVar += f"{field_name}_u.f = sensor_{field_name};\n    "
+            floatVar += f"{field_name}_u.f = frame.{field_name};\n    "
             tempName = field_name + "_u.u"
         else:
-            tempName = "sensor_" + field_name
+            tempName = "frame." + field_name
             
         # do bit math 
         if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
@@ -84,9 +84,9 @@ for bus_name, bus_info in buses.items():
         ifLines += f'   if (strcmp(fieldName, "{field_name}") == 0) return &{field_name};\n'
         
         # Sensor lines
-        sensorLines += f"    {field_props['type']} sensor_{field_name}; \n"
+        #sensorLines += f"    {field_props['type']} sensor_{field_name}; \n"
 
-    readSensorLines,readSensorH = getReadSensorLines(bus_info['sensorName'])
+    #readSensorLines,readSensorH = getReadSensorLines(bus_info['sensorName'])
 
     buses[bus_name]['size'] = buff_index
     
@@ -101,6 +101,7 @@ for bus_name, bus_info in buses.items():
 
 #include <Arduino.h>
 #include <Adafruit_BME280.h>
+#include "SensorDataFrame.h"
 
 struct {fieldConfig} {{
     int initVal;
@@ -121,10 +122,8 @@ struct {busConfig} {{
     const char* sensorName;
     const char* endian;
 {fieldConfigLines} 
-{sensorLines}
     const {fieldConfig}* getField(const char* fieldName) const;
-{readSensorH}
-    std::array<uint8_t, {size}> serialize() const;
+    std::array<uint8_t, {size}> serialize(SensorDataFrame &frame) const;
 }};
 
 extern {busConfig} {busName};
@@ -144,8 +143,8 @@ extern {busConfig} {busName};
         busConfig=bus_name + "Config",
         fieldConfigLines=fieldConfigLines,
         size=buff_index,
-        sensorLines=sensorLines,
-        readSensorH=readSensorH,
+        #sensorLines=sensorLines,
+        #readSensorH=readSensorH,
     )
     
     with open(header_path, "w") as f:
@@ -161,6 +160,7 @@ extern {busConfig} {busName};
 #include {busdotH}
 #include <string.h>
 #include <Arduino.h>
+#include "SensorDataFrame.h"
 
 {busConfig} {busName} = {{
     {id},
@@ -177,9 +177,7 @@ const {fieldConfig}* {busConfig}::getField(const char* fieldName) const {{
     
 }}
 
-{readSensor}
-
-std::array<uint8_t, {size}> {busConfig}::serialize() const {{
+std::array<uint8_t, {size}> {busConfig}::serialize(SensorDataFrame &frame) const {{
     std::array<uint8_t, {size}> buffer{{}};
     buffer.fill(0);
     
@@ -214,7 +212,7 @@ std::array<uint8_t, {size}> {busConfig}::serialize() const {{
         floatUn=floatUn,
         floatVar=floatVar,
         buffer=buffer,
-        readSensor=readSensorLines,
+        #readSensor=readSensorLines,
     )
     with open(cpp_path, "w") as f:
         f.write(output)

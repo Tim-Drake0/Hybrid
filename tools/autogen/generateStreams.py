@@ -52,6 +52,7 @@ for stream_name, stream_info in streams.items():
 
 #include <Arduino.h>
 #include <array>
+#include "SensorDataFrame.h"
 {includeBuses}
 struct {streamName}Config {{
     int id;
@@ -59,7 +60,7 @@ struct {streamName}Config {{
     int frequency;
     uint16_t header;
     
-    std::array<uint8_t, {streamSize}> serialize(uint32_t currentMillis, uint8_t sensorsBIT) const;
+    std::array<uint8_t, {streamSize}> serialize(SensorDataFrame &frame) const;
     
 }};
 
@@ -101,6 +102,7 @@ extern streamSerialTelemConfig streamSerialTelem;
 #include <Arduino.h>
 #include "busPwr.h"
 #include "busBME280.h"
+#include "SensorDataFrame.h"
 
 
 {streamConfig} {streamName} = {{
@@ -110,7 +112,7 @@ extern streamSerialTelemConfig streamSerialTelem;
     {header}
 }};
 
-std::array<uint8_t, {size}> streamSerialTelemConfig::serialize(uint32_t currentMillis, uint8_t sensorsBIT) const {{
+std::array<uint8_t, {size}> streamSerialTelemConfig::serialize(SensorDataFrame &frame) const {{
     std::array<uint8_t, {size}> buffer{{}}; // initialize all to 0
 
 {serializeBuses}
@@ -123,13 +125,13 @@ std::array<uint8_t, {size}> streamSerialTelemConfig::serialize(uint32_t currentM
     buffer[3] = streamSerialTelem.id & 0xFF;
 
     // Timestamp
-    buffer[4] = (currentMillis >> 24) & 0xFF;
-    buffer[5] = (currentMillis >> 16) & 0xFF;
-    buffer[6] = (currentMillis >> 8)  & 0xFF;
-    buffer[7] = currentMillis & 0xFF;
+    buffer[4] = (frame.currentMillis >> 24) & 0xFF;
+    buffer[5] = (frame.currentMillis >> 16) & 0xFF;
+    buffer[6] = (frame.currentMillis >> 8)  & 0xFF;
+    buffer[7] = frame.currentMillis & 0xFF;
     
     // Sensor Built in Test
-    buffer[8] = sensorsBIT;
+    buffer[8] = frame.sensorsBIT;
     
     // Copy serialized sub-arrays
     size_t offset = 9; 

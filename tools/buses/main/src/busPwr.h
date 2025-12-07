@@ -6,6 +6,7 @@
 
 #include <Arduino.h>
 #include <Adafruit_BME280.h>
+#include "SensorDataFrame.h"
 
 struct busPwrFieldConfig {
     int initVal;
@@ -29,13 +30,8 @@ struct busPwrConfig {
     busPwrFieldConfig voltage3V;
     busPwrFieldConfig voltage5V;
  
-    uint16_t sensor_battVolts; 
-    uint16_t sensor_voltage3V; 
-    uint16_t sensor_voltage5V; 
-
     const busPwrFieldConfig* getField(const char* fieldName) const;
-    void readSensor();
-    std::array<uint8_t, 8> serialize() const;
+    std::array<uint8_t, 8> serialize(SensorDataFrame &frame) const;
 };
 
 extern busPwrConfig busPwr;

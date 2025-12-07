@@ -6,6 +6,7 @@
 
 #include <Arduino.h>
 #include <Adafruit_BME280.h>
+#include "SensorDataFrame.h"
 
 struct busBME280FieldConfig {
     int initVal;
@@ -30,14 +31,8 @@ struct busBME280Config {
     busBME280FieldConfig humidityRH;
     busBME280FieldConfig altitudeM;
  
-    float sensor_temperatureC; 
-    float sensor_pressurePasc; 
-    float sensor_humidityRH; 
-    float sensor_altitudeM; 
-
     const busBME280FieldConfig* getField(const char* fieldName) const;
-    void readSensor(Adafruit_BME280& bme);
-    std::array<uint8_t, 18> serialize() const;
+    std::array<uint8_t, 18> serialize(SensorDataFrame &frame) const;
 };
 
 extern busBME280Config busBME280;

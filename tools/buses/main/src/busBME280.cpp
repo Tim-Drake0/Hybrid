@@ -4,6 +4,7 @@
 #include "busBME280.h"
 #include <string.h>
 #include <Arduino.h>
+#include "SensorDataFrame.h"
 
 busBME280Config busBME280 = {
     6911,
@@ -27,14 +28,7 @@ const busBME280FieldConfig* busBME280Config::getField(const char* fieldName) con
     
 }
 
-void busBME280Config::readSensor(Adafruit_BME280& bme){
-    sensor_temperatureC = (bme.readTemperature() * busBME280.temperatureC.c1) + busBME280.temperatureC.c0;
-    sensor_pressurePasc = (bme.readPressure() * busBME280.pressurePasc.c1) + busBME280.pressurePasc.c0;
-    sensor_humidityRH   = (bme.readHumidity() * busBME280.humidityRH.c1) + busBME280.humidityRH.c0;
-    sensor_altitudeM    = (bme.readAltitude(1013.25) * busBME280.altitudeM.c1) + busBME280.altitudeM.c0;
-}
-
-std::array<uint8_t, 18> busBME280Config::serialize() const {
+std::array<uint8_t, 18> busBME280Config::serialize(SensorDataFrame &frame) const {
     std::array<uint8_t, 18> buffer{};
     buffer.fill(0);
     
@@ -43,10 +37,10 @@ std::array<uint8_t, 18> busBME280Config::serialize() const {
     union {float f;uint32_t u;} humidityRH_u;
     union {float f;uint32_t u;} altitudeM_u;
     
-    temperatureC_u.f = sensor_temperatureC;
-    pressurePasc_u.f = sensor_pressurePasc;
-    humidityRH_u.f = sensor_humidityRH;
-    altitudeM_u.f = sensor_altitudeM;
+    temperatureC_u.f = frame.temperatureC;
+    pressurePasc_u.f = frame.pressurePasc;
+    humidityRH_u.f = frame.humidityRH;
+    altitudeM_u.f = frame.altitudeM;
     
     // ID
     buffer[0] = (6911 >> 8) & 0xFF;  // High byte (bits 9-8)
