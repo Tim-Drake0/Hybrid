@@ -1,8 +1,9 @@
 streamSerialTelem:
   id: 6900
-  size: 34
+  size: 72
   freq: 50
-  header: 43962 #0xABBA
+  header: 43962
   buses:
   - busPwr
   - busBME280
+  - busIMU

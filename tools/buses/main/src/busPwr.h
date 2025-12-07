@@ -4,8 +4,10 @@
 #ifndef BUSPWR_H
 #define BUSPWR_H
 
+#include "sensorUtil.h"
 #include <Arduino.h>
 #include <Adafruit_BME280.h>
+#include <Adafruit_LSM9DS1.h>
 
 struct busPwrFieldConfig {
     int initVal;
@@ -34,7 +36,6 @@ struct busPwrConfig {
     uint16_t sensor_voltage5V; 
 
     const busPwrFieldConfig* getField(const char* fieldName) const;
-    void readSensor();
     std::array<uint8_t, 8> serialize() const;
 };
 

@@ -56,12 +56,35 @@ for bus_name, bus_info in buses.items():
             else:
                 thisLine += f" {value},"
                 
+        tempName = "sensor_" + field_name        
+        if bus_name == "busIMU":
+            if field_name == "accelX":
+                tempName = "imu_accel.acceleration.x"
+            elif field_name == "accelY":
+                tempName = "imu_accel.acceleration.y"
+            elif field_name == "accelZ":
+                tempName = "imu_accel.acceleration.z"
+            elif field_name == "magX":
+                tempName = "imu_mag.magnetic.x"    
+            elif field_name == "magY":
+                tempName = "imu_mag.magnetic.y"    
+            elif field_name == "magZ":
+                tempName = "imu_mag.magnetic.z"    
+            elif field_name == "gyroX":
+                tempName = "imu_gyro.gyro.x"    
+            elif field_name == "gyroY":
+                tempName = "imu_gyro.gyro.y"    
+            elif field_name == "gyroZ":
+                tempName = "imu_gyro.gyro.z"   
+            elif field_name == "imuTempC":
+                tempName = "imu_temp.gyro.z"   
+                     
         if field_props['type'] == "float":
             floatUn += f"union {{float f;uint32_t u;}} {field_name}_u;\n    "
-            floatVar += f"{field_name}_u.f = sensor_{field_name};\n    "
+            floatVar += f"{field_name}_u.f = {tempName};\n    "
             tempName = field_name + "_u.u"
-        else:
-            tempName = "sensor_" + field_name
+            
+        
             
         # do bit math 
         if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
@@ -84,7 +107,8 @@ for bus_name, bus_info in buses.items():
         ifLines += f'   if (strcmp(fieldName, "{field_name}") == 0) return &{field_name};\n'
         
         # Sensor lines
-        sensorLines += f"    {field_props['type']} sensor_{field_name}; \n"
+        if bus_name != "busIMU": # not needed for busIMU
+            sensorLines += f"    {field_props['type']} sensor_{field_name}; \n"
 
     readSensorLines,readSensorH = getReadSensorLines(bus_info['sensorName'])
 
@@ -99,8 +123,10 @@ for bus_name, bus_info in buses.items():
 #ifndef {ifndef}
 #define {ifndef}
 
+#include "sensorUtil.h"
 #include <Arduino.h>
 #include <Adafruit_BME280.h>
+#include <Adafruit_LSM9DS1.h>
 
 struct {fieldConfig} {{
     int initVal;
@@ -123,7 +149,6 @@ struct {busConfig} {{
 {fieldConfigLines} 
 {sensorLines}
     const {fieldConfig}* getField(const char* fieldName) const;
-{readSensorH}
     std::array<uint8_t, {size}> serialize() const;
 }};
 
@@ -161,6 +186,7 @@ extern {busConfig} {busName};
 #include {busdotH}
 #include <string.h>
 #include <Arduino.h>
+#include "sensorUtil.h"
 
 {busConfig} {busName} = {{
     {id},
@@ -176,8 +202,6 @@ const {fieldConfig}* {busConfig}::getField(const char* fieldName) const {{
     return nullptr;
     
 }}
-
-{readSensor}
 
 std::array<uint8_t, {size}> {busConfig}::serialize() const {{
     std::array<uint8_t, {size}> buffer{{}};

@@ -4,6 +4,7 @@
 #include "busBME280.h"
 #include <string.h>
 #include <Arduino.h>
+#include "sensorUtil.h"
 
 busBME280Config busBME280 = {
     6911,
@@ -25,13 +26,6 @@ const busBME280FieldConfig* busBME280Config::getField(const char* fieldName) con
 
     return nullptr;
     
-}
-
-void busBME280Config::readSensor(Adafruit_BME280& bme){
-    sensor_temperatureC = (bme.readTemperature() * busBME280.temperatureC.c1) + busBME280.temperatureC.c0;
-    sensor_pressurePasc = (bme.readPressure() * busBME280.pressurePasc.c1) + busBME280.pressurePasc.c0;
-    sensor_humidityRH   = (bme.readHumidity() * busBME280.humidityRH.c1) + busBME280.humidityRH.c0;
-    sensor_altitudeM    = (bme.readAltitude(1013.25) * busBME280.altitudeM.c1) + busBME280.altitudeM.c0;
 }
 
 std::array<uint8_t, 18> busBME280Config::serialize() const {

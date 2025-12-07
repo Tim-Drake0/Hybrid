@@ -4,6 +4,7 @@
 #include "busPwr.h"
 #include <string.h>
 #include <Arduino.h>
+#include "sensorUtil.h"
 
 busPwrConfig busPwr = {
     6910,
@@ -23,12 +24,6 @@ const busPwrFieldConfig* busPwrConfig::getField(const char* fieldName) const {
 
     return nullptr;
     
-}
-
-void busPwrConfig::readSensor(){
-    sensor_battVolts = (analogRead(busPwr.battVolts.pin) * busPwr.battVolts.c1) + busPwr.battVolts.c1;
-    sensor_voltage3V = (analogRead(busPwr.voltage3V.pin) * busPwr.voltage3V.c1) + busPwr.voltage3V.c1;
-    sensor_voltage5V = (analogRead(busPwr.voltage5V.pin) * busPwr.voltage5V.c1) + busPwr.voltage5V.c1;
 }
 
 std::array<uint8_t, 8> busPwrConfig::serialize() const {

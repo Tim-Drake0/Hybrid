@@ -82,3 +82,100 @@ busBME280:
       c0: 0.0
       c1: 1.0
       pin: 0
+busIMU:
+  id: 6912
+  size: 38
+  freq: 50
+  endian: little
+  sensorName: LSM9DS1
+  data:
+    accelX:
+      initVal: 65535
+      unit: m/s^2
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    accelY:
+      initVal: 65535
+      unit: m/s^2
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    accelZ:
+      initVal: 65535
+      unit: m/s^2
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    magX:
+      initVal: 65535
+      unit: gauss
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    magY:
+      initVal: 65535
+      unit: gauss
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    magZ:
+      initVal: 65535
+      unit: gauss
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    gyroX:
+      initVal: 65535
+      unit: dps
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    gyroY:
+      initVal: 65535
+      unit: dps
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    gyroZ:
+      initVal: 65535
+      unit: dps
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0

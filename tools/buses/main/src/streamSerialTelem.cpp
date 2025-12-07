@@ -10,16 +10,17 @@
 
 streamSerialTelemConfig streamSerialTelem = {
     6900,
-    34,
+    72,
     50,
     43962
 };
 
-std::array<uint8_t, 34> streamSerialTelemConfig::serialize(uint32_t currentMillis) const {
-    std::array<uint8_t, 34> buffer{}; // initialize all to 0
+std::array<uint8_t, 72> streamSerialTelemConfig::serialize(uint32_t currentMillis) const {
+    std::array<uint8_t, 72> buffer{}; // initialize all to 0
 
     auto busPwr_serialized = busPwr.serialize();
     auto busBME280_serialized = busBME280.serialize();
+    auto busIMU_serialized = busIMU.serialize();
 
     // Header
     buffer[0] = (streamSerialTelem.header >> 8) & 0xFF;
@@ -40,6 +41,8 @@ std::array<uint8_t, 34> streamSerialTelemConfig::serialize(uint32_t currentMilli
     copy_array_into_buffer(buffer, offset, busPwr_serialized);
     offset += busPwr_serialized.size();
     copy_array_into_buffer(buffer, offset, busBME280_serialized);
+    offset += busBME280_serialized.size();
+    copy_array_into_buffer(buffer, offset, busIMU_serialized);
    
     return buffer;
 }

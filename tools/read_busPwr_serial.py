@@ -104,6 +104,8 @@ try:
             f"Press: {pressurePSI:4.2f}PSI "
             f"Hum: {bytes2Float(26):4.1f}% "
             f"Alt: {bytes2Float(30):4.1f}m "
+            f"      ID: {bytes2Num(34,2):5.0f} "
+            f"Accel XYZ: {bytes2Float(36):4.1f} {bytes2Float(40):4.1f} {bytes2Float(44):4.1f}"  # 6 chars wide, 2 decimals
         )
         
         #print(hex_values)

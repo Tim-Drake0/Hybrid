@@ -4,8 +4,10 @@
 #ifndef BUSBME280_H
 #define BUSBME280_H
 
+#include "sensorUtil.h"
 #include <Arduino.h>
 #include <Adafruit_BME280.h>
+#include <Adafruit_LSM9DS1.h>
 
 struct busBME280FieldConfig {
     int initVal;
@@ -36,7 +38,6 @@ struct busBME280Config {
     float sensor_altitudeM; 
 
     const busBME280FieldConfig* getField(const char* fieldName) const;
-    void readSensor(Adafruit_BME280& bme);
     std::array<uint8_t, 18> serialize() const;
 };
 

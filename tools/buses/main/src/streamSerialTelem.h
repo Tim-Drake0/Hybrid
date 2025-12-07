@@ -8,6 +8,7 @@
 #include <array>
 #include "busPwr.h"
 #include "busBME280.h"
+#include "busIMU.h"
 
 struct streamSerialTelemConfig {
     int id;
@@ -15,7 +16,7 @@ struct streamSerialTelemConfig {
     int frequency;
     uint16_t header;
     
-    std::array<uint8_t, 34> serialize(uint32_t currentMillis) const;
+    std::array<uint8_t, 72> serialize(uint32_t currentMillis) const;
     
 };
 
