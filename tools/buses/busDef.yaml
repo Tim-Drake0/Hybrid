@@ -82,3 +82,100 @@ busBME280:
       c0: 0.0
       c1: 1.0
       pin: 0
+busLSM9DS1:
+  id: 6912
+  size: 38
+  freq: 50
+  endian: little
+  sensorName: LSM9DS1
+  data:
+    accelx:
+      initVal: 9999
+      unit: m/s^2
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    accely:
+      initVal: 9999
+      unit: m/s^2
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    accelz:
+      initVal: 9999
+      unit: m/s^2
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    magx:
+      initVal: 9999
+      unit: gauss
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    magy:
+      initVal: 9999
+      unit: gauss
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    magz:
+      initVal: 9999
+      unit: gauss
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    gyrox:
+      initVal: 9999
+      unit: dps
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    gyroy:
+      initVal: 9999
+      unit: dps
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    gyroz:
+      initVal: 9999
+      unit: dps
+      type: float
+      startByte: 0
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0

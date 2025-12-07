@@ -9,6 +9,7 @@
 #include "SensorDataFrame.h"
 #include "busPwr.h"
 #include "busBME280.h"
+#include "busLSM9DS1.h"
 
 struct streamSerialTelemConfig {
     int id;
@@ -16,7 +17,7 @@ struct streamSerialTelemConfig {
     int frequency;
     uint16_t header;
     
-    std::array<uint8_t, 35> serialize(SensorDataFrame &frame) const;
+    std::array<uint8_t, 73> serialize(SensorDataFrame &frame) const;
     
 };
 

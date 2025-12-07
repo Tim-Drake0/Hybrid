@@ -33,7 +33,7 @@ for stream_name, stream_info in streams.items():
             if bus_name == busName:
                 streamSize = streamSize + bus_info["size"]
                 
-        serializeBusesLines += f"    auto {busName}_serialized = {busName}.serialize();\n"
+        serializeBusesLines += f"    auto {busName}_serialized = {busName}.serialize(frame);\n"
 
         if index == len(stream_info['buses'])-1: # if last bus, dont have the offset line
             copyArraysLines += f"    copy_array_into_buffer(buffer, offset, {busName}_serialized);\n"

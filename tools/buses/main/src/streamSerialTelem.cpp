@@ -11,16 +11,17 @@
 
 streamSerialTelemConfig streamSerialTelem = {
     6900,
-    35,
+    73,
     50,
     43962
 };
 
-std::array<uint8_t, 35> streamSerialTelemConfig::serialize(SensorDataFrame &frame) const {
-    std::array<uint8_t, 35> buffer{}; // initialize all to 0
+std::array<uint8_t, 73> streamSerialTelemConfig::serialize(SensorDataFrame &frame) const {
+    std::array<uint8_t, 73> buffer{}; // initialize all to 0
 
-    auto busPwr_serialized = busPwr.serialize();
-    auto busBME280_serialized = busBME280.serialize();
+    auto busPwr_serialized = busPwr.serialize(frame);
+    auto busBME280_serialized = busBME280.serialize(frame);
+    auto busLSM9DS1_serialized = busLSM9DS1.serialize(frame);
 
     // Header
     buffer[0] = (streamSerialTelem.header >> 8) & 0xFF;
@@ -44,6 +45,8 @@ std::array<uint8_t, 35> streamSerialTelemConfig::serialize(SensorDataFrame &fram
     copy_array_into_buffer(buffer, offset, busPwr_serialized);
     offset += busPwr_serialized.size();
     copy_array_into_buffer(buffer, offset, busBME280_serialized);
+    offset += busBME280_serialized.size();
+    copy_array_into_buffer(buffer, offset, busLSM9DS1_serialized);
    
     return buffer;
 }
