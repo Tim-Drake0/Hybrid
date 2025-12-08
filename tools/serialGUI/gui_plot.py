@@ -6,66 +6,153 @@ from collections import deque
 MAX_POINTS = 2000  # number of points shown in plot
 
 # Get current timestamp as starting point
-start_timestamp = sr.latest_frame.timestamp
+start_timestamp = sr.busPwr.timestamp
 
 # rolling buffers, pre-filled with starting timestamp
 timestamps = deque([start_timestamp], maxlen=MAX_POINTS)
-volt_batt = deque([sr.latest_frame.volt_batt], maxlen=MAX_POINTS)
-volt_3v = deque([sr.latest_frame.volt_3v], maxlen=MAX_POINTS)
-volt_5v = deque([sr.latest_frame.volt_5v], maxlen=MAX_POINTS)
-temp = deque([sr.latest_frame.temp], maxlen=MAX_POINTS)
-pressure = deque([sr.latest_frame.pressure], maxlen=MAX_POINTS)
-humidity = deque([sr.latest_frame.humidity], maxlen=MAX_POINTS)
-altitude = deque([sr.latest_frame.altitude], maxlen=MAX_POINTS)
-accelx = deque([sr.latest_frame.accelx], maxlen=MAX_POINTS)
-accely  = deque([sr.latest_frame.accely ], maxlen=MAX_POINTS)
-accelz  = deque([sr.latest_frame.accelz ], maxlen=MAX_POINTS)
-magx = deque([sr.latest_frame.magx], maxlen=MAX_POINTS)
-magy = deque([sr.latest_frame.magy], maxlen=MAX_POINTS)
-magz = deque([sr.latest_frame.magz], maxlen=MAX_POINTS)
-gyrox = deque([sr.latest_frame.gyrox], maxlen=MAX_POINTS)
-gyroy = deque([sr.latest_frame.gyroy], maxlen=MAX_POINTS)
-gyroz = deque([sr.latest_frame.gyroz], maxlen=MAX_POINTS)
-highG_accelx = deque([sr.latest_frame.highG_accelx], maxlen=MAX_POINTS)
-highG_accely = deque([sr.latest_frame.highG_accely], maxlen=MAX_POINTS)
-highG_accelz = deque([sr.latest_frame.highG_accelz], maxlen=MAX_POINTS)
+battVolts = deque([sr.busPwr.battVolts], maxlen=MAX_POINTS)
+voltage3V = deque([sr.busPwr.voltage3V], maxlen=MAX_POINTS)
+voltage5V = deque([sr.busPwr.voltage5V], maxlen=MAX_POINTS)
+temperatureC = deque([sr.busBME280.temperatureC], maxlen=MAX_POINTS)
+pressurePasc = deque([sr.busBME280.pressurePasc], maxlen=MAX_POINTS)
+humidityRH = deque([sr.busBME280.humidityRH], maxlen=MAX_POINTS)
+altitudeM = deque([sr.busBME280.altitudeM], maxlen=MAX_POINTS)
+accelx = deque([sr.busLSM9DS1.accelx], maxlen=MAX_POINTS)
+accely = deque([sr.busLSM9DS1.accely ], maxlen=MAX_POINTS)
+accelz = deque([sr.busLSM9DS1.accelz ], maxlen=MAX_POINTS)
+magx = deque([sr.busLSM9DS1.magx], maxlen=MAX_POINTS)
+magy = deque([sr.busLSM9DS1.magy], maxlen=MAX_POINTS)
+magz = deque([sr.busLSM9DS1.magz], maxlen=MAX_POINTS)
+gyrox = deque([sr.busLSM9DS1.gyrox], maxlen=MAX_POINTS)
+gyroy = deque([sr.busLSM9DS1.gyroy], maxlen=MAX_POINTS)
+gyroz = deque([sr.busLSM9DS1.gyroz], maxlen=MAX_POINTS)
+highG_accelx = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
+highG_accely = deque([sr.busADXL375.highG_accely], maxlen=MAX_POINTS)
+highG_accelz = deque([sr.busADXL375.highG_accelz], maxlen=MAX_POINTS)
 
+def _config(sender, keyword, user_data):
+    widget_type = dpg.get_item_type(sender)
+    items = user_data
+
+    if widget_type == "mvAppItemType::mvRadioButton":
+        value = True
+    else:
+        keyword = dpg.get_item_label(sender)
+        value = dpg.get_value(sender)
+
+    if isinstance(user_data, list):
+        for item in items:
+            dpg.configure_item(item, **{keyword: value})
+    else:
+        dpg.configure_item(items, **{keyword: value})
+        
+def _add_config_options(item, columns, *names, **kwargs):
+    if columns == 1:
+        if 'before' in kwargs:
+            for name in names:
+                dpg.add_checkbox(label=name, callback=_config, user_data=item, before=kwargs['before'], default_value=dpg.get_item_configuration(item)[name])
+        else:
+            for name in names:
+                dpg.add_checkbox(label=name, callback=_config, user_data=item, default_value=dpg.get_item_configuration(item)[name])
+    else:
+        if 'before' in kwargs:
+            dpg.push_container_stack(dpg.add_table(header_row=False, before=kwargs['before']))
+        else:
+            dpg.push_container_stack(dpg.add_table(header_row=False))
+
+        for i in range(columns):
+            dpg.add_table_column()
+
+        for i in range((len(names)+(columns - 1))//columns):
+            with dpg.table_row():
+                for j in range(columns):
+                    if (i*columns + j) >= len(names): 
+                        break
+                    dpg.add_checkbox(label=names[i*columns + j], 
+                                        callback=_config, user_data=item, 
+                                        default_value=dpg.get_item_configuration(item)[names[i*columns + j]])
+        dpg.pop_container_stack()
+        
 dpg.create_context()
 
 with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
-            
-    with dpg.plot(label="busIMU Accel", width=2000, height=300, pos=[0,15]):
-        dpg.add_plot_legend()
-        with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
-            pass
-        with dpg.plot_axis(dpg.mvYAxis, label="m/s^2"):
-            dpg.set_axis_limits(dpg.last_item(), -20, 20)
-            dpg.add_line_series([], [], label="accelx", tag="accelx")
-            dpg.add_line_series([], [], label="accely", tag="accely")
-            dpg.add_line_series([], [], label="accelz", tag="accelz")
-            dpg.add_line_series([], [], label="highG_accelx", tag="highG_accelx")
-            dpg.add_line_series([], [], label="highG_accely", tag="highG_accely")
-            dpg.add_line_series([], [], label="highG_accelz", tag="highG_accelz")
-            
-    with dpg.plot(label="busIMU Gyro", width=2000, height=300, pos=[0,315]):
-        dpg.add_plot_legend()
-        with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUgyro"):
-            pass
-        with dpg.plot_axis(dpg.mvYAxis, label="dps"):
-            dpg.set_axis_limits(dpg.last_item(), -20, 20)
-            dpg.add_line_series([], [], label="gyrox", tag="gyrox")
-            dpg.add_line_series([], [], label="gyroy", tag="gyroy")
-            dpg.add_line_series([], [], label="gyroz", tag="gyroz")
-            
-    with dpg.plot(label="busIMU Mag", width=2000, height=300, pos=[0,615]):
-        dpg.add_plot_legend()
-        with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUmag"):
-            pass
-        with dpg.plot_axis(dpg.mvYAxis, label="dps"):
-            dpg.set_axis_limits(dpg.last_item(), -40, 40)
-            dpg.add_line_series([], [], label="magx", tag="magx")
-            dpg.add_line_series([], [], label="magy", tag="magy")
-            dpg.add_line_series([], [], label="magz", tag="magz")
+    with dpg.tab_bar(label="Main Tabs"): # Create the tab bar   
+        with dpg.tab(label="Bus Info"): # Second tab
+            with dpg.table(header_row=True, resizable=True, delay_search=True,
+                        borders_outerH=True, borders_innerV=True, borders_outerV=True, row_background=True) as table_id:
+                dpg.add_table_column(label="busPWR")
+                dpg.add_table_column(label="busBME280")
+                dpg.add_table_column(label="busLSM9DS1")
+                dpg.add_table_column(label="busADXL375")
+                with dpg.table_row():
+                    # Nested table inside the "Details" cell
+                    for bus_name, bus_info in sr.buses.items():
+                        with dpg.child_window(width=600, height=1000):
+                            with dpg.table(header_row=False, resizable=True,row_background=False):
+                                dpg.add_table_column(label="Name")
+                                dpg.add_table_column(label="Unit")
+                                dpg.add_table_column(label="Val")
+
+                                for field_name, field_props in bus_info['data'].items():
+                                    with dpg.table_row():
+                                        dpg.add_text(field_name)
+                                        dpg.add_text(field_props['unit'])
+                                        dpg.add_text(" ", tag=field_name)
+   
+        with dpg.tab(label="IMU Plots"): # First tab
+            with dpg.plot(label="busIMU Accel", width=1990, height=300, pos=[0,45]):
+                dpg.add_plot_legend()
+                with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
+                    pass
+                with dpg.plot_axis(dpg.mvYAxis, label="m/s^2"):
+                    dpg.set_axis_limits(dpg.last_item(), -20, 20)
+                    dpg.add_line_series([], [], label="accelx", tag="Accelx")
+                    dpg.add_line_series([], [], label="accely", tag="Accely")
+                    dpg.add_line_series([], [], label="accelz", tag="Accelz")
+                    dpg.add_line_series([], [], label="highG_accelx", tag="HighG_accelx")
+                    dpg.add_line_series([], [], label="highG_accely", tag="HighG_accely")
+                    dpg.add_line_series([], [], label="highG_accelz", tag="HighG_accelz")
+
+            with dpg.plot(label="busIMU Gyro", width=1990, height=300, pos=[0,345]):
+                dpg.add_plot_legend()
+                with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUgyro"):
+                    pass
+                with dpg.plot_axis(dpg.mvYAxis, label="dps"):
+                    dpg.set_axis_limits(dpg.last_item(), -20, 20)
+                    dpg.add_line_series([], [], label="gyrox", tag="Gyrox")
+                    dpg.add_line_series([], [], label="gyroy", tag="Gyroy")
+                    dpg.add_line_series([], [], label="gyroz", tag="Gyroz")
+
+            with dpg.plot(label="busIMU Mag", width=1990, height=300, pos=[0,645]):
+                dpg.add_plot_legend()
+                with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUmag"):
+                    pass
+                with dpg.plot_axis(dpg.mvYAxis, label="dps"):
+                    dpg.set_axis_limits(dpg.last_item(), -40, 40)
+                    dpg.add_line_series([], [], label="magx", tag="Magx")
+                    dpg.add_line_series([], [], label="magy", tag="Magy")
+                    dpg.add_line_series([], [], label="magz", tag="Magz")
+                    
+              
+                    ##with dpg.child_window(width=800, height=100):
+                    ##    with dpg.table(header_row=False, resizable=True,row_background=False):
+                    ##        dpg.add_table_column(label="Property")
+                    ##        dpg.add_table_column(label="Value")
+                    ##        
+                    ##        for j in range(2):
+                    ##            with dpg.table_row():
+                    ##                dpg.add_text(f"Prop {j+1}")
+                    ##                dpg.add_text(f"Val {j+1}")
+                    ##                
+                    ##with dpg.child_window(width=800, height=100):
+                    ##    with dpg.table(header_row=False, resizable=True,row_background=False):
+                    ##        dpg.add_table_column(label="Property")
+                    ##        dpg.add_table_column(label="Value")
+                    ##        
+                    ##        for j in range(2):
+                    ##            with dpg.table_row():
+                    ##                dpg.add_text(f"Prop {j+1}")
+                    ##                dpg.add_text(f"Val {j+1}")           
 
 # Setup viewport
 dpg.create_viewport(title='Serial Telemetry', width=2000, height=1000)
@@ -78,47 +165,68 @@ WINDOW_SIZE = 10  # seconds or timestamp units to display
 try:
     while dpg.is_dearpygui_running():
         # Append latest data
-        timestamps.append(sr.latest_frame.timestamp)
-        volt_batt.append(sr.latest_frame.volt_batt)
-        volt_3v.append(sr.latest_frame.volt_3v)
-        volt_5v.append(sr.latest_frame.volt_5v)
-        temp.append(sr.latest_frame.temp) 
-        pressure.append(sr.latest_frame.pressure) 
-        humidity.append(sr.latest_frame.humidity) 
-        altitude.append(sr.latest_frame.altitude) 
-        accelx.append(sr.latest_frame.accelx) 
-        accely .append(sr.latest_frame.accely ) 
-        accelz .append(sr.latest_frame.accelz ) 
-        magx.append(sr.latest_frame.magx) 
-        magy.append(sr.latest_frame.magy) 
-        magz.append(sr.latest_frame.magz) 
-        gyrox.append(sr.latest_frame.gyrox) 
-        gyroy.append(sr.latest_frame.gyroy) 
-        gyroz.append(sr.latest_frame.gyroz) 
-        highG_accelx.append(sr.latest_frame.highG_accelx) 
-        highG_accely.append(sr.latest_frame.highG_accely) 
-        highG_accelz.append(sr.latest_frame.highG_accelz) 
+        timestamps.append(sr.busPwr.timestamp)
+        battVolts.append(sr.busPwr.battVolts)
+        voltage3V.append(sr.busPwr.voltage3V)
+        voltage5V.append(sr.busPwr.voltage5V)
+        temperatureC.append(sr.busBME280.temperatureC) 
+        pressurePasc.append(sr.busBME280.pressurePasc) 
+        humidityRH.append(sr.busBME280.humidityRH) 
+        altitudeM.append(sr.busBME280.altitudeM) 
+        accelx.append(sr.busLSM9DS1.accelx) 
+        accely.append(sr.busLSM9DS1.accely ) 
+        accelz.append(sr.busLSM9DS1.accelz ) 
+        magx.append(sr.busLSM9DS1.magx) 
+        magy.append(sr.busLSM9DS1.magy) 
+        magz.append(sr.busLSM9DS1.magz) 
+        gyrox.append(sr.busLSM9DS1.gyrox) 
+        gyroy.append(sr.busLSM9DS1.gyroy) 
+        gyroz.append(sr.busLSM9DS1.gyroz) 
+        highG_accelx.append(sr.busADXL375.highG_accelx) 
+        highG_accely.append(sr.busADXL375.highG_accely) 
+        highG_accelz.append(sr.busADXL375.highG_accelz) 
+        
+        #dpg.set_value("timestamp", sr.busPwr.timestamp)
+        dpg.set_value("battVolts",      round(sr.busPwr.battVolts,3))
+        dpg.set_value("voltage3V",      round(sr.busPwr.voltage3V,3))
+        dpg.set_value("voltage5V",      round(sr.busPwr.voltage5V,3))
+        dpg.set_value("temperatureC",   round(sr.busBME280.temperatureC,3))
+        dpg.set_value("pressurePasc",   round(sr.busBME280.pressurePasc,3))
+        dpg.set_value("humidityRH",     round(sr.busBME280.humidityRH,3))
+        dpg.set_value("altitudeM",      round(sr.busBME280.altitudeM,3))
+        dpg.set_value("accelx",         round(sr.busLSM9DS1.accelx,3)) 
+        dpg.set_value("accely",         round(sr.busLSM9DS1.accely,3)) 
+        dpg.set_value("accelz",         round(sr.busLSM9DS1.accelz,3)) 
+        dpg.set_value("magx",           round(sr.busLSM9DS1.magx,3)) 
+        dpg.set_value("magy",           round(sr.busLSM9DS1.magy,3)) 
+        dpg.set_value("magz",           round(sr.busLSM9DS1.magz,3)) 
+        dpg.set_value("gyrox",          round(sr.busLSM9DS1.gyrox,3)) 
+        dpg.set_value("gyroy",          round(sr.busLSM9DS1.gyroy,3)) 
+        dpg.set_value("gyroz",          round(sr.busLSM9DS1.gyroz,3)) 
+        dpg.set_value("highG_accelx",   round(sr.busADXL375.highG_accelx,3)) 
+        dpg.set_value("highG_accely",   round(sr.busADXL375.highG_accely,3)) 
+        dpg.set_value("highG_accelz",   round(sr.busADXL375.highG_accelz,3)) 
         
         # Update line series
-        # dpg.set_value("volt_batt", [list(timestamps), list(volt_batt)])
-        # dpg.set_value("volt_3v", [list(timestamps), list(volt_3v)])
-        # dpg.set_value("volt_5v", [list(timestamps), list(volt_5v)])
-        # dpg.set_value("temp", [list(timestamps), list(temp)]) 
-        # dpg.set_value("pressure", [list(timestamps), list(pressure)]) 
-        # dpg.set_value("humidity", [list(timestamps), list(humidity)]) 
-        # dpg.set_value("altitude", [list(timestamps), list(altitude)]) 
-        dpg.set_value("accelx", [list(timestamps), list(accelx)]) 
-        dpg.set_value("accely", [list(timestamps), list(accely)]) 
-        dpg.set_value("accelz", [list(timestamps), list(accelz)]) 
-        dpg.set_value("magx", [list(timestamps), list(magx)]) 
-        dpg.set_value("magy", [list(timestamps), list(magy)]) 
-        dpg.set_value("magz", [list(timestamps), list(magz)]) 
-        dpg.set_value("gyrox", [list(timestamps), list(gyrox)]) 
-        dpg.set_value("gyroy", [list(timestamps), list(gyroy)]) 
-        dpg.set_value("gyroz", [list(timestamps), list(gyroz)]) 
-        dpg.set_value("highG_accelx", [list(timestamps), list(highG_accelx)]) 
-        dpg.set_value("highG_accely", [list(timestamps), list(highG_accely)]) 
-        dpg.set_value("highG_accelz", [list(timestamps), list(highG_accelz)]) 
+        # dpg.set_value("battVolts", [list(timestamps), list(battVolts)])
+        # dpg.set_value("voltage3V", [list(timestamps), list(voltage3V)])
+        # dpg.set_value("voltage5V", [list(timestamps), list(voltage5V)])
+        # dpg.set_value("temperatureC", [list(timestamps), list(temperatureC)]) 
+        # dpg.set_value("pressurePasc", [list(timestamps), list(pressurePasc)]) 
+        # dpg.set_value("humidityRH", [list(timestamps), list(humidityRH)]) 
+        # dpg.set_value("altitudeM", [list(timestamps), list(altitudeM)]) 
+        dpg.set_value("Accelx", [list(timestamps), list(accelx)]) 
+        dpg.set_value("Accely", [list(timestamps), list(accely)]) 
+        dpg.set_value("Accelz", [list(timestamps), list(accelz)]) 
+        dpg.set_value("Magx", [list(timestamps), list(magx)]) 
+        dpg.set_value("Magy", [list(timestamps), list(magy)]) 
+        dpg.set_value("Magz", [list(timestamps), list(magz)]) 
+        dpg.set_value("Gyrox", [list(timestamps), list(gyrox)]) 
+        dpg.set_value("Gyroy", [list(timestamps), list(gyroy)]) 
+        dpg.set_value("Gyroz", [list(timestamps), list(gyroz)]) 
+        dpg.set_value("HighG_accelx", [list(timestamps), list(highG_accelx)]) 
+        dpg.set_value("HighG_accely", [list(timestamps), list(highG_accely)]) 
+        dpg.set_value("HighG_accelz", [list(timestamps), list(highG_accelz)]) 
         
         
         # Update x-axis limits to show a moving window

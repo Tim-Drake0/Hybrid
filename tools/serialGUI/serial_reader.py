@@ -25,18 +25,22 @@ thisStream = streams[STREAM_NAME]
 # Open serial
 ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 
-class Frame:
+class BusPwr:
     timestamp: int = 0
-    id1: int = 0
-    volt_batt: float = 0
-    volt_3v: float = 0
-    volt_5v: float = 0
-    id2: int = 0
-    temp: float = 0
-    pressure: float = 0
-    humidity: float = 0
-    altitude: float = 0
-    id3: int = 0
+    id: int = 0
+    battVolts: float = 0
+    voltage3V: float = 0
+    voltage5V: float = 0
+class BusBME280:
+    timestamp: int = 0
+    id: int = 0
+    temperatureC: float = 0
+    pressurePasc: float = 0
+    humidityRH: float = 0
+    altitudeM: float = 0
+class BusLSM9DS1:
+    timestamp: int = 0
+    id: int = 0
     accelx: float = 0
     accely: float = 0
     accelz: float = 0
@@ -46,12 +50,17 @@ class Frame:
     gyrox: float = 0
     gyroy: float = 0
     gyroz: float = 0
-    id4: int = 0
+class BusADXL375:
+    timestamp: int = 0
+    id: int = 0
     highG_accelx: float = 0
     highG_accely: float = 0
     highG_accelz: float = 0
 
-latest_frame = Frame()  # module-level variable
+busPwr = BusPwr()
+busBME280 = BusBME280()
+busLSM9DS1 = BusLSM9DS1()
+busADXL375 = BusADXL375()
 
 # ---------------- HELPERS ----------------
 def bytes2Volts(packet, startByte):
@@ -88,34 +97,37 @@ def read_serial_loop():
         try:
             idx = 9
             packet = find_and_read_packet()
-            latest_frame.timestamp = ((packet[4] << 24) | (packet[5] << 16) | (packet[6] << 8) | packet[7]) / 1000
+            busPwr.timestamp = ((packet[4] << 24) | (packet[5] << 16) | (packet[6] << 8) | packet[7]) / 1000
+            busBME280.timestamp = ((packet[4] << 24) | (packet[5] << 16) | (packet[6] << 8) | packet[7]) / 1000
+            busLSM9DS1.timestamp = ((packet[4] << 24) | (packet[5] << 16) | (packet[6] << 8) | packet[7]) / 1000
+            busADXL375.timestamp = ((packet[4] << 24) | (packet[5] << 16) | (packet[6] << 8) | packet[7]) / 1000
             
-            latest_frame.id1 = bytes2Volts(packet, idx);                idx += 2
-            latest_frame.volt_batt = bytes2Volts(packet, idx);          idx += 2
-            latest_frame.volt_3v = bytes2Volts(packet, idx);            idx += 2
-            latest_frame.volt_5v = bytes2Volts(packet, idx);            idx += 2
+            busPwr.id = bytes2Volts(packet, idx);                idx += 2
+            busPwr.battVolts = bytes2Volts(packet, idx);          idx += 2
+            busPwr.voltage3V = bytes2Volts(packet, idx);            idx += 2
+            busPwr.voltage5V = bytes2Volts(packet, idx);            idx += 2
             
-            latest_frame.id2 = bytes2Volts(packet, idx);                idx += 2
-            latest_frame.temp = bytes2Float(packet, idx);               idx += 4
-            latest_frame.pressure = bytes2Float(packet, idx)/6895;      idx += 4
-            latest_frame.humidity = bytes2Float(packet, idx);           idx += 4
-            latest_frame.altitude = bytes2Float(packet, idx);           idx += 4
+            busBME280.id = bytes2Volts(packet, idx);                idx += 2
+            busBME280.temperatureC = bytes2Float(packet, idx);               idx += 4
+            busBME280.pressurePasc = bytes2Float(packet, idx)/6895;      idx += 4
+            busBME280.humidityRH = bytes2Float(packet, idx);           idx += 4
+            busBME280.altitudeM = bytes2Float(packet, idx);           idx += 4
             
-            latest_frame.id3 = bytes2Volts(packet, idx);                idx += 2
-            latest_frame.accelx = bytes2Float(packet, idx);             idx += 4
-            latest_frame.accely = bytes2Float(packet, idx);             idx += 4
-            latest_frame.accelz = bytes2Float(packet, idx);             idx += 4
-            latest_frame.magx  = bytes2Float(packet, idx);              idx += 4
-            latest_frame.magy  = bytes2Float(packet, idx);              idx += 4
-            latest_frame.magz  = bytes2Float(packet, idx);              idx += 4
-            latest_frame.gyrox = bytes2Float(packet, idx);              idx += 4
-            latest_frame.gyroy = bytes2Float(packet, idx);              idx += 4
-            latest_frame.gyroz = bytes2Float(packet, idx);              idx += 4
+            busLSM9DS1.id = bytes2Volts(packet, idx);                idx += 2
+            busLSM9DS1.accelx = bytes2Float(packet, idx);             idx += 4
+            busLSM9DS1.accely = bytes2Float(packet, idx);             idx += 4
+            busLSM9DS1.accelz = bytes2Float(packet, idx);             idx += 4
+            busLSM9DS1.magx  = bytes2Float(packet, idx);              idx += 4
+            busLSM9DS1.magy  = bytes2Float(packet, idx);              idx += 4
+            busLSM9DS1.magz  = bytes2Float(packet, idx);              idx += 4
+            busLSM9DS1.gyrox = bytes2Float(packet, idx);              idx += 4
+            busLSM9DS1.gyroy = bytes2Float(packet, idx);              idx += 4
+            busLSM9DS1.gyroz = bytes2Float(packet, idx);              idx += 4
 
-            latest_frame.id4 = bytes2Volts(packet, idx);                idx += 2
-            latest_frame.highG_accelx = bytes2Float(packet, idx);       idx += 4
-            latest_frame.highG_accely = bytes2Float(packet, idx);       idx += 4
-            latest_frame.highG_accelz = bytes2Float(packet, idx); 
+            busADXL375.id = bytes2Volts(packet, idx);                idx += 2
+            busADXL375.highG_accelx = bytes2Float(packet, idx);       idx += 4
+            busADXL375.highG_accely = bytes2Float(packet, idx);       idx += 4
+            busADXL375.highG_accelz = bytes2Float(packet, idx); 
             
             
         except Exception as e:
