@@ -4,17 +4,20 @@
 #include "busADXL375.h"
 #include <string.h>
 #include <Arduino.h>
+#include <HardwareSerial.h>
 #include "SensorDataFrame.h"
 
 busADXL375Config busADXL375 = {
     6913,
-    14,
-    50,
+    20,
+    100,
     "little",
     "ADXL375",
-    { 9999, "m/s^2", "float", 2, 4, 13, 0.0, 1.0, 0},
-    { 9999, "m/s^2", "float", 6, 4, 13, 0.0, 1.0, 0},
-    { 9999, "m/s^2", "float", 10, 4, 13, 0.0, 1.0, 0}
+    0,
+    0,
+    { 9999, "m/s^2", "float", 8, 4, 13, 0.0, 1.0, 0},
+    { 9999, "m/s^2", "float", 12, 4, 13, 0.0, 1.0, 0},
+    { 9999, "m/s^2", "float", 16, 4, 13, 0.0, 1.0, 0}
 };
 
 const busADXL375FieldConfig* busADXL375Config::getField(const char* fieldName) const {
@@ -26,8 +29,8 @@ const busADXL375FieldConfig* busADXL375Config::getField(const char* fieldName) c
     
 }
 
-std::array<uint8_t, 14> busADXL375Config::serialize(SensorDataFrame &frame) const {
-    std::array<uint8_t, 14> buffer{};
+std::array<uint8_t, 20> busADXL375Config::serialize(SensorDataFrame &frame) const {
+    std::array<uint8_t, 20> buffer{};
     buffer.fill(0);
     
     union {float f;uint32_t u;} highG_accelx_u;
@@ -38,29 +41,52 @@ std::array<uint8_t, 14> busADXL375Config::serialize(SensorDataFrame &frame) cons
     highG_accely_u.f = frame.highG_accely;
     highG_accelz_u.f = frame.highG_accelz;
     
+    int i = 0;
+    
     // ID
-    buffer[0] = (6913 >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[1] = 6913 & 0xFF;         // Low byte (bits 7-0)
+    buffer[i] = (6913 >> 8) & 0xFF; i++;
+    buffer[i] = 6913 & 0xFF;        i++;   
+    
+    // Timestamp
+    buffer[i] = (frame.currentMillis >> 24) & 0xFF; i++;
+    buffer[i] = (frame.currentMillis >> 16) & 0xFF; i++;
+    buffer[i] = (frame.currentMillis >> 8)  & 0xFF; i++;
+    buffer[i] = frame.currentMillis & 0xFF;         i++;
+    
+    // Packets Sent
+    buffer[i] = (busADXL375.packetsSent >> 8) & 0xFF; i++;
+    buffer[i] = busADXL375.packetsSent & 0xFF;        i++;  
     
     //Data
-    buffer[2] = (highG_accelx_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[3] = (highG_accelx_u.u >> 16) & 0xFF;
-    buffer[4] = (highG_accelx_u.u >> 8)  & 0xFF;
-    buffer[5] = highG_accelx_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (highG_accelx_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (highG_accelx_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (highG_accelx_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = highG_accelx_u.u & 0xFF;         i++;
 
-    buffer[6] = (highG_accely_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[7] = (highG_accely_u.u >> 16) & 0xFF;
-    buffer[8] = (highG_accely_u.u >> 8)  & 0xFF;
-    buffer[9] = highG_accely_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (highG_accely_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (highG_accely_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (highG_accely_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = highG_accely_u.u & 0xFF;         i++;
 
-    buffer[10] = (highG_accelz_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[11] = (highG_accelz_u.u >> 16) & 0xFF;
-    buffer[12] = (highG_accelz_u.u >> 8)  & 0xFF;
-    buffer[13] = highG_accelz_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (highG_accelz_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (highG_accelz_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (highG_accelz_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = highG_accelz_u.u & 0xFF;         i++;
 
     
     
     return buffer;
 }
 
+void busADXL375Config::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {
+    if (frame.currentMillis - busADXL375.lastSendTime >= 1000 / 20) {
+        busADXL375.lastSendTime = frame.currentMillis;
+
+        auto busADXL375_serialized = busADXL375.serialize(frame);
+
+        serial.write(busADXL375_serialized.data(), busADXL375_serialized.size());
+
+        busADXL375.packetsSent++;
+    }
+}
 

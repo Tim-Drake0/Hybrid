@@ -26,13 +26,16 @@ struct busBME280Config {
     int frequency;
     const char* sensorName;
     const char* endian;
+    uint16_t packetsSent;
+    uint32_t lastSendTime;
     busBME280FieldConfig temperatureC;
     busBME280FieldConfig pressurePasc;
     busBME280FieldConfig humidityRH;
     busBME280FieldConfig altitudeM;
  
     const busBME280FieldConfig* getField(const char* fieldName) const;
-    std::array<uint8_t, 18> serialize(SensorDataFrame &frame) const;
+    std::array<uint8_t, 24> serialize(SensorDataFrame &frame) const;
+    void sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const;
 };
 
 extern busBME280Config busBME280;

@@ -30,6 +30,11 @@ highG_accelx = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 highG_accely = deque([sr.busADXL375.highG_accely], maxlen=MAX_POINTS)
 highG_accelz = deque([sr.busADXL375.highG_accelz], maxlen=MAX_POINTS)
 
+busPwr_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
+busBME_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
+busLSM_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
+busADX_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
+
 def _config(sender, keyword, user_data):
     widget_type = dpg.get_item_type(sender)
     items = user_data
@@ -77,29 +82,45 @@ dpg.create_context()
 
 with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
     with dpg.tab_bar(label="Main Tabs"): # Create the tab bar   
-        with dpg.tab(label="Bus Info"): # Second tab
+        with dpg.tab(label="Bus Info"): # First tab
             with dpg.table(header_row=True, resizable=True, delay_search=True,
                         borders_outerH=True, borders_innerV=True, borders_outerV=True, row_background=True) as table_id:
                 dpg.add_table_column(label="busPWR")
+                
                 dpg.add_table_column(label="busBME280")
                 dpg.add_table_column(label="busLSM9DS1")
                 dpg.add_table_column(label="busADXL375")
+                with dpg.table_row():
+                    dpg.add_text(f"Packets Sent: {round(sr.busPwr.packetsSent, 3)}", tag="busPwr_packetsSent")
+                    dpg.add_text(f"Packets Sent: {round(sr.busBME280.packetsSent, 3)}", tag="busBME280_packetsSent") 
+                    dpg.add_text(f"Packets Sent: {round(sr.busLSM9DS1.packetsSent, 3)}", tag="busLSM9DS1_packetsSent") 
+                    dpg.add_text(f"Packets Sent: {round(sr.busADXL375.packetsSent, 3)}", tag="busADXL375_packetsSent")
+                    
+                    
+
+
+ 
+
+
+
                 with dpg.table_row():
                     # Nested table inside the "Details" cell
                     for bus_name, bus_info in sr.buses.items():
                         with dpg.child_window(width=600, height=1000):
                             with dpg.table(header_row=False, resizable=True,row_background=False):
                                 dpg.add_table_column(label="Name")
-                                dpg.add_table_column(label="Unit")
                                 dpg.add_table_column(label="Val")
+                                dpg.add_table_column(label="Unit")
+                                
 
                                 for field_name, field_props in bus_info['data'].items():
                                     with dpg.table_row():
                                         dpg.add_text(field_name)
-                                        dpg.add_text(field_props['unit'])
                                         dpg.add_text(" ", tag=field_name)
+                                        dpg.add_text(field_props['unit'])
+                                        
    
-        with dpg.tab(label="IMU Plots"): # First tab
+        with dpg.tab(label="IMU Plots"): # Second tab
             with dpg.plot(label="busIMU Accel", width=1990, height=300, pos=[0,45]):
                 dpg.add_plot_legend()
                 with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
@@ -165,7 +186,7 @@ WINDOW_SIZE = 10  # seconds or timestamp units to display
 try:
     while dpg.is_dearpygui_running():
         # Append latest data
-        timestamps.append(sr.busPwr.timestamp)
+        timestamps.append(sr.busLSM9DS1.timestamp)
         battVolts.append(sr.busPwr.battVolts)
         voltage3V.append(sr.busPwr.voltage3V)
         voltage5V.append(sr.busPwr.voltage5V)
@@ -206,6 +227,16 @@ try:
         dpg.set_value("highG_accelx",   round(sr.busADXL375.highG_accelx,3)) 
         dpg.set_value("highG_accely",   round(sr.busADXL375.highG_accely,3)) 
         dpg.set_value("highG_accelz",   round(sr.busADXL375.highG_accelz,3)) 
+        
+        dpg.set_value("busPwr_packetsSent",   f"Packets Sent: {round(sr.busPwr.packetsSent, 3)}") 
+        dpg.set_value("busBME280_packetsSent",   f"Packets Sent: {round(sr.busBME280.packetsSent, 3)}") 
+        dpg.set_value("busLSM9DS1_packetsSent",   f"Packets Sent: {round(sr.busLSM9DS1.packetsSent, 3)}") 
+        dpg.set_value("busADXL375_packetsSent",   f"Packets Sent: {round(sr.busADXL375.packetsSent, 3)}") 
+        
+        
+
+
+
         
         # Update line series
         # dpg.set_value("battVolts", [list(timestamps), list(battVolts)])

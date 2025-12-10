@@ -26,12 +26,15 @@ struct busADXL375Config {
     int frequency;
     const char* sensorName;
     const char* endian;
+    uint16_t packetsSent;
+    uint32_t lastSendTime;
     busADXL375FieldConfig highG_accelx;
     busADXL375FieldConfig highG_accely;
     busADXL375FieldConfig highG_accelz;
  
     const busADXL375FieldConfig* getField(const char* fieldName) const;
-    std::array<uint8_t, 14> serialize(SensorDataFrame &frame) const;
+    std::array<uint8_t, 20> serialize(SensorDataFrame &frame) const;
+    void sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const;
 };
 
 extern busADXL375Config busADXL375;

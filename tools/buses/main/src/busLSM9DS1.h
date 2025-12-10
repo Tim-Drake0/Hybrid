@@ -26,6 +26,8 @@ struct busLSM9DS1Config {
     int frequency;
     const char* sensorName;
     const char* endian;
+    uint16_t packetsSent;
+    uint32_t lastSendTime;
     busLSM9DS1FieldConfig accelx;
     busLSM9DS1FieldConfig accely;
     busLSM9DS1FieldConfig accelz;
@@ -37,7 +39,8 @@ struct busLSM9DS1Config {
     busLSM9DS1FieldConfig gyroz;
  
     const busLSM9DS1FieldConfig* getField(const char* fieldName) const;
-    std::array<uint8_t, 38> serialize(SensorDataFrame &frame) const;
+    std::array<uint8_t, 44> serialize(SensorDataFrame &frame) const;
+    void sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const;
 };
 
 extern busLSM9DS1Config busLSM9DS1;

@@ -1,7 +1,8 @@
 busPwr:
+  name: busPwr
   id: 6910
-  size: 8
-  freq: 50
+  size: 14
+  freq: 20
   endian: little
   sensorName: PWR
   data:
@@ -9,7 +10,7 @@ busPwr:
       initinitVal: 1023
       unit: V
       type: uint16_t
-      byteOffset: 2
+      byteOffset: 8
       bytes: 2
       bits: 10
       c0: 0.3009149658
@@ -19,7 +20,7 @@ busPwr:
       initVal: 1023
       unit: V
       type: uint16_t
-      byteOffset: 4
+      byteOffset: 10
       bytes: 2
       bits: 10
       c0: 0.0
@@ -29,16 +30,17 @@ busPwr:
       initVal: 1023
       unit: V
       type: uint16_t
-      byteOffset: 6
+      byteOffset: 12
       bytes: 2
       bits: 10
       c0: 0.0
       c1: 1.0
       pin: A2
 busBME280:
+  name: busBME280
   id: 6911
-  size: 18
-  freq: 50
+  size: 24
+  freq: 20
   endian: little
   sensorName: BME280
   data:
@@ -46,7 +48,7 @@ busBME280:
       initVal: 9999
       unit: C
       type: float
-      byteOffset: 2
+      byteOffset: 8
       bytes: 4
       bits: 32
       c0: 0.0
@@ -56,7 +58,7 @@ busBME280:
       initVal: 9999
       unit: Pa
       type: float
-      byteOffset: 6
+      byteOffset: 12
       bytes: 4
       bits: 32
       c0: 0.0
@@ -66,7 +68,7 @@ busBME280:
       initVal: 9999
       unit: '%'
       type: float
-      byteOffset: 10
+      byteOffset: 16
       bytes: 4
       bits: 32
       c0: 0.0
@@ -76,16 +78,17 @@ busBME280:
       initVal: 9999
       unit: m
       type: float
-      byteOffset: 14
+      byteOffset: 20
       bytes: 4
       bits: 32
       c0: 0.0
       c1: 1.0
       pin: 0
 busLSM9DS1:
+  name: busLSM9DS1
   id: 6912
-  size: 38
-  freq: 50
+  size: 44
+  freq: 100
   endian: little
   sensorName: LSM9DS1
   data:
@@ -93,7 +96,7 @@ busLSM9DS1:
       initVal: 9999
       unit: m/s^2
       type: float
-      byteOffset: 2
+      byteOffset: 8
       bytes: 4
       bits: 32
       c0: 0.0
@@ -103,7 +106,7 @@ busLSM9DS1:
       initVal: 9999
       unit: m/s^2
       type: float
-      byteOffset: 6
+      byteOffset: 12
       bytes: 4
       bits: 32
       c0: 0.0
@@ -113,7 +116,7 @@ busLSM9DS1:
       initVal: 9999
       unit: m/s^2
       type: float
-      byteOffset: 10
+      byteOffset: 16
       bytes: 4
       bits: 32
       c0: 0.0
@@ -123,7 +126,7 @@ busLSM9DS1:
       initVal: 9999
       unit: gauss
       type: float
-      byteOffset: 14
+      byteOffset: 20
       bytes: 4
       bits: 32
       c0: 0.0
@@ -133,7 +136,7 @@ busLSM9DS1:
       initVal: 9999
       unit: gauss
       type: float
-      byteOffset: 18
+      byteOffset: 24
       bytes: 4
       bits: 32
       c0: 0.0
@@ -143,7 +146,7 @@ busLSM9DS1:
       initVal: 9999
       unit: gauss
       type: float
-      byteOffset: 22
+      byteOffset: 28
       bytes: 4
       bits: 32
       c0: 0.0
@@ -153,7 +156,7 @@ busLSM9DS1:
       initVal: 9999
       unit: dps
       type: float
-      byteOffset: 26
+      byteOffset: 32
       bytes: 4
       bits: 32
       c0: 0.0
@@ -163,7 +166,7 @@ busLSM9DS1:
       initVal: 9999
       unit: dps
       type: float
-      byteOffset: 30
+      byteOffset: 36
       bytes: 4
       bits: 32
       c0: 0.0
@@ -173,16 +176,17 @@ busLSM9DS1:
       initVal: 9999
       unit: dps
       type: float
-      byteOffset: 34
+      byteOffset: 40
       bytes: 4
       bits: 32
       c0: 0.0
       c1: 1.0
       pin: 0
 busADXL375:
+  name: busADXL375
   id: 6913
-  size: 14
-  freq: 50
+  size: 20
+  freq: 100
   endian: little
   sensorName: ADXL375
   data:
@@ -190,7 +194,7 @@ busADXL375:
       initVal: 9999
       unit: m/s^2
       type: float
-      byteOffset: 2
+      byteOffset: 8
       bytes: 4
       bits: 13
       c0: 0.0
@@ -200,7 +204,7 @@ busADXL375:
       initVal: 9999
       unit: m/s^2
       type: float
-      byteOffset: 6
+      byteOffset: 12
       bytes: 4
       bits: 13
       c0: 0.0
@@ -210,7 +214,7 @@ busADXL375:
       initVal: 9999
       unit: m/s^2
       type: float
-      byteOffset: 10
+      byteOffset: 16
       bytes: 4
       bits: 13
       c0: 0.0

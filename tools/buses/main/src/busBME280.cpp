@@ -4,18 +4,21 @@
 #include "busBME280.h"
 #include <string.h>
 #include <Arduino.h>
+#include <HardwareSerial.h>
 #include "SensorDataFrame.h"
 
 busBME280Config busBME280 = {
     6911,
-    18,
-    50,
+    24,
+    20,
     "little",
     "BME280",
-    { 9999, "C", "float", 2, 4, 32, 0.0, 1.0, 0},
-    { 9999, "Pa", "float", 6, 4, 32, 0.0, 1.0, 0},
-    { 9999, "%", "float", 10, 4, 32, 0.0, 1.0, 0},
-    { 9999, "m", "float", 14, 4, 32, 0.0, 1.0, 0}
+    0,
+    0,
+    { 9999, "C", "float", 8, 4, 32, 0.0, 1.0, 0},
+    { 9999, "Pa", "float", 12, 4, 32, 0.0, 1.0, 0},
+    { 9999, "%", "float", 16, 4, 32, 0.0, 1.0, 0},
+    { 9999, "m", "float", 20, 4, 32, 0.0, 1.0, 0}
 };
 
 const busBME280FieldConfig* busBME280Config::getField(const char* fieldName) const {
@@ -28,8 +31,8 @@ const busBME280FieldConfig* busBME280Config::getField(const char* fieldName) con
     
 }
 
-std::array<uint8_t, 18> busBME280Config::serialize(SensorDataFrame &frame) const {
-    std::array<uint8_t, 18> buffer{};
+std::array<uint8_t, 24> busBME280Config::serialize(SensorDataFrame &frame) const {
+    std::array<uint8_t, 24> buffer{};
     buffer.fill(0);
     
     union {float f;uint32_t u;} temperatureC_u;
@@ -42,34 +45,57 @@ std::array<uint8_t, 18> busBME280Config::serialize(SensorDataFrame &frame) const
     humidityRH_u.f = frame.humidityRH;
     altitudeM_u.f = frame.altitudeM;
     
+    int i = 0;
+    
     // ID
-    buffer[0] = (6911 >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[1] = 6911 & 0xFF;         // Low byte (bits 7-0)
+    buffer[i] = (6911 >> 8) & 0xFF; i++;
+    buffer[i] = 6911 & 0xFF;        i++;   
+    
+    // Timestamp
+    buffer[i] = (frame.currentMillis >> 24) & 0xFF; i++;
+    buffer[i] = (frame.currentMillis >> 16) & 0xFF; i++;
+    buffer[i] = (frame.currentMillis >> 8)  & 0xFF; i++;
+    buffer[i] = frame.currentMillis & 0xFF;         i++;
+    
+    // Packets Sent
+    buffer[i] = (busBME280.packetsSent >> 8) & 0xFF; i++;
+    buffer[i] = busBME280.packetsSent & 0xFF;        i++;  
     
     //Data
-    buffer[2] = (temperatureC_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[3] = (temperatureC_u.u >> 16) & 0xFF;
-    buffer[4] = (temperatureC_u.u >> 8)  & 0xFF;
-    buffer[5] = temperatureC_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (temperatureC_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (temperatureC_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (temperatureC_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = temperatureC_u.u & 0xFF;         i++;
 
-    buffer[6] = (pressurePasc_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[7] = (pressurePasc_u.u >> 16) & 0xFF;
-    buffer[8] = (pressurePasc_u.u >> 8)  & 0xFF;
-    buffer[9] = pressurePasc_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (pressurePasc_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (pressurePasc_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (pressurePasc_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = pressurePasc_u.u & 0xFF;         i++;
 
-    buffer[10] = (humidityRH_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[11] = (humidityRH_u.u >> 16) & 0xFF;
-    buffer[12] = (humidityRH_u.u >> 8)  & 0xFF;
-    buffer[13] = humidityRH_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (humidityRH_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (humidityRH_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (humidityRH_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = humidityRH_u.u & 0xFF;         i++;
 
-    buffer[14] = (altitudeM_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[15] = (altitudeM_u.u >> 16) & 0xFF;
-    buffer[16] = (altitudeM_u.u >> 8)  & 0xFF;
-    buffer[17] = altitudeM_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (altitudeM_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (altitudeM_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (altitudeM_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = altitudeM_u.u & 0xFF;         i++;
 
     
     
     return buffer;
 }
 
+void busBME280Config::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {
+    if (frame.currentMillis - busBME280.lastSendTime >= 1000 / 20) {
+        busBME280.lastSendTime = frame.currentMillis;
+
+        auto busBME280_serialized = busBME280.serialize(frame);
+
+        serial.write(busBME280_serialized.data(), busBME280_serialized.size());
+
+        busBME280.packetsSent++;
+    }
+}
 

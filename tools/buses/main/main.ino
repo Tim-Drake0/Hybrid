@@ -33,9 +33,24 @@ Adafruit_LSM9DS1 lsm = Adafruit_LSM9DS1(&Wire2, 0x1E6B);
 Adafruit_ADXL375 adx = Adafruit_ADXL375(12345, &Wire2);
 
 unsigned long lastSendTime = 0;
+unsigned long lastReadPwr = 0;
+unsigned long lastReadBME = 0;
+unsigned long lastReadLSM = 0;
+unsigned long lastReadADXL = 0;
+
+void sendSerialBuses(){
+    // send data over various serial buses enabled in the config file
+    // should be disabled for flight?
+
+    // assume all are enabled for right now
+    busPwr.sendPacket(thisFrame, MySerial);
+    busBME280.sendPacket(thisFrame, MySerial);
+    busLSM9DS1.sendPacket(thisFrame, MySerial);
+    busADXL375.sendPacket(thisFrame, MySerial);
+}
 
 void setup() {
-    MySerial.begin(115200);
+    MySerial.begin(1000000);
     Wire2.begin(PB11, PB10); // I2C2
 
 
@@ -55,18 +70,13 @@ void setup() {
 
 void loop() {
     thisFrame.currentMillis = millis();
-    if (thisFrame.currentMillis - lastSendTime >= 1000 / busPwr.frequency) {
-        lastSendTime = thisFrame.currentMillis;
 
-        //Gather data
-        readPWR(thisFrame);
-        readBME280(thisFrame);
-        readLSM9DS1(thisFrame);
-        readADXL375(thisFrame);
-
-        // Generate packet
-        auto packet = streamSerialTelem.serialize(thisFrame);
-        // Send packet
-        MySerial.write(packet.data(), packet.size());
-    }
+    //Gather data
+    if (thisFrame.currentMillis - lastReadPwr >= 1000 / busPwr.frequency) {readPWR(thisFrame); lastReadPwr = thisFrame.currentMillis;}
+    if (thisFrame.currentMillis - lastReadBME >= 1000 / busBME280.frequency) {readBME280(thisFrame);lastReadBME = thisFrame.currentMillis;}
+    if (thisFrame.currentMillis - lastReadLSM >= 1000 / busLSM9DS1.frequency) {readLSM9DS1(thisFrame);lastReadLSM = thisFrame.currentMillis;}
+    if (thisFrame.currentMillis - lastReadADXL >= 1000 / busADXL375.frequency) {readADXL375(thisFrame);lastReadADXL = thisFrame.currentMillis;}    
+    
+    // Send data over serial
+    sendSerialBuses();
 }

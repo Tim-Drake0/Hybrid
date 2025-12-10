@@ -26,12 +26,15 @@ struct busPwrConfig {
     int frequency;
     const char* sensorName;
     const char* endian;
+    uint16_t packetsSent;
+    uint32_t lastSendTime;
     busPwrFieldConfig battVolts;
     busPwrFieldConfig voltage3V;
     busPwrFieldConfig voltage5V;
  
     const busPwrFieldConfig* getField(const char* fieldName) const;
-    std::array<uint8_t, 8> serialize(SensorDataFrame &frame) const;
+    std::array<uint8_t, 14> serialize(SensorDataFrame &frame) const;
+    void sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const;
 };
 
 extern busPwrConfig busPwr;

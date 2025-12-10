@@ -4,23 +4,26 @@
 #include "busLSM9DS1.h"
 #include <string.h>
 #include <Arduino.h>
+#include <HardwareSerial.h>
 #include "SensorDataFrame.h"
 
 busLSM9DS1Config busLSM9DS1 = {
     6912,
-    38,
-    50,
+    44,
+    100,
     "little",
     "LSM9DS1",
-    { 9999, "m/s^2", "float", 2, 4, 32, 0.0, 1.0, 0},
-    { 9999, "m/s^2", "float", 6, 4, 32, 0.0, 1.0, 0},
-    { 9999, "m/s^2", "float", 10, 4, 32, 0.0, 1.0, 0},
-    { 9999, "gauss", "float", 14, 4, 32, 0.0, 1.0, 0},
-    { 9999, "gauss", "float", 18, 4, 32, 0.0, 1.0, 0},
-    { 9999, "gauss", "float", 22, 4, 32, 0.0, 1.0, 0},
-    { 9999, "dps", "float", 26, 4, 32, 0.0, 1.0, 0},
-    { 9999, "dps", "float", 30, 4, 32, 0.0, 1.0, 0},
-    { 9999, "dps", "float", 34, 4, 32, 0.0, 1.0, 0}
+    0,
+    0,
+    { 9999, "m/s^2", "float", 8, 4, 32, 0.0, 1.0, 0},
+    { 9999, "m/s^2", "float", 12, 4, 32, 0.0, 1.0, 0},
+    { 9999, "m/s^2", "float", 16, 4, 32, 0.0, 1.0, 0},
+    { 9999, "gauss", "float", 20, 4, 32, 0.0, 1.0, 0},
+    { 9999, "gauss", "float", 24, 4, 32, 0.0, 1.0, 0},
+    { 9999, "gauss", "float", 28, 4, 32, 0.0, 1.0, 0},
+    { 9999, "dps", "float", 32, 4, 32, 0.0, 1.0, 0},
+    { 9999, "dps", "float", 36, 4, 32, 0.0, 1.0, 0},
+    { 9999, "dps", "float", 40, 4, 32, 0.0, 1.0, 0}
 };
 
 const busLSM9DS1FieldConfig* busLSM9DS1Config::getField(const char* fieldName) const {
@@ -38,8 +41,8 @@ const busLSM9DS1FieldConfig* busLSM9DS1Config::getField(const char* fieldName) c
     
 }
 
-std::array<uint8_t, 38> busLSM9DS1Config::serialize(SensorDataFrame &frame) const {
-    std::array<uint8_t, 38> buffer{};
+std::array<uint8_t, 44> busLSM9DS1Config::serialize(SensorDataFrame &frame) const {
+    std::array<uint8_t, 44> buffer{};
     buffer.fill(0);
     
     union {float f;uint32_t u;} accelx_u;
@@ -62,59 +65,82 @@ std::array<uint8_t, 38> busLSM9DS1Config::serialize(SensorDataFrame &frame) cons
     gyroy_u.f = frame.gyroy;
     gyroz_u.f = frame.gyroz;
     
+    int i = 0;
+    
     // ID
-    buffer[0] = (6912 >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[1] = 6912 & 0xFF;         // Low byte (bits 7-0)
+    buffer[i] = (6912 >> 8) & 0xFF; i++;
+    buffer[i] = 6912 & 0xFF;        i++;   
+    
+    // Timestamp
+    buffer[i] = (frame.currentMillis >> 24) & 0xFF; i++;
+    buffer[i] = (frame.currentMillis >> 16) & 0xFF; i++;
+    buffer[i] = (frame.currentMillis >> 8)  & 0xFF; i++;
+    buffer[i] = frame.currentMillis & 0xFF;         i++;
+    
+    // Packets Sent
+    buffer[i] = (busLSM9DS1.packetsSent >> 8) & 0xFF; i++;
+    buffer[i] = busLSM9DS1.packetsSent & 0xFF;        i++;  
     
     //Data
-    buffer[2] = (accelx_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[3] = (accelx_u.u >> 16) & 0xFF;
-    buffer[4] = (accelx_u.u >> 8)  & 0xFF;
-    buffer[5] = accelx_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (accelx_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (accelx_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (accelx_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = accelx_u.u & 0xFF;         i++;
 
-    buffer[6] = (accely_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[7] = (accely_u.u >> 16) & 0xFF;
-    buffer[8] = (accely_u.u >> 8)  & 0xFF;
-    buffer[9] = accely_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (accely_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (accely_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (accely_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = accely_u.u & 0xFF;         i++;
 
-    buffer[10] = (accelz_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[11] = (accelz_u.u >> 16) & 0xFF;
-    buffer[12] = (accelz_u.u >> 8)  & 0xFF;
-    buffer[13] = accelz_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (accelz_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (accelz_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (accelz_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = accelz_u.u & 0xFF;         i++;
 
-    buffer[14] = (magx_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[15] = (magx_u.u >> 16) & 0xFF;
-    buffer[16] = (magx_u.u >> 8)  & 0xFF;
-    buffer[17] = magx_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (magx_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (magx_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (magx_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = magx_u.u & 0xFF;         i++;
 
-    buffer[18] = (magy_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[19] = (magy_u.u >> 16) & 0xFF;
-    buffer[20] = (magy_u.u >> 8)  & 0xFF;
-    buffer[21] = magy_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (magy_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (magy_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (magy_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = magy_u.u & 0xFF;         i++;
 
-    buffer[22] = (magz_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[23] = (magz_u.u >> 16) & 0xFF;
-    buffer[24] = (magz_u.u >> 8)  & 0xFF;
-    buffer[25] = magz_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (magz_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (magz_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (magz_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = magz_u.u & 0xFF;         i++;
 
-    buffer[26] = (gyrox_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[27] = (gyrox_u.u >> 16) & 0xFF;
-    buffer[28] = (gyrox_u.u >> 8)  & 0xFF;
-    buffer[29] = gyrox_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (gyrox_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (gyrox_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (gyrox_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = gyrox_u.u & 0xFF;         i++;
 
-    buffer[30] = (gyroy_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[31] = (gyroy_u.u >> 16) & 0xFF;
-    buffer[32] = (gyroy_u.u >> 8)  & 0xFF;
-    buffer[33] = gyroy_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (gyroy_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (gyroy_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (gyroy_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = gyroy_u.u & 0xFF;         i++;
 
-    buffer[34] = (gyroz_u.u >> 24) & 0xFF; // Most significant byte (MSB)
-    buffer[35] = (gyroz_u.u >> 16) & 0xFF;
-    buffer[36] = (gyroz_u.u >> 8)  & 0xFF;
-    buffer[37] = gyroz_u.u & 0xFF;         // Least significant byte (LSB)
+    buffer[i] = (gyroz_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (gyroz_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (gyroz_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = gyroz_u.u & 0xFF;         i++;
 
     
     
     return buffer;
 }
 
+void busLSM9DS1Config::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {
+    if (frame.currentMillis - busLSM9DS1.lastSendTime >= 1000 / 20) {
+        busLSM9DS1.lastSendTime = frame.currentMillis;
+
+        auto busLSM9DS1_serialized = busLSM9DS1.serialize(frame);
+
+        serial.write(busLSM9DS1_serialized.data(), busLSM9DS1_serialized.size());
+
+        busLSM9DS1.packetsSent++;
+    }
+}
 

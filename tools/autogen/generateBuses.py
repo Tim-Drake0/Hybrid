@@ -42,7 +42,7 @@ for bus_name, bus_info in buses.items():
     readSensorLines = ""
     
     i=0
-    buff_index = 2
+    buff_index = 8 #id (2) + time (4) + packets send (2)
     for field_name, field_props in bus_info['data'].items(): # look at each variable
         i=i+1
         #valuesLines += f"    {field_props.values()},\n"
@@ -67,15 +67,15 @@ for bus_name, bus_info in buses.items():
 
         # do bit math 
         if field_props['type'] == "float" or field_props['type'] == "uint32_t": # if float or 32bit int then split up into 4 bytes
-            buffer += f"buffer[{buff_index}] = ({tempName} >> 24) & 0xFF; // Most significant byte (MSB)\n    "
-            buffer += f"buffer[{buff_index+1}] = ({tempName} >> 16) & 0xFF;\n    "
-            buffer += f"buffer[{buff_index+2}] = ({tempName} >> 8)  & 0xFF;\n    "
-            buffer += f"buffer[{buff_index+3}] = {tempName} & 0xFF;         // Least significant byte (LSB)\n\n    "
+            buffer += f"buffer[i] = ({tempName} >> 24) & 0xFF; i++;\n    "
+            buffer += f"buffer[i] = ({tempName} >> 16) & 0xFF; i++;\n    "
+            buffer += f"buffer[i] = ({tempName} >> 8)  & 0xFF; i++;\n    "
+            buffer += f"buffer[i] = {tempName} & 0xFF;         i++;\n\n    "
             buff_index = buff_index+4
             
         elif field_props['type'] == "uint16_t" or field_props['type'] == "int16_t": # if 16bit int then split up into 2 bytes
-            buffer += f"buffer[{buff_index}] = ({tempName} >> 8) & 0xFF;  // High byte (bits 9-8)\n    "
-            buffer += f"buffer[{buff_index+1}] = {tempName} & 0xFF;         // Low byte (bits 7-0)\n\n    "
+            buffer += f"buffer[i] = ({tempName} >> 8) & 0xFF; i++;\n    "
+            buffer += f"buffer[i] = {tempName} & 0xFF;        i++;\n\n    "
             buff_index = buff_index+2    
                
         if i == len(bus_info['data'].items()): # double indent if not the last one
@@ -120,9 +120,12 @@ struct {busConfig} {{
     int frequency;
     const char* sensorName;
     const char* endian;
+    uint16_t packetsSent;
+    uint32_t lastSendTime;
 {fieldConfigLines} 
     const {fieldConfig}* getField(const char* fieldName) const;
     std::array<uint8_t, {size}> serialize(SensorDataFrame &frame) const;
+    void sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const;
 }};
 
 extern {busConfig} {busName};
@@ -157,6 +160,7 @@ extern {busConfig} {busName};
 #include {busdotH}
 #include <string.h>
 #include <Arduino.h>
+#include <HardwareSerial.h>
 #include "SensorDataFrame.h"
 
 {busConfig} {busName} = {{
@@ -165,6 +169,8 @@ extern {busConfig} {busName};
     {freq},
     {endian},
     {sensorName},
+    0,
+    0,
 {vals}
 }};
 
@@ -180,9 +186,21 @@ std::array<uint8_t, {size}> {busConfig}::serialize(SensorDataFrame &frame) const
     
     {floatUn}
     {floatVar}
+    int i = 0;
+    
     // ID
-    buffer[0] = ({id} >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[1] = {id} & 0xFF;         // Low byte (bits 7-0)
+    buffer[i] = ({id} >> 8) & 0xFF; i++;
+    buffer[i] = {id} & 0xFF;        i++;   
+    
+    // Timestamp
+    buffer[i] = (frame.currentMillis >> 24) & 0xFF; i++;
+    buffer[i] = (frame.currentMillis >> 16) & 0xFF; i++;
+    buffer[i] = (frame.currentMillis >> 8)  & 0xFF; i++;
+    buffer[i] = frame.currentMillis & 0xFF;         i++;
+    
+    // Packets Sent
+    buffer[i] = ({busName}.packetsSent >> 8) & 0xFF; i++;
+    buffer[i] = {busName}.packetsSent & 0xFF;        i++;  
     
     //Data
     {buffer}
@@ -190,6 +208,17 @@ std::array<uint8_t, {size}> {busConfig}::serialize(SensorDataFrame &frame) const
     return buffer;
 }}
 
+void {busConfig}::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {{
+    if (frame.currentMillis - {busName}.lastSendTime >= 1000 / 20) {{
+        {busName}.lastSendTime = frame.currentMillis;
+
+        auto {busName}_serialized = {busName}.serialize(frame);
+
+        serial.write({busName}_serialized.data(), {busName}_serialized.size());
+
+        {busName}.packetsSent++;
+    }}
+}}
 
 """
  

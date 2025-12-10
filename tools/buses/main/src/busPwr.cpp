@@ -4,17 +4,20 @@
 #include "busPwr.h"
 #include <string.h>
 #include <Arduino.h>
+#include <HardwareSerial.h>
 #include "SensorDataFrame.h"
 
 busPwrConfig busPwr = {
     6910,
-    8,
-    50,
+    14,
+    20,
     "little",
     "PWR",
-    { 1023, "V", "uint16_t", 2, 2, 10, 0.3009149658, 4.098150873, A0},
-    { 1023, "V", "uint16_t", 4, 2, 10, 0.0, 1.0, A1},
-    { 1023, "V", "uint16_t", 6, 2, 10, 0.0, 1.0, A2}
+    0,
+    0,
+    { 1023, "V", "uint16_t", 8, 2, 10, 0.3009149658, 4.098150873, A0},
+    { 1023, "V", "uint16_t", 10, 2, 10, 0.0, 1.0, A1},
+    { 1023, "V", "uint16_t", 12, 2, 10, 0.0, 1.0, A2}
 };
 
 const busPwrFieldConfig* busPwrConfig::getField(const char* fieldName) const {
@@ -26,29 +29,52 @@ const busPwrFieldConfig* busPwrConfig::getField(const char* fieldName) const {
     
 }
 
-std::array<uint8_t, 8> busPwrConfig::serialize(SensorDataFrame &frame) const {
-    std::array<uint8_t, 8> buffer{};
+std::array<uint8_t, 14> busPwrConfig::serialize(SensorDataFrame &frame) const {
+    std::array<uint8_t, 14> buffer{};
     buffer.fill(0);
     
     
     
+    int i = 0;
+    
     // ID
-    buffer[0] = (6910 >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[1] = 6910 & 0xFF;         // Low byte (bits 7-0)
+    buffer[i] = (6910 >> 8) & 0xFF; i++;
+    buffer[i] = 6910 & 0xFF;        i++;   
+    
+    // Timestamp
+    buffer[i] = (frame.currentMillis >> 24) & 0xFF; i++;
+    buffer[i] = (frame.currentMillis >> 16) & 0xFF; i++;
+    buffer[i] = (frame.currentMillis >> 8)  & 0xFF; i++;
+    buffer[i] = frame.currentMillis & 0xFF;         i++;
+    
+    // Packets Sent
+    buffer[i] = (busPwr.packetsSent >> 8) & 0xFF; i++;
+    buffer[i] = busPwr.packetsSent & 0xFF;        i++;  
     
     //Data
-    buffer[2] = (frame.battVolts >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[3] = frame.battVolts & 0xFF;         // Low byte (bits 7-0)
+    buffer[i] = (frame.battVolts >> 8) & 0xFF; i++;
+    buffer[i] = frame.battVolts & 0xFF;        i++;
 
-    buffer[4] = (frame.voltage3V >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[5] = frame.voltage3V & 0xFF;         // Low byte (bits 7-0)
+    buffer[i] = (frame.voltage3V >> 8) & 0xFF; i++;
+    buffer[i] = frame.voltage3V & 0xFF;        i++;
 
-    buffer[6] = (frame.voltage5V >> 8) & 0xFF;  // High byte (bits 9-8)
-    buffer[7] = frame.voltage5V & 0xFF;         // Low byte (bits 7-0)
+    buffer[i] = (frame.voltage5V >> 8) & 0xFF; i++;
+    buffer[i] = frame.voltage5V & 0xFF;        i++;
 
     
     
     return buffer;
 }
 
+void busPwrConfig::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {
+    if (frame.currentMillis - busPwr.lastSendTime >= 1000 / 20) {
+        busPwr.lastSendTime = frame.currentMillis;
+
+        auto busPwr_serialized = busPwr.serialize(frame);
+
+        serial.write(busPwr_serialized.data(), busPwr_serialized.size());
+
+        busPwr.packetsSent++;
+    }
+}
 
