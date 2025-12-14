@@ -66,31 +66,14 @@ def bytes2Int16(i):
     return val
 
 def find_and_read_packet():
-    """Read bytes for the header and ID, then read the rest of the packet"""
     while True:
-        b1 = ser.read(1)
-        if len(b1) == 0:           
-            continue
-        
-        if b1[0] != (busID >> 8) & 0xFF:
-            continue
-        
-        b2 = ser.read(1)
-        if len(b2) == 0:
-            continue
-        if b2[0] != busID & 0xFF:
-            continue
-       
-        
-        # Header found, read remaining bytes
-        
-        remaining = ser.read(packetSize - 1)
-        if len(remaining) != packetSize - 1:
-            print("Incomplete packet, skipping...")
+        packet = ser.read(packetSize)
+        if len(packet) != packetSize:
             continue
 
-        # Full packet
-        packet = list(b1) + list(b2)+ list(remaining)
+        if packet[0] != (busID >> 8) & 0xFF or packet[1] != busID & 0xFF:
+            continue
+        
         return packet
 
 try:
@@ -153,6 +136,10 @@ try:
             gyroY  = bytes2Float(idx); idx += 4
             gyroZ  = bytes2Float(idx); idx += 4
             
+            if timestamp - lastTimeStamp > 0 and timestamp - lastTimeStamp != 0:
+                frequency = 1/((timestamp - lastTimeStamp)/1000)
+            #print(timestamp, id, packetsSent, accelX, accelY, accelZ, frequency)
+
             print(
                 f"{timestamp:<8} "
                 f"|| ID: {id:5d} | "
@@ -160,7 +147,7 @@ try:
                 f"Accel: {accelX:5.1f} {accelY:5.1f} {accelZ:5.1f} | "
                 f"Mag: {magX:5.1f} {magY:5.1f} {magZ:5.1f} | "
                 f"Gyro: {gyroX:5.1f} {gyroY:5.1f} {gyroZ:5.1f} "
-                f"Frequency Sent: {1/((timestamp - lastTimeStamp)/1000):7.0f} | "
+                f"Frequency Sent: {frequency:7.0f} | "
             )
             
             lastTimeStamp = timestamp

@@ -126,7 +126,7 @@ with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
                 with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
                     pass
                 with dpg.plot_axis(dpg.mvYAxis, label="m/s^2"):
-                    dpg.set_axis_limits(dpg.last_item(), -20, 20)
+                    dpg.set_axis_limits(dpg.last_item(), -20, 20) 
                     dpg.add_line_series([], [], label="accelx", tag="Accelx")
                     dpg.add_line_series([], [], label="accely", tag="Accely")
                     dpg.add_line_series([], [], label="accelz", tag="Accelz")
@@ -139,7 +139,7 @@ with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
                 with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUgyro"):
                     pass
                 with dpg.plot_axis(dpg.mvYAxis, label="dps"):
-                    dpg.set_axis_limits(dpg.last_item(), -20, 20)
+                    dpg.set_axis_limits(dpg.last_item(), -100, 100)
                     dpg.add_line_series([], [], label="gyrox", tag="Gyrox")
                     dpg.add_line_series([], [], label="gyroy", tag="Gyroy")
                     dpg.add_line_series([], [], label="gyroz", tag="Gyroz")
@@ -215,9 +215,9 @@ try:
         dpg.set_value("pressurePasc",   round(sr.busBME280.pressurePasc,3))
         dpg.set_value("humidityRH",     round(sr.busBME280.humidityRH,3))
         dpg.set_value("altitudeM",      round(sr.busBME280.altitudeM,3))
-        dpg.set_value("accelx",         round(sr.busLSM9DS1.accelx,3)) 
-        dpg.set_value("accely",         round(sr.busLSM9DS1.accely,3)) 
-        dpg.set_value("accelz",         round(sr.busLSM9DS1.accelz,3)) 
+        dpg.set_value("accelx",         round(sr.busLSM9DS1.accelx,5)) 
+        dpg.set_value("accely",         round(sr.busLSM9DS1.accely,5)) 
+        dpg.set_value("accelz",         round(sr.busLSM9DS1.accelz,5)) 
         dpg.set_value("magx",           round(sr.busLSM9DS1.magx,3)) 
         dpg.set_value("magy",           round(sr.busLSM9DS1.magy,3)) 
         dpg.set_value("magz",           round(sr.busLSM9DS1.magz,3)) 

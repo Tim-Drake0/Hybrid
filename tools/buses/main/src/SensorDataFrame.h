@@ -17,17 +17,17 @@ struct SensorDataFrame {
     float humidityRH;
     float altitudeM;
 
-    float accelx;
-    float accely;
-    float accelz;
+    int16_t accelx;
+    int16_t accely;
+    int16_t accelz;
 
-    float magx;
-    float magy;
-    float magz;
+    int16_t magx;
+    int16_t magy;
+    int16_t magz;
 
-    float gyrox;
-    float gyroy;
-    float gyroz;
+    int16_t gyrox;
+    int16_t gyroy;
+    int16_t gyroz;
 
     float highG_accelx;
     float highG_accely;

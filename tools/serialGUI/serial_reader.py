@@ -83,75 +83,81 @@ def bytes2Float(packet, startByte):
     raw_bytes = bytes(packet[startByte:startByte+4])
     return struct.unpack('>f', raw_bytes)[0]
 
-def find_and_read_packet(id, size):
+def find_and_read_packet(busID, packetSize):
     while True:
-        b3 = ser.read(1)
-        if len(b3) == 0 or b3[0] != (id >> 8) & 0xFF:
-            continue
-        b4 = ser.read(1)
-        if len(b4) == 0 or b4[0] != id & 0xFF:
+        packet = ser.read(packetSize)
+        if len(packet) != packetSize:
             continue
 
-        remaining = ser.read(size - 2)
-        if len(remaining) != size - 2:
+        if packet[0] != (busID >> 8) & 0xFF or packet[1] != busID & 0xFF:
             continue
-        packet = list(b3) + list(b4) + list(remaining)
+        
         return packet
 
 def read_serial_loop():
     while True:
         try:
-            for id in busIDs:
-                
-                if id == 6910:
-                    packet = find_and_read_packet(id, 14)
-                    idx = 0
-                    busPwr.id   = bytes2Num(packet, idx, 2); idx += 2
-                    busPwr.timestamp = ((packet[idx] << 24) | (packet[idx+1] << 16) | (packet[idx+2] << 8) | packet[idx+3]) / 1000; idx += 4
-                    busPwr.packetsSent = bytes2Num(packet, idx, 2); idx += 2  
-                    busPwr.battVolts = bytes2Volts(packet, idx);    idx += 2
-                    busPwr.voltage3V = bytes2Volts(packet, idx);    idx += 2
-                    busPwr.voltage5V = bytes2Volts(packet, idx);    idx += 2  
-                    continue                 
-                
-                if id == 6911:   
-                    packet = find_and_read_packet(id, 24)
-                    idx = 0
-                    busBME280.id   = bytes2Num(packet, idx, 2); idx += 2
-                    busBME280.timestamp = ((packet[idx] << 24) | (packet[idx+1] << 16) | (packet[idx+2] << 8) | packet[idx+3]) / 1000; idx += 4
-                    busBME280.packetsSent = bytes2Num(packet, idx, 2); idx += 2  
-                    busBME280.temperatureC = bytes2Float(packet, idx);               idx += 4
-                    busBME280.pressurePasc = bytes2Float(packet, idx)/6895;      idx += 4
-                    busBME280.humidityRH = bytes2Float(packet, idx);           idx += 4
-                    busBME280.altitudeM = bytes2Float(packet, idx);           idx += 4 
-                    continue
+            #for id in busIDs:
+            #    
+            #    if id == 6910:
+            #        
+            #        packet = find_and_read_packet(id, 14)
+            #        if packet == False:
+            #            continue
+            #        idx = 0
+            #        busPwr.id   = bytes2Num(packet, idx, 2); idx += 2
+            #        busPwr.timestamp = ((packet[idx] << 24) | (packet[idx+1] << 16) | (packet[idx+2] << 8) | packet[idx+3]) / 1000; idx += 4
+            #        busPwr.packetsSent = bytes2Num(packet, idx, 2); idx += 2  
+            #        busPwr.battVolts = bytes2Volts(packet, idx);    idx += 2
+            #        busPwr.voltage3V = bytes2Volts(packet, idx);    idx += 2
+            #        busPwr.voltage5V = bytes2Volts(packet, idx);    idx += 2  
+            #        continue                 
+            #    
+            #    if id == 6911:   
+            #        packet = find_and_read_packet(id, 24)
+            #        if packet == False:
+            #            continue
+            #        idx = 0
+            #        busBME280.id   = bytes2Num(packet, idx, 2); idx += 2
+            #        busBME280.timestamp = ((packet[idx] << 24) | (packet[idx+1] << 16) | (packet[idx+2] << 8) | packet[idx+3]) / 1000; idx += 4
+            #        busBME280.packetsSent = bytes2Num(packet, idx, 2); idx += 2  
+            #        busBME280.temperatureC = bytes2Float(packet, idx);               idx += 4
+            #        busBME280.pressurePasc = bytes2Float(packet, idx)/6895;      idx += 4
+            #        busBME280.humidityRH = bytes2Float(packet, idx);           idx += 4
+            #        busBME280.altitudeM = bytes2Float(packet, idx);           idx += 4 
+            #        continue
                     
-                if id == 6912: # for busLSM9DS1:
-                    packet = find_and_read_packet(id, 44)
-                    idx = 0
-                    busLSM9DS1.id   = bytes2Num(packet, idx, 2); idx += 2
-                    busLSM9DS1.timestamp = ((packet[idx] << 24) | (packet[idx+1] << 16) | (packet[idx+2] << 8) | packet[idx+3]) / 1000; idx += 4
-                    busLSM9DS1.packetsSent = bytes2Num(packet, idx, 2); idx += 2  
-                    busLSM9DS1.accelx = bytes2Float(packet, idx); idx += 4
-                    busLSM9DS1.accely = bytes2Float(packet, idx); idx += 4
-                    busLSM9DS1.accelz = bytes2Float(packet, idx); idx += 4
-                    busLSM9DS1.magx   = bytes2Float(packet, idx); idx += 4
-                    busLSM9DS1.magy   = bytes2Float(packet, idx); idx += 4
-                    busLSM9DS1.magz   = bytes2Float(packet, idx); idx += 4
-                    busLSM9DS1.gyrox  = bytes2Float(packet, idx); idx += 4
-                    busLSM9DS1.gyroy  = bytes2Float(packet, idx); idx += 4
-                    busLSM9DS1.gyroz  = bytes2Float(packet, idx); idx += 4
-                    continue
+            #busID == 6912 # for busLSM9DS1:
+            
+            packet = find_and_read_packet(6912, 44)
+            if packet == False:
+                continue
+            idx = 0
+            busLSM9DS1.id   = bytes2Num(packet, idx, 2); idx += 2
+            busLSM9DS1.timestamp = ((packet[idx] << 24) | (packet[idx+1] << 16) | (packet[idx+2] << 8) | packet[idx+3]) / 1000; idx += 4
+            busLSM9DS1.packetsSent = bytes2Num(packet, idx, 2); idx += 2  
+            busLSM9DS1.accelx = bytes2Float(packet, idx) * 0.00122; idx += 4
+            busLSM9DS1.accely = bytes2Float(packet, idx) * 0.00122; idx += 4
+            busLSM9DS1.accelz = bytes2Float(packet, idx) * 0.00122; idx += 4
+            busLSM9DS1.magx   = bytes2Float(packet, idx) * 0.14; idx += 4
+            busLSM9DS1.magy   = bytes2Float(packet, idx) * 0.14; idx += 4
+            busLSM9DS1.magz   = bytes2Float(packet, idx) * 0.14; idx += 4
+            busLSM9DS1.gyrox  = bytes2Float(packet, idx) * 0.07; idx += 4
+            busLSM9DS1.gyroy  = bytes2Float(packet, idx) * 0.07; idx += 4
+            busLSM9DS1.gyroz  = bytes2Float(packet, idx) * 0.07; idx += 4
+            continue
                 
-                if id == 6913:
-                    packet = find_and_read_packet(id, 20)
-                    idx = 0
-                    busADXL375.id   = bytes2Num(packet, idx, 2); idx += 2
-                    busADXL375.timestamp = ((packet[idx] << 24) | (packet[idx+1] << 16) | (packet[idx+2] << 8) | packet[idx+3]) / 1000; idx += 4
-                    busADXL375.packetsSent = bytes2Num(packet, idx, 2); idx += 2  
-                    busADXL375.highG_accelx = bytes2Float(packet, idx);       idx += 4
-                    busADXL375.highG_accely = bytes2Float(packet, idx);       idx += 4
-                    busADXL375.highG_accelz = bytes2Float(packet, idx); 
+            #    if id == 6913:
+            #        packet = find_and_read_packet(id, 20)
+            #        if packet == False:
+            #            continue
+            #        idx = 0
+            #        busADXL375.id   = bytes2Num(packet, idx, 2); idx += 2
+            #        busADXL375.timestamp = ((packet[idx] << 24) | (packet[idx+1] << 16) | (packet[idx+2] << 8) | packet[idx+3]) / 1000; idx += 4
+            #        busADXL375.packetsSent = bytes2Num(packet, idx, 2); idx += 2  
+            #        busADXL375.highG_accelx = bytes2Float(packet, idx);       idx += 4
+            #        busADXL375.highG_accely = bytes2Float(packet, idx);       idx += 4
+            #        busADXL375.highG_accelz = bytes2Float(packet, idx); 
              
         except Exception as e:
             print("Serial read error:", e)
