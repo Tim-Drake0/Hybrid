@@ -59,8 +59,11 @@ struct {streamName}Config {{
     int size;
     int frequency;
     uint16_t header;
+    uint16_t packetsSent;
+    uint32_t lastSendTime;
     
     std::array<uint8_t, {streamSize}> serialize(SensorDataFrame &frame) const;
+    void sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const;
     
 }};
 
@@ -109,7 +112,9 @@ extern streamSerialTelemConfig streamSerialTelem;
     {id},
     {size},
     {freq},
-    {header}
+    {header},
+    0,
+    0
 }};
 
 std::array<uint8_t, {size}> streamSerialTelemConfig::serialize(SensorDataFrame &frame) const {{
@@ -137,6 +142,15 @@ std::array<uint8_t, {size}> streamSerialTelemConfig::serialize(SensorDataFrame &
     size_t offset = 9; 
 {copyArrays}   
     return buffer;
+}}
+
+void {streamConfig}::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {{
+    auto {streamName}_serialized = {streamName}.serialize(frame);
+
+    serial.write({streamName}_serialized.data(), {streamName}_serialized.size());
+    
+    {streamName}.packetsSent++;
+    {streamName}.lastSendTime = frame.currentMillis;
 }}
 
 """
