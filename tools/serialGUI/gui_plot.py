@@ -1,13 +1,7 @@
 import dearpygui.dearpygui as dpg
 import serial_reader as sr
 import time
-import struct
 from collections import deque
-
-
-class dpgVariable:
-    plotBuffer = 1
-
 
 MAX_POINTS = 2000  # number of points shown in plot
 
@@ -36,6 +30,10 @@ highG_accelx = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 highG_accely = deque([sr.busADXL375.highG_accely], maxlen=MAX_POINTS)
 highG_accelz = deque([sr.busADXL375.highG_accelz], maxlen=MAX_POINTS)
 
+busPwr_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
+busBME_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
+busLSM_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
+busADX_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 
 def _config(sender, keyword, user_data):
     widget_type = dpg.get_item_type(sender)
@@ -93,11 +91,17 @@ with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
                 dpg.add_table_column(label="busLSM9DS1")
                 dpg.add_table_column(label="busADXL375")
                 with dpg.table_row():
-                    dpg.add_text(f"TOV: {round(sr.busPwr.timestamp, 3)}", tag="busPwr_TOV")
-                    dpg.add_text(f"TOV: {round(sr.busBME280.timestamp, 3)}", tag="busBME280_TOV") 
-                    dpg.add_text(f"TOV: {round(sr.busLSM9DS1.timestamp, 3)}", tag="busLSM9DS1_TOV") 
-                    dpg.add_text(f"TOV: {round(sr.busADXL375.timestamp, 3)}", tag="busADXL375_TOV")
+                    dpg.add_text(f"Packets Sent: {round(sr.busPwr.packetsSent, 3)}", tag="busPwr_packetsSent")
+                    dpg.add_text(f"Packets Sent: {round(sr.busBME280.packetsSent, 3)}", tag="busBME280_packetsSent") 
+                    dpg.add_text(f"Packets Sent: {round(sr.busLSM9DS1.packetsSent, 3)}", tag="busLSM9DS1_packetsSent") 
+                    dpg.add_text(f"Packets Sent: {round(sr.busADXL375.packetsSent, 3)}", tag="busADXL375_packetsSent")
                     
+                    
+
+
+ 
+
+
 
                 with dpg.table_row():
                     # Nested table inside the "Details" cell
@@ -145,7 +149,7 @@ with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
                 with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUmag"):
                     pass
                 with dpg.plot_axis(dpg.mvYAxis, label="dps"):
-                    dpg.set_axis_limits(dpg.last_item(), -2, 2)
+                    dpg.set_axis_limits(dpg.last_item(), -40, 40)
                     dpg.add_line_series([], [], label="magx", tag="Magx")
                     dpg.add_line_series([], [], label="magy", tag="Magy")
                     dpg.add_line_series([], [], label="magz", tag="Magz")
@@ -224,10 +228,10 @@ try:
         dpg.set_value("highG_accely",   round(sr.busADXL375.highG_accely,3)) 
         dpg.set_value("highG_accelz",   round(sr.busADXL375.highG_accelz,3)) 
         
-        dpg.set_value("busPwr_TOV",         f"TOV: {round(sr.busPwr.timestamp, 3)}") 
-        dpg.set_value("busBME280_TOV",      f"TOV: {round(sr.busBME280.timestamp, 3)}") 
-        dpg.set_value("busLSM9DS1_TOV",     f"TOV: {round(sr.busLSM9DS1.timestamp, 3)}") 
-        dpg.set_value("busADXL375_TOV",     f"TOV: {round(sr.busADXL375.timestamp, 3)}") 
+        dpg.set_value("busPwr_packetsSent",   f"Packets Sent: {round(sr.busPwr.packetsSent, 3)}") 
+        dpg.set_value("busBME280_packetsSent",   f"Packets Sent: {round(sr.busBME280.packetsSent, 3)}") 
+        dpg.set_value("busLSM9DS1_packetsSent",   f"Packets Sent: {round(sr.busLSM9DS1.packetsSent, 3)}") 
+        dpg.set_value("busADXL375_packetsSent",   f"Packets Sent: {round(sr.busADXL375.packetsSent, 3)}") 
         
         
 

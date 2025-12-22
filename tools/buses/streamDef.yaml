@@ -1,6 +1,6 @@
 streamSerialTelem:
   id: 6900
-  size: 111
+  size: 87
   freq: 50
   header: 43962
   buses:

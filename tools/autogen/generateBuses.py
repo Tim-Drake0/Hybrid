@@ -209,12 +209,15 @@ std::array<uint8_t, {size}> {busConfig}::serialize(SensorDataFrame &frame) const
 }}
 
 void {busConfig}::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {{
-    auto {busName}_serialized = {busName}.serialize(frame);
+    if (frame.currentMillis - {busName}.lastSendTime >= 1000 / 20) {{
+        {busName}.lastSendTime = frame.currentMillis;
 
-    serial.write({busName}_serialized.data(), {busName}_serialized.size());
-    
-    {busName}.packetsSent++;
-    {busName}.lastSendTime = frame.currentMillis;
+        auto {busName}_serialized = {busName}.serialize(frame);
+
+        serial.write({busName}_serialized.data(), {busName}_serialized.size());
+
+        {busName}.packetsSent++;
+    }}
 }}
 
 """

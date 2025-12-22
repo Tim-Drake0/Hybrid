@@ -11,15 +11,13 @@
 
 streamSerialTelemConfig streamSerialTelem = {
     6900,
-    111,
+    87,
     50,
-    43962,
-    0,
-    0
+    43962
 };
 
-std::array<uint8_t, 111> streamSerialTelemConfig::serialize(SensorDataFrame &frame) const {
-    std::array<uint8_t, 111> buffer{}; // initialize all to 0
+std::array<uint8_t, 87> streamSerialTelemConfig::serialize(SensorDataFrame &frame) const {
+    std::array<uint8_t, 87> buffer{}; // initialize all to 0
 
     auto busPwr_serialized = busPwr.serialize(frame);
     auto busBME280_serialized = busBME280.serialize(frame);
@@ -54,14 +52,5 @@ std::array<uint8_t, 111> streamSerialTelemConfig::serialize(SensorDataFrame &fra
     copy_array_into_buffer(buffer, offset, busADXL375_serialized);
    
     return buffer;
-}
-
-void streamSerialTelemConfig::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {
-    auto streamSerialTelem_serialized = streamSerialTelem.serialize(frame);
-
-    serial.write(streamSerialTelem_serialized.data(), streamSerialTelem_serialized.size());
-    
-    streamSerialTelem.packetsSent++;
-    streamSerialTelem.lastSendTime = frame.currentMillis;
 }
 

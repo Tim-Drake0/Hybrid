@@ -17,7 +17,7 @@ busPwrConfig busPwr = {
     0,
     { 1023, "V", "uint16_t", 8, 2, 10, 0.3009149658, 4.098150873, A0},
     { 1023, "V", "uint16_t", 10, 2, 10, 0.0, 1.0, A1},
-    { 1023, "V", "uint16_t", 12, 2, 10, 0.0, 1.0, A8}
+    { 1023, "V", "uint16_t", 12, 2, 10, 0.0, 1.0, A2}
 };
 
 const busPwrFieldConfig* busPwrConfig::getField(const char* fieldName) const {
@@ -67,11 +67,14 @@ std::array<uint8_t, 14> busPwrConfig::serialize(SensorDataFrame &frame) const {
 }
 
 void busPwrConfig::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {
-    auto busPwr_serialized = busPwr.serialize(frame);
+    if (frame.currentMillis - busPwr.lastSendTime >= 1000 / 20) {
+        busPwr.lastSendTime = frame.currentMillis;
 
-    serial.write(busPwr_serialized.data(), busPwr_serialized.size());
-    
-    busPwr.packetsSent++;
-    busPwr.lastSendTime = frame.currentMillis;
+        auto busPwr_serialized = busPwr.serialize(frame);
+
+        serial.write(busPwr_serialized.data(), busPwr_serialized.size());
+
+        busPwr.packetsSent++;
+    }
 }
 

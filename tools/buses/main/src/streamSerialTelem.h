@@ -17,11 +17,8 @@ struct streamSerialTelemConfig {
     int size;
     int frequency;
     uint16_t header;
-    uint16_t packetsSent;
-    uint32_t lastSendTime;
     
-    std::array<uint8_t, 111> serialize(SensorDataFrame &frame) const;
-    void sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const;
+    std::array<uint8_t, 87> serialize(SensorDataFrame &frame) const;
     
 };
 

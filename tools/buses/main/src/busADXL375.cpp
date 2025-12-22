@@ -79,11 +79,14 @@ std::array<uint8_t, 20> busADXL375Config::serialize(SensorDataFrame &frame) cons
 }
 
 void busADXL375Config::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {
-    auto busADXL375_serialized = busADXL375.serialize(frame);
+    if (frame.currentMillis - busADXL375.lastSendTime >= 1000 / 20) {
+        busADXL375.lastSendTime = frame.currentMillis;
 
-    serial.write(busADXL375_serialized.data(), busADXL375_serialized.size());
-    
-    busADXL375.packetsSent++;
-    busADXL375.lastSendTime = frame.currentMillis;
+        auto busADXL375_serialized = busADXL375.serialize(frame);
+
+        serial.write(busADXL375_serialized.data(), busADXL375_serialized.size());
+
+        busADXL375.packetsSent++;
+    }
 }
 
