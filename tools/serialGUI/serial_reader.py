@@ -5,15 +5,19 @@ import threading
 from collections import deque
 import time
 import math
+from pathlib import Path
+
 
 # ---------------- CONFIG ----------------
-STREAMS_YAML_FILE = "C:/Git/Hybrid/tools/buses/streamDef.yaml"
-BUS_YAML_FILE = "C:/Git/Hybrid/tools/buses/busDef.yaml"
 SERIAL_PORT = "COM4"
 BAUD_RATE = 1000000
 STREAM_NAME = "streamSerialTelem"
 MAX_POINTS = 500
 # ---------------------------------------
+
+repo_root = Path(__file__).resolve().parents[2]  # adjust n once
+STREAMS_YAML_FILE = repo_root / "tools" / "buses" / "streamDef.yaml"
+BUS_YAML_FILE = repo_root / "tools" / "buses" / "busDef.yaml"
 
 # Load YAML
 with open(STREAMS_YAML_FILE, "r") as f:
@@ -26,7 +30,13 @@ thisStream = streams[STREAM_NAME]
 busIDs = [6910,6911,6912,6913]
 
 # Open serial
-ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+try:
+    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+    SERIAL_VALID = 1
+
+except:
+    SERIAL_VALID = 0
+
 
 class BusPwr:
     timestamp: int = 0
@@ -168,5 +178,6 @@ def read_serial_loop():
             time.sleep(0.01)
 
 # Start reading in background thread
-thread = threading.Thread(target=read_serial_loop, daemon=True)
-thread.start()
+if SERIAL_VALID:
+    thread = threading.Thread(target=read_serial_loop, daemon=True)
+    thread.start()
