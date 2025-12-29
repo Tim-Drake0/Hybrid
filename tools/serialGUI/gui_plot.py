@@ -5,9 +5,9 @@ import struct
 from collections import deque
 
 
+
 class dpgVariable:
     plotBuffer = 1
-
 
 MAX_POINTS = 2000  # number of points shown in plot
 
@@ -83,11 +83,76 @@ def _add_config_options(item, columns, *names, **kwargs):
 def _log(sender, app_data, user_data):
     print(f"sender: {sender}, \t app_data: {app_data}, \t user_data: {user_data}")
 
+def load_openrocket_csv_for_dpg(path):
+    """
+    Load an OpenRocket-style CSV file and return data
+    suitable for DearPyGui plotting.
+
+    Returns:
+        dict with keys:
+            'time'      -> list[float]
+            'altitude'  -> list[float]
+            'velocity'  -> list[float]
+    """
+
+    time = []
+    altitude = []
+    velocity = []
+
+    with open(path, "r") as f:
+        for line in f:
+            line = line.strip()
+
+            # Skip comments, events, headers, empty lines
+            if not line or line.startswith("#"):
+                continue
+
+            # Expect: time, altitude, vertical velocity
+            parts = line.split(",")
+
+            if len(parts) != 3:
+                continue  # safety
+
+            try:
+                t = float(parts[0])
+                alt = float(parts[1])
+                vel = float(parts[2])
+            except ValueError:
+                continue  # skip malformed rows
+
+            time.append(t)
+            altitude.append(alt)
+            velocity.append(vel)
+
+    return {
+        "time": time,
+        "altitude": altitude,
+        "velocity": velocity,
+    }
+
+openRkt_Data = load_openrocket_csv_for_dpg("Assets/Simulation 1.csv")
+
 dpg.create_context()
 WINDOW_DIM = (1920,1000)
 with dpg.window(label="Serial Data Plotter", width=WINDOW_DIM[0], height=WINDOW_DIM[1]):
-    with dpg.tab_bar(label="Main Tabs"): # Create the tab bar   
-        with dpg.tab(label="Bus Info"): # First tab
+    with dpg.tab_bar(label="Main Tabs"): # Create the tab bar 
+        with dpg.tab(label="Flight Monitor"):
+
+            with dpg.plot(label="Altitude vs Time", width=800, height=400, pos=[0,45]):
+                dpg.add_plot_legend()
+                dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)") # *******  will this work with updating time?
+                with dpg.plot_axis(dpg.mvYAxis, label="Altitude [m]"):
+                    dpg.add_line_series([], [], label="Realtime Alt", tag="Altitude")
+                    dpg.add_line_series(openRkt_Data["time"], openRkt_Data["altitude"], label="Sim Alt")
+
+            with dpg.plot(label="Velocity vs Time", width=800, height=400, pos=[0,45+400]):
+                dpg.add_plot_legend()
+                dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)") # *******  will this work with updating time?
+                with dpg.plot_axis(dpg.mvYAxis, label="Velocity (m/s)"):
+                    # **** add realtime velocity
+                    dpg.add_line_series(openRkt_Data["time"], openRkt_Data["velocity"], label="Sim Vel")
+        
+        with dpg.tab(label="Bus Info"): 
             with dpg.table(header_row=True, resizable=True, delay_search=True,
                         borders_outerH=True, borders_innerV=True, borders_outerV=True, row_background=True) as table_id:
                 dpg.add_table_column(label="busPWR")
@@ -120,8 +185,7 @@ with dpg.window(label="Serial Data Plotter", width=WINDOW_DIM[0], height=WINDOW_
                                         dpg.add_text(field_props['unit'])
                                         dpg.add_input_text(callback=_log) # add function that overrides all variables when enter is hit
                                         
-   
-        with dpg.tab(label="IMU Plots"): # Second tab
+        with dpg.tab(label="IMU Plots"): 
             with dpg.plot(label="busIMU Accel", width=1990, height=300, pos=[0,45]):
                 dpg.add_plot_legend()
                 with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
@@ -153,7 +217,10 @@ with dpg.window(label="Serial Data Plotter", width=WINDOW_DIM[0], height=WINDOW_
                     dpg.set_axis_limits(dpg.last_item(), -2, 2)
                     dpg.add_line_series([], [], label="magx", tag="Magx")
                     dpg.add_line_series([], [], label="magy", tag="Magy")
-                    dpg.add_line_series([], [], label="magz", tag="Magz")        
+                    dpg.add_line_series([], [], label="magz", tag="Magz")     
+
+        with dpg.tab(label="Serial Monitor"):    
+            pass
 
 # Setup viewport
 dpg.create_viewport(title='Serial Telemetry', width=2000, height=1000)
@@ -212,7 +279,7 @@ try:
         dpg.set_value("busLSM9DS1_TOV",     f"TOV: {round(sr.busLSM9DS1.timestamp, 3)}") 
         dpg.set_value("busADXL375_TOV",     f"TOV: {round(sr.busADXL375.timestamp, 3)}") 
         
-
+        dpg.set_value("Altitude", [list(timestamps), list(altitudeM)]) 
         dpg.set_value("Accelx", [list(timestamps), list(accelx)]) 
         dpg.set_value("Accely", [list(timestamps), list(accely)]) 
         dpg.set_value("Accelz", [list(timestamps), list(accelz)]) 
@@ -231,8 +298,7 @@ try:
         if timestamps:
             latest = timestamps[-1]
             start = max(latest - WINDOW_SIZE, timestamps[0])  # don't go before first timestamp
-            
-            #dpg.set_axis_limits("x_axis_busPWR", start, latest)
+
             dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
             dpg.set_axis_limits("x_axis_busIMUgyro", start, latest)
             dpg.set_axis_limits("x_axis_busIMUmag", start, latest)
