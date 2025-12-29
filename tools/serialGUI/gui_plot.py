@@ -3,7 +3,7 @@ import serial_reader as sr
 import time
 import struct
 from collections import deque
-
+import random
 
 
 class dpgVariable:
@@ -134,21 +134,86 @@ openRkt_Data = load_openrocket_csv_for_dpg("Assets/Simulation 1.csv")
 
 dpg.create_context()
 WINDOW_DIM = (1920,1000)
+
+with dpg.font_registry():
+    small = dpg.add_font("Assets/RobotoMono-Regular.ttf", 14)
+    default = dpg.add_font("Assets/RobotoMono-Regular.ttf", 18)
+    large = dpg.add_font("Assets/RobotoMono-Regular.ttf", 30)
+dpg.bind_font(default)
+
 with dpg.window(label="Serial Data Plotter", width=WINDOW_DIM[0], height=WINDOW_DIM[1]):
     with dpg.tab_bar(label="Main Tabs"): # Create the tab bar 
         with dpg.tab(label="Flight Monitor"):
 
-            with dpg.plot(label="Altitude vs Time", width=800, height=400, pos=[0,45]):
+            # Events
+            events = {
+                "Arm Command": 0,
+                "Launch Command": 0,
+                "Main1": 0,
+                "Main2": 0,
+                "Drogue1": 0,
+                "Drogue2": 0,
+                "MOV": 0,
+                "Vent": 0,
+                "Fill": 0,
+
+            }
+            y_offset = 55
+            EVENTS_WINDOW_SIZE = (450, 450)
+            EVENTS_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0], 0+y_offset)
+            with dpg.child_window(width=EVENTS_WINDOW_SIZE[0], height=EVENTS_WINDOW_SIZE[1], pos=EVENTS_WINDOW_POS):
+                # Create table
+                table_id = dpg.add_table(header_row=False, resizable=True, borders_innerH=True, borders_outerH=False)
+                dpg.add_table_column(parent=table_id, init_width_or_weight=25)  # Event
+                dpg.add_table_column(parent=table_id, init_width_or_weight=90)  # Button
+                dpg.add_table_column(parent=table_id, init_width_or_weight=40)  # Time
+
+                for event, val in events.items():
+                    if val == 0:
+                        color = (255,0,0) # red
+                    elif val == 1:
+                        color = (0,255,0) # green
+                    else:
+                        color = (0,0,255) # blue 
+
+                    i = 3
+                    row_id = dpg.add_table_row(parent=table_id)
+
+                    # Button theme
+                    theme_tag = f"{event}"
+                    with dpg.theme(tag=theme_tag):
+                        with dpg.theme_component(dpg.mvButton):
+                            dpg.add_theme_color(dpg.mvThemeCol_Button, color)
+                            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 9)
+                            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 9,9)
+
+                    # Add button
+                    btn = dpg.add_button(label="    ", parent=row_id, callback=_log)
+                    dpg.bind_item_theme(btn, theme_tag)
+
+                    # Event text
+                    txt_event = dpg.add_text(theme_tag, parent=row_id)
+                    dpg.bind_item_font(txt_event, large)
+
+                    # Time text
+                    txt_time = dpg.add_text(f"000.00s", parent=row_id)
+                    dpg.bind_item_font(txt_time, large)
+                    
+
+            # Plots
+            with dpg.plot(label="Altitude vs Time", width=800, height=400, pos=[0,0+y_offset]):
                 dpg.add_plot_legend()
                 dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)") # *******  will this work with updating time?
                 with dpg.plot_axis(dpg.mvYAxis, label="Altitude [m]"):
+                    dpg.set_axis_limits(dpg.last_item(), 0, max(openRkt_Data["altitude"])+150)
                     dpg.add_line_series([], [], label="Realtime Alt", tag="Altitude")
                     dpg.add_line_series(openRkt_Data["time"], openRkt_Data["altitude"], label="Sim Alt")
 
-            with dpg.plot(label="Velocity vs Time", width=800, height=400, pos=[0,45+400]):
+            with dpg.plot(label="Velocity vs Time", width=800, height=400, pos=[0,0+y_offset+400]):
                 dpg.add_plot_legend()
                 dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)") # *******  will this work with updating time?
                 with dpg.plot_axis(dpg.mvYAxis, label="Velocity (m/s)"):
+                    dpg.set_axis_limits(dpg.last_item(), min(openRkt_Data["velocity"])-20, max(openRkt_Data["velocity"])+50)
                     # **** add realtime velocity
                     dpg.add_line_series(openRkt_Data["time"], openRkt_Data["velocity"], label="Sim Vel")
         
@@ -229,7 +294,7 @@ dpg.show_viewport()
 
 # ---------------- Custom main loop ----------------
 WINDOW_SIZE = 10  # seconds or timestamp units to display
-
+lastTime = 0
 try:
     while dpg.is_dearpygui_running():
         # Append latest data
@@ -294,6 +359,13 @@ try:
         dpg.set_value("HighG_accelz", [list(timestamps), list(highG_accelz)]) 
         
         
+        if time.time() - lastTime > 5:
+            random_key = random.choice(list(events.keys()))
+            events[random_key] = not events[random_key]  # new value
+            lastTime = time.time()
+            print(f"updated {random_key} at {lastTime}")
+
+
         # Update x-axis limits to show a moving window
         if timestamps:
             latest = timestamps[-1]
