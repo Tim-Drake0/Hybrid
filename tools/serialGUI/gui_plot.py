@@ -1,4 +1,4 @@
-import dearpygui.dearpygui as dpg
+import dearpygui.dearpygui as dpg #type: ignore
 import serial_reader as sr
 import time
 import struct
@@ -80,9 +80,12 @@ def _add_config_options(item, columns, *names, **kwargs):
                                         default_value=dpg.get_item_configuration(item)[names[i*columns + j]])
         dpg.pop_container_stack()
         
-dpg.create_context()
+def _log(sender, app_data, user_data):
+    print(f"sender: {sender}, \t app_data: {app_data}, \t user_data: {user_data}")
 
-with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
+dpg.create_context()
+WINDOW_DIM = (1920,1000)
+with dpg.window(label="Serial Data Plotter", width=WINDOW_DIM[0], height=WINDOW_DIM[1]):
     with dpg.tab_bar(label="Main Tabs"): # Create the tab bar   
         with dpg.tab(label="Bus Info"): # First tab
             with dpg.table(header_row=True, resizable=True, delay_search=True,
@@ -102,11 +105,12 @@ with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
                 with dpg.table_row():
                     # Nested table inside the "Details" cell
                     for bus_name, bus_info in sr.buses.items():
-                        with dpg.child_window(width=600, height=1000):
+                        with dpg.child_window(width=WINDOW_DIM[0]/4, height=WINDOW_DIM[1]-102):
                             with dpg.table(header_row=False, resizable=True,row_background=False):
                                 dpg.add_table_column(label="Name")
                                 dpg.add_table_column(label="Val")
                                 dpg.add_table_column(label="Unit")
+                                dpg.add_table_column(label=" ")
                                 
 
                                 for field_name, field_props in bus_info['data'].items():
@@ -114,6 +118,7 @@ with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
                                         dpg.add_text(field_name)
                                         dpg.add_text(" ", tag=field_name)
                                         dpg.add_text(field_props['unit'])
+                                        dpg.add_input_text(callback=_log) # add function that overrides all variables when enter is hit
                                         
    
         with dpg.tab(label="IMU Plots"): # Second tab
@@ -148,28 +153,7 @@ with dpg.window(label="Serial Data Plotter", width=2000, height=1000):
                     dpg.set_axis_limits(dpg.last_item(), -2, 2)
                     dpg.add_line_series([], [], label="magx", tag="Magx")
                     dpg.add_line_series([], [], label="magy", tag="Magy")
-                    dpg.add_line_series([], [], label="magz", tag="Magz")
-                    
-              
-                    ##with dpg.child_window(width=800, height=100):
-                    ##    with dpg.table(header_row=False, resizable=True,row_background=False):
-                    ##        dpg.add_table_column(label="Property")
-                    ##        dpg.add_table_column(label="Value")
-                    ##        
-                    ##        for j in range(2):
-                    ##            with dpg.table_row():
-                    ##                dpg.add_text(f"Prop {j+1}")
-                    ##                dpg.add_text(f"Val {j+1}")
-                    ##                
-                    ##with dpg.child_window(width=800, height=100):
-                    ##    with dpg.table(header_row=False, resizable=True,row_background=False):
-                    ##        dpg.add_table_column(label="Property")
-                    ##        dpg.add_table_column(label="Value")
-                    ##        
-                    ##        for j in range(2):
-                    ##            with dpg.table_row():
-                    ##                dpg.add_text(f"Prop {j+1}")
-                    ##                dpg.add_text(f"Val {j+1}")           
+                    dpg.add_line_series([], [], label="magz", tag="Magz")        
 
 # Setup viewport
 dpg.create_viewport(title='Serial Telemetry', width=2000, height=1000)
@@ -203,7 +187,6 @@ try:
         highG_accely.append(sr.busADXL375.highG_accely) 
         highG_accelz.append(sr.busADXL375.highG_accelz) 
         
-        #dpg.set_value("timestamp", sr.busPwr.timestamp)
         dpg.set_value("battVolts",      round(sr.busPwr.battVolts,3))
         dpg.set_value("voltage3V",      round(sr.busPwr.voltage3V,3))
         dpg.set_value("voltage5V",      round(sr.busPwr.voltage5V,3))
@@ -229,19 +212,7 @@ try:
         dpg.set_value("busLSM9DS1_TOV",     f"TOV: {round(sr.busLSM9DS1.timestamp, 3)}") 
         dpg.set_value("busADXL375_TOV",     f"TOV: {round(sr.busADXL375.timestamp, 3)}") 
         
-        
 
-
-
-        
-        # Update line series
-        # dpg.set_value("battVolts", [list(timestamps), list(battVolts)])
-        # dpg.set_value("voltage3V", [list(timestamps), list(voltage3V)])
-        # dpg.set_value("voltage5V", [list(timestamps), list(voltage5V)])
-        # dpg.set_value("temperatureC", [list(timestamps), list(temperatureC)]) 
-        # dpg.set_value("pressurePasc", [list(timestamps), list(pressurePasc)]) 
-        # dpg.set_value("humidityRH", [list(timestamps), list(humidityRH)]) 
-        # dpg.set_value("altitudeM", [list(timestamps), list(altitudeM)]) 
         dpg.set_value("Accelx", [list(timestamps), list(accelx)]) 
         dpg.set_value("Accely", [list(timestamps), list(accely)]) 
         dpg.set_value("Accelz", [list(timestamps), list(accelz)]) 
