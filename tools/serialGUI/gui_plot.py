@@ -4,6 +4,9 @@ import time
 import struct
 from collections import deque
 import random
+import math
+
+ROTATE_ENABLED = True
 
 
 class dpgVariable:
@@ -130,10 +133,120 @@ def load_openrocket_csv_for_dpg(path):
         "velocity": velocity,
     }
 
-openRkt_Data = load_openrocket_csv_for_dpg("Assets/Simulation 1.csv")
+
+def draw_cylinder(radius, z0, z1, segments, color):
+    for i in range(segments):
+        a0 = 2 * math.pi * i / segments
+        a1 = 2 * math.pi * (i + 1) / segments
+
+        x0, y0 = radius * math.cos(a0), radius * math.sin(a0)
+        x1, y1 = radius * math.cos(a1), radius * math.sin(a1)
+
+        v00 = [x0, y0, z0]
+        v01 = [x1, y1, z0]
+        v10 = [x0, y0, z1]
+        v11 = [x1, y1, z1]
+
+        dpg.draw_triangle(v00, v01, v10, fill=color, color=color)
+        dpg.draw_triangle(v01, v11, v10, fill=color, color=color)
+
+
+def draw_cone(radius, z_base, z_tip, segments, color):
+    tip = [0, 0, z_tip]
+
+    for i in range(segments):
+        a0 = 2 * math.pi * i / segments
+        a1 = 2 * math.pi * (i + 1) / segments
+
+        v0 = [radius * math.cos(a0), radius * math.sin(a0), z_base]
+        v1 = [radius * math.cos(a1), radius * math.sin(a1), z_base]
+
+        dpg.draw_triangle(v0, v1, tip, fill=color, color=color)
+
+
+def draw_fin_triangle(angle_deg, body_radius, z0, z1, span, color):
+    a = math.radians(angle_deg)
+    c, s = math.cos(a), math.sin(a)
+
+    def rot(x, y, z):
+        return [c*x - s*y, s*x + c*y, z]
+
+    v0 = rot(body_radius,        0, z1)
+    v1 = rot(body_radius,        0, z0)
+    v2 = rot(body_radius + span, 0, z0)
+
+    # Front face
+    dpg.draw_triangle(v0, v1, v2, fill=color, color=color)
+    # Back face (reverse winding)
+    dpg.draw_triangle(v2, v1, v0, fill=color, color=color)
+
+def update_rocket():
+    view = dpg.create_fps_matrix([0,0,40], 0, 0)
+    proj = dpg.create_perspective_matrix(math.radians(45), 1, 0.1, 100)
+
+    rot = dpg.get_item_user_data("rocket_node")
+
+    if ROTATE_ENABLED:
+        rot[0] += 0.5
+        rot[1] += 1.0
+        rot[2] += 0.2
+
+    model = (
+        dpg.create_rotation_matrix(math.radians(rot[2]), [0,0,1]) *
+        dpg.create_rotation_matrix(math.radians(rot[1]), [0,1,0]) *
+        dpg.create_rotation_matrix(math.radians(rot[0]), [1,0,0])
+    )
+
+    dpg.apply_transform("rocket_node", proj * view * model)
+    dpg.set_item_user_data("rocket_node", rot)
+
+def toggle_rotation(sender, app_data, user_data):
+    global ROTATE_ENABLED
+    ROTATE_ENABLED = not ROTATE_ENABLED
+    dpg.set_item_label(sender, "Stop Rotation" if ROTATE_ENABLED else "Start Rotation")
+
+def draw_axis_arrows(center=[0,0,0], length=3.0, thickness=0.05):
+    """
+    Draws 3 arrows from center along X, Y, Z axes.
+    X: Red, Y: Green, Z: Blue
+    """
+    cx, cy, cz = center
+
+    # Arrow tips (a small triangle at the end)
+    tip_size = 0
+
+    axes = {
+        "X": ([length, 0, 0], [255, 0, 0, 255]),
+        "Y": ([0, length, 0], [0, 255, 0, 255]),
+        "Z": ([0, 0, length], [0, 0, 255, 255])
+    }
+
+    for axis, (vec, color) in axes.items():
+        ex, ey, ez = vec
+        # Draw main shaft
+        dpg.draw_line([cx, cy, cz], [cx + ex, cy + ey, cz + ez], color=color, thickness=thickness)
+        # Arrowhead (triangle)
+        # Pick two points perpendicular to the axis for a simple triangle
+        if axis == "X":
+            v0 = [cx + ex, cy + ey, cz + ez]
+            v1 = [cx + ex - tip_size, cy + tip_size, cz + tip_size]
+            v2 = [cx + ex - tip_size, cy - tip_size, cz - tip_size]
+        elif axis == "Y":
+            v0 = [cx + ex, cy + ey, cz + ez]
+            v1 = [cx + tip_size, cy + ey - tip_size, cz + tip_size]
+            v2 = [cx - tip_size, cy + ey - tip_size, cz - tip_size]
+        else:  # Z
+            v0 = [cx + ex, cy + ey, cz + ez]
+            v1 = [cx + tip_size, cy + tip_size, cz + ez - tip_size]
+            v2 = [cx - tip_size, cy - tip_size, cz + ez - tip_size]
+
+        dpg.draw_triangle(v0, v1, v2, fill=color, color=color)
+        dpg.draw_triangle(v1, v1, v0, fill=color, color=color)
+
+openRkt_Data = load_openrocket_csv_for_dpg("Assets/Simulation Imperial.csv")
 
 dpg.create_context()
-WINDOW_DIM = (1920,1000)
+WINDOW_DIM = (1920,1080)
 
 with dpg.font_registry():
     small = dpg.add_font("Assets/RobotoMono-Regular.ttf", 14)
@@ -141,11 +254,11 @@ with dpg.font_registry():
     large = dpg.add_font("Assets/RobotoMono-Regular.ttf", 30)
 dpg.bind_font(default)
 
-with dpg.window(label="Serial Data Plotter", width=WINDOW_DIM[0], height=WINDOW_DIM[1]):
+with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WINDOW_DIM[1], no_title_bar=True):
     with dpg.tab_bar(label="Main Tabs"): # Create the tab bar 
         with dpg.tab(label="Flight Monitor"):
 
-            # Events
+            # Events *********************************************** move to config file
             events = {
                 "Arm Command": 0,
                 "Launch Command": 0,
@@ -156,11 +269,19 @@ with dpg.window(label="Serial Data Plotter", width=WINDOW_DIM[0], height=WINDOW_
                 "MOV": 0,
                 "Vent": 0,
                 "Fill": 0,
-
             }
-            y_offset = 55
+
+            y_offset = 32
+            x_offset = 0
             EVENTS_WINDOW_SIZE = (450, 450)
-            EVENTS_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0], 0+y_offset)
+            EVENTS_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, 0+y_offset)
+
+            ORIENT_WINDOW_SIZE = (450,80)
+            ORIENT_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, EVENTS_WINDOW_SIZE[1])
+
+            PLOT3D_WINDOW_SIZE = (450, 450)
+            PLOT3D_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, EVENTS_WINDOW_SIZE[1]+ORIENT_WINDOW_SIZE[1])
+
             with dpg.child_window(width=EVENTS_WINDOW_SIZE[0], height=EVENTS_WINDOW_SIZE[1], pos=EVENTS_WINDOW_POS):
                 # Create table
                 table_id = dpg.add_table(header_row=False, resizable=True, borders_innerH=True, borders_outerH=False)
@@ -199,24 +320,113 @@ with dpg.window(label="Serial Data Plotter", width=WINDOW_DIM[0], height=WINDOW_
                     txt_time = dpg.add_text(f"000.00s", parent=row_id)
                     dpg.bind_item_font(txt_time, large)
                     
-
             # Plots
             with dpg.plot(label="Altitude vs Time", width=800, height=400, pos=[0,0+y_offset]):
                 dpg.add_plot_legend()
                 dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)") # *******  will this work with updating time?
-                with dpg.plot_axis(dpg.mvYAxis, label="Altitude [m]"):
-                    dpg.set_axis_limits(dpg.last_item(), 0, max(openRkt_Data["altitude"])+150)
+                with dpg.plot_axis(dpg.mvYAxis, label="Altitude [ft]"):
+                    dpg.set_axis_limits(dpg.last_item(), 0, max(openRkt_Data["altitude"])+450)
                     dpg.add_line_series([], [], label="Realtime Alt", tag="Altitude")
                     dpg.add_line_series(openRkt_Data["time"], openRkt_Data["altitude"], label="Sim Alt")
 
             with dpg.plot(label="Velocity vs Time", width=800, height=400, pos=[0,0+y_offset+400]):
                 dpg.add_plot_legend()
                 dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)") # *******  will this work with updating time?
-                with dpg.plot_axis(dpg.mvYAxis, label="Velocity (m/s)"):
-                    dpg.set_axis_limits(dpg.last_item(), min(openRkt_Data["velocity"])-20, max(openRkt_Data["velocity"])+50)
+                with dpg.plot_axis(dpg.mvYAxis, label="Velocity (ft/s)"):
+                    dpg.set_axis_limits(dpg.last_item(), min(openRkt_Data["velocity"])-20, max(openRkt_Data["velocity"])+150)
                     # **** add realtime velocity
                     dpg.add_line_series(openRkt_Data["time"], openRkt_Data["velocity"], label="Sim Vel")
+
+            # Axis Orientation Readout
+            with dpg.child_window(label="Rocket Orientation", width=ORIENT_WINDOW_SIZE[0], height=ORIENT_WINDOW_SIZE[1], pos=ORIENT_WINDOW_POS):
+                pass
+
         
+            # 3D Orientation Plot
+            """
+            +Z = forward (nose direction)
+            -Z = aft (fins)
+            +X = right
+            +Y = up
+            """
+            with dpg.child_window(label="Rocket Orientation", width=PLOT3D_WINDOW_SIZE[0], height=PLOT3D_WINDOW_SIZE[1], pos=PLOT3D_WINDOW_POS):
+                #dpg.add_button(label="Stop Rotation",callback=toggle_rotation)
+
+                with dpg.drawlist(width=PLOT3D_WINDOW_SIZE[0], height=PLOT3D_WINDOW_SIZE[1]-16, tag="rocket_drawlist"):
+                    with dpg.item_handler_registry(tag="rocket_handler"):
+                        dpg.add_item_visible_handler(callback=lambda: update_rocket())
+
+                    dpg.bind_item_handler_registry("rocket_drawlist", "rocket_handler")
+                    with dpg.draw_layer(
+                        depth_clipping=False,
+                        cull_mode=dpg.mvCullMode_Back,
+                        perspective_divide=True
+                    ):
+                        dpg.set_clip_space(
+                            dpg.last_item(),
+                            0, 0, PLOT3D_WINDOW_SIZE[0], PLOT3D_WINDOW_SIZE[1],
+                            -1.0, 1.0
+                        )
+
+                        with dpg.draw_node(tag="rocket_node", user_data=[0,0,0]):
+                            # In inches **************************** add to config file
+                            IN_BODY_RADIUS   = 4
+                            IN_RKT_LENGTH    = 105
+                            IN_NOSE_LENGTH   = 20
+                            IN_FIN_SPAN      = 6.8
+                            IN_FIN_HEIGHT    = 7
+
+                            SEGMENTS         = 12
+                            scale = 10
+
+                            # Convert to window size scale
+                            
+                            BODY_RADIUS   = IN_BODY_RADIUS / scale
+                            NOSE_LENGTH   = IN_NOSE_LENGTH / scale
+                            BODY_LENGTH   = (IN_RKT_LENGTH / scale) - NOSE_LENGTH
+                            FIN_SPAN      = IN_FIN_SPAN / scale
+                            FIN_HEIGHT    = IN_FIN_HEIGHT / scale
+                            
+
+                            z_body_base = -(BODY_LENGTH+FIN_HEIGHT)/2
+                            z_body_top  =  (BODY_LENGTH+FIN_HEIGHT)/2
+
+                            # Body
+                            draw_cylinder(
+                                radius=BODY_RADIUS,
+                                z0=z_body_base,
+                                z1=z_body_top,
+                                segments=SEGMENTS,
+                                color=[200,200,200,200]
+                            )
+
+                            # Nose cone
+                            draw_cone(
+                                radius=BODY_RADIUS,
+                                z_base=z_body_top,
+                                z_tip=z_body_top + NOSE_LENGTH,
+                                segments=SEGMENTS,
+                                color=[220,50,50,200]
+                            )
+
+                            # Fins
+                            fin_z0 = z_body_base
+                            fin_z1 = z_body_base + FIN_HEIGHT
+
+                            for a in [0, 90, 180, 270]:
+                                draw_fin_triangle(
+                                    a,
+                                    BODY_RADIUS,
+                                    fin_z0,
+                                    fin_z1,
+                                    FIN_SPAN,
+                                    [50, 50, 220, 200]
+                                )
+
+                            draw_axis_arrows(center=[0,0,0], length=3.0, thickness=3.0)
+
+
+
         with dpg.tab(label="Bus Info"): 
             with dpg.table(header_row=True, resizable=True, delay_search=True,
                         borders_outerH=True, borders_innerV=True, borders_outerV=True, row_background=True) as table_id:
@@ -288,11 +498,11 @@ with dpg.window(label="Serial Data Plotter", width=WINDOW_DIM[0], height=WINDOW_
             pass
 
 # Setup viewport
-dpg.create_viewport(title='Serial Telemetry', width=2000, height=1000)
+dpg.create_viewport(title='Flight Computer Viewer', width=2000, height=1000)
 dpg.setup_dearpygui()
 dpg.show_viewport()
 
-# ---------------- Custom main loop ----------------
+# ---------------- main loop ----------------
 WINDOW_SIZE = 10  # seconds or timestamp units to display
 lastTime = 0
 try:
@@ -363,7 +573,7 @@ try:
             random_key = random.choice(list(events.keys()))
             events[random_key] = not events[random_key]  # new value
             lastTime = time.time()
-            print(f"updated {random_key} at {lastTime}")
+            #print(f"updated {random_key} at {lastTime}")
 
 
         # Update x-axis limits to show a moving window
