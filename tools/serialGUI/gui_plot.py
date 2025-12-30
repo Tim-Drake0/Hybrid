@@ -133,7 +133,6 @@ def load_openrocket_csv_for_dpg(path):
         "velocity": velocity,
     }
 
-
 def draw_cylinder(radius, z0, z1, segments, color):
     for i in range(segments):
         a0 = 2 * math.pi * i / segments
@@ -150,7 +149,6 @@ def draw_cylinder(radius, z0, z1, segments, color):
         dpg.draw_triangle(v00, v01, v10, fill=color, color=color)
         dpg.draw_triangle(v01, v11, v10, fill=color, color=color)
 
-
 def draw_cone(radius, z_base, z_tip, segments, color):
     tip = [0, 0, z_tip]
 
@@ -162,7 +160,6 @@ def draw_cone(radius, z_base, z_tip, segments, color):
         v1 = [radius * math.cos(a1), radius * math.sin(a1), z_base]
 
         dpg.draw_triangle(v0, v1, tip, fill=color, color=color)
-
 
 def draw_fin_triangle(angle_deg, body_radius, z0, z1, span, color):
     a = math.radians(angle_deg)
@@ -200,7 +197,7 @@ def update_rocket():
     dpg.apply_transform("rocket_node", proj * view * model)
     dpg.set_item_user_data("rocket_node", rot)
 
-def toggle_rotation(sender, app_data, user_data):
+def toggle_rotation(sender):
     global ROTATE_ENABLED
     ROTATE_ENABLED = not ROTATE_ENABLED
     dpg.set_item_label(sender, "Stop Rotation" if ROTATE_ENABLED else "Start Rotation")
@@ -243,6 +240,18 @@ def draw_axis_arrows(center=[0,0,0], length=3.0, thickness=0.05):
         dpg.draw_triangle(v0, v1, v2, fill=color, color=color)
         dpg.draw_triangle(v1, v1, v0, fill=color, color=color)
 
+def updateDataWindow():
+    dpg.set_value("comp_time", f"Computer Time: {time.localtime().tm_hour}:{time.localtime().tm_min}:{time.localtime().tm_sec}")
+    dpg.set_value("tov", f"Flight Computer Uptime: 00:00") # make this the serial timestamp
+    dpg.set_value("fc_flight_time", f"Flight Time: 00:00")
+    dpg.set_value("fc_state", f"State: Burnout")
+    dpg.set_value("max_accel", f"Max Accel: 4G")
+    dpg.set_value("max_vel", f"Max Velocity: 0.57 Mach")
+    dpg.set_value("coords", f"Lat: 37.15248 Long: 118.65546")
+
+def updateOrientationWindow():
+    dpg.set_value("orientation", f"X: 0.10 deg Y: 0.01 deg Z = 89.97 deg")
+    
 openRkt_Data = load_openrocket_csv_for_dpg("Assets/Simulation Imperial.csv")
 
 dpg.create_context()
@@ -251,10 +260,13 @@ WINDOW_DIM = (1920,1080)
 with dpg.font_registry():
     small = dpg.add_font("Assets/RobotoMono-Regular.ttf", 14)
     default = dpg.add_font("Assets/RobotoMono-Regular.ttf", 18)
+    medium = dpg.add_font("Assets/RobotoMono-Regular.ttf", 25)
     large = dpg.add_font("Assets/RobotoMono-Regular.ttf", 30)
+    xl = dpg.add_font("Assets/RobotoMono-Regular.ttf", 40)
+    
 dpg.bind_font(default)
 
-with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WINDOW_DIM[1], no_title_bar=True):
+with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WINDOW_DIM[1], no_title_bar=True, no_move=True):
     with dpg.tab_bar(label="Main Tabs"): # Create the tab bar 
         with dpg.tab(label="Flight Monitor"):
 
@@ -262,6 +274,7 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
             events = {
                 "Arm Command": 0,
                 "Launch Command": 0,
+                "Burnout":0,
                 "Main1": 0,
                 "Main2": 0,
                 "Drogue1": 0,
@@ -272,16 +285,22 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
             }
 
             y_offset = 32
-            x_offset = 0
-            EVENTS_WINDOW_SIZE = (450, 450)
+            x_offset = 5
+
+            # Child window size and positions:
+            EVENTS_WINDOW_SIZE = (450, 470)
             EVENTS_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, 0+y_offset)
 
-            ORIENT_WINDOW_SIZE = (450,80)
+            ORIENT_WINDOW_SIZE = (450,50)
             ORIENT_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, EVENTS_WINDOW_SIZE[1])
 
             PLOT3D_WINDOW_SIZE = (450, 450)
             PLOT3D_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, EVENTS_WINDOW_SIZE[1]+ORIENT_WINDOW_SIZE[1])
+        
+            DATA_WINDOW_POS = (800, 0+y_offset)
+            DATA_WINDOW_SIZE = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-DATA_WINDOW_POS[0]-x_offset, 450)
 
+            # Events window
             with dpg.child_window(width=EVENTS_WINDOW_SIZE[0], height=EVENTS_WINDOW_SIZE[1], pos=EVENTS_WINDOW_POS):
                 # Create table
                 table_id = dpg.add_table(header_row=False, resizable=True, borders_innerH=True, borders_outerH=False)
@@ -338,18 +357,19 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
                     dpg.add_line_series(openRkt_Data["time"], openRkt_Data["velocity"], label="Sim Vel")
 
             # Axis Orientation Readout
-            with dpg.child_window(label="Rocket Orientation", width=ORIENT_WINDOW_SIZE[0], height=ORIENT_WINDOW_SIZE[1], pos=ORIENT_WINDOW_POS):
-                pass
+            with dpg.child_window(label="Rocket Orientation Readout", width=ORIENT_WINDOW_SIZE[0], height=ORIENT_WINDOW_SIZE[1], pos=ORIENT_WINDOW_POS):
+                # Computer time
+                txt_orientation = dpg.add_text(" ", tag="orientation")
+                dpg.bind_item_font(txt_orientation, medium)
 
-        
             # 3D Orientation Plot
-            """
-            +Z = forward (nose direction)
-            -Z = aft (fins)
-            +X = right
-            +Y = up
-            """
             with dpg.child_window(label="Rocket Orientation", width=PLOT3D_WINDOW_SIZE[0], height=PLOT3D_WINDOW_SIZE[1], pos=PLOT3D_WINDOW_POS):
+                """
+                +Z = forward (nose direction)
+                -Z = aft (fins)
+                +X = right
+                +Y = up
+                """
                 #dpg.add_button(label="Stop Rotation",callback=toggle_rotation)
 
                 with dpg.drawlist(width=PLOT3D_WINDOW_SIZE[0], height=PLOT3D_WINDOW_SIZE[1]-16, tag="rocket_drawlist"):
@@ -370,14 +390,14 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
 
                         with dpg.draw_node(tag="rocket_node", user_data=[0,0,0]):
                             # In inches **************************** add to config file
-                            IN_BODY_RADIUS   = 4
+                            IN_BODY_RADIUS   = 2
                             IN_RKT_LENGTH    = 105
                             IN_NOSE_LENGTH   = 20
                             IN_FIN_SPAN      = 6.8
                             IN_FIN_HEIGHT    = 7
 
                             SEGMENTS         = 12
-                            scale = 10
+                            scale = 8
 
                             # Convert to window size scale
                             
@@ -425,7 +445,40 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
 
                             draw_axis_arrows(center=[0,0,0], length=3.0, thickness=3.0)
 
+            # Data Window
+            with dpg.child_window(label="Data Readout", width=DATA_WINDOW_SIZE[0], height=DATA_WINDOW_SIZE[1], pos=DATA_WINDOW_POS):
+                
+                # Computer time
+                txt_comp_time = dpg.add_text(" ", tag="comp_time")
+                dpg.bind_item_font(txt_comp_time, xl)
 
+                # TOV
+                txt_tov = dpg.add_text(" ", tag="tov")
+                dpg.bind_item_font(txt_tov, xl)
+
+                # Flight Time
+                txt_fc_flight_time = dpg.add_text(" ", tag="fc_flight_time")
+                dpg.bind_item_font(txt_fc_flight_time, xl)
+
+                # Flight Computer State
+                txt_fc_state = dpg.add_text(" ", tag="fc_state")
+                dpg.bind_item_font(txt_fc_state, xl)
+
+                # Max Accel
+                txt_max_accel = dpg.add_text(" ", tag="max_accel")
+                dpg.bind_item_font(txt_max_accel, xl)
+
+                # Flight Velocity
+                txt_max_vel = dpg.add_text(" ", tag="max_vel")
+                dpg.bind_item_font(txt_max_vel, xl)
+
+                # Coordinates
+                txt_coords = dpg.add_text(" ", tag="coords")
+                dpg.bind_item_font(txt_coords, xl)
+
+            # Map Window
+            #with dpg.child_window(label="Data Readout", width=DATA_WINDOW_SIZE[0], height=DATA_WINDOW_SIZE[1], pos=DATA_WINDOW_POS):
+            #    pass
 
         with dpg.tab(label="Bus Info"): 
             with dpg.table(header_row=True, resizable=True, delay_search=True,
@@ -575,7 +628,8 @@ try:
             lastTime = time.time()
             #print(f"updated {random_key} at {lastTime}")
 
-
+        updateOrientationWindow()
+        updateDataWindow()
         # Update x-axis limits to show a moving window
         if timestamps:
             latest = timestamps[-1]
