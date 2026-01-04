@@ -1,6 +1,17 @@
 #include "SensorDataFrame.h"
 #include <Arduino.h>
 
+/* Sensors BIT:
+0: BME280
+1: LSM9DS1_AG
+2: LSM9DS1_M
+3: ADXL375
+4:
+5:
+6:
+7:
+*/
+
 SensorDataFrame thisFrame = {
     0,          // currentMillis
     B00000000,  // sensorsBIT
