@@ -244,8 +244,13 @@ def draw_axis_arrows(center=[0,0,0], length=3.0, thickness=0.05):
         dpg.draw_triangle(v1, v1, v0, fill=color, color=color)
 
 def updateDataWindow():
-    dpg.set_value("comp_time", f"Computer Time: {time.localtime().tm_hour}:{time.localtime().tm_min}:{time.localtime().tm_sec}")
-    dpg.set_value("tov", f"Flight Computer Uptime: 00:00") # make this the serial timestamp
+    dpg.set_value("comp_time", f"Computer Time: {time.localtime().tm_hour:02d}:{time.localtime().tm_min:02d}:{time.localtime().tm_sec:02d}")
+    
+    stampSecs = sr.streamTelem.timestamp / 1000
+    tov_min = round(stampSecs / 60, 0)
+    tov_sec = stampSecs % 60
+    dpg.set_value("tov", f"Flight Computer Uptime: {int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
+    
     dpg.set_value("fc_flight_time", f"Flight Time: 00:00")
     dpg.set_value("fc_state", f"State: Burnout")
     dpg.set_value("max_accel", f"Max Accel: 4G")
@@ -453,31 +458,31 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
                 
                 # Computer time
                 txt_comp_time = dpg.add_text(" ", tag="comp_time")
-                dpg.bind_item_font(txt_comp_time, xl)
+                dpg.bind_item_font(txt_comp_time, large)
 
                 # TOV
                 txt_tov = dpg.add_text(" ", tag="tov")
-                dpg.bind_item_font(txt_tov, xl)
+                dpg.bind_item_font(txt_tov, large)
 
                 # Flight Time
                 txt_fc_flight_time = dpg.add_text(" ", tag="fc_flight_time")
-                dpg.bind_item_font(txt_fc_flight_time, xl)
+                dpg.bind_item_font(txt_fc_flight_time, large)
 
                 # Flight Computer State
                 txt_fc_state = dpg.add_text(" ", tag="fc_state")
-                dpg.bind_item_font(txt_fc_state, xl)
+                dpg.bind_item_font(txt_fc_state, large)
 
                 # Max Accel
                 txt_max_accel = dpg.add_text(" ", tag="max_accel")
-                dpg.bind_item_font(txt_max_accel, xl)
+                dpg.bind_item_font(txt_max_accel, large)
 
                 # Flight Velocity
                 txt_max_vel = dpg.add_text(" ", tag="max_vel")
-                dpg.bind_item_font(txt_max_vel, xl)
+                dpg.bind_item_font(txt_max_vel, large)
 
                 # Coordinates
                 txt_coords = dpg.add_text(" ", tag="coords")
-                dpg.bind_item_font(txt_coords, xl)
+                dpg.bind_item_font(txt_coords, large)
 
             # Map Window
             #with dpg.child_window(label="Data Readout", width=DATA_WINDOW_SIZE[0], height=DATA_WINDOW_SIZE[1], pos=DATA_WINDOW_POS):
@@ -485,22 +490,30 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
 
         with dpg.tab(label="Bus Info"): 
             with dpg.table(header_row=True, resizable=True, delay_search=True,
-                        borders_outerH=True, borders_innerV=True, borders_outerV=True, row_background=True) as table_id:
+                        borders_outerH=True, borders_innerV=True, borders_outerV=True, row_background=False) as table_id:
                 dpg.add_table_column(label="busPWR")
                 
                 dpg.add_table_column(label="busBME280")
                 dpg.add_table_column(label="busLSM9DS1")
                 dpg.add_table_column(label="busADXL375")
+                
+                with dpg.table_row():
+                    dpg.add_text(f"ID: {round(sr.busPwr.id, 3)}", tag="busPwr_id")
+                    dpg.add_text(f"ID: {round(sr.busBME280.id, 3)}", tag="busBME280_id") 
+                    dpg.add_text(f"ID: {round(sr.busLSM9DS1.id, 3)}", tag="busLSM9DS1_id") 
+                    dpg.add_text(f"ID: {round(sr.busADXL375.id, 3)}", tag="busADXL375_id")
+                    
                 with dpg.table_row():
                     dpg.add_text(f"Packets Sent: {round(sr.busPwr.packetsSent, 3)}", tag="busPwr_packetsSent")
                     dpg.add_text(f"Packets Sent: {round(sr.busBME280.packetsSent, 3)}", tag="busBME280_packetsSent") 
                     dpg.add_text(f"Packets Sent: {round(sr.busLSM9DS1.packetsSent, 3)}", tag="busLSM9DS1_packetsSent") 
                     dpg.add_text(f"Packets Sent: {round(sr.busADXL375.packetsSent, 3)}", tag="busADXL375_packetsSent")
                     
-                    
-
-
- 
+                with dpg.table_row():
+                    dpg.add_text(f"Timestamp: {sr.busPwr.timestamp}", tag="busPwr_timestamp")
+                    dpg.add_text(f"Timestamp: {sr.busBME280.timestamp}", tag="busBME280_timestamp") 
+                    dpg.add_text(f"Timestamp: {sr.busLSM9DS1.timestamp}", tag="busLSM9DS1_timestamp") 
+                    dpg.add_text(f"Timestamp: {sr.busADXL375.timestamp}", tag="busADXL375_timestamp")
 
 
 
@@ -570,7 +583,7 @@ lastTime = 0
 try:
     while dpg.is_dearpygui_running():
         # Append latest data
-        timestamps.append(sr.busLSM9DS1.timestamp)
+        timestamps.append(sr.streamTelem.timestamp/1000)
         battVolts.append(sr.busPwr.battVolts)
         voltage3V.append(sr.busPwr.voltage3V)
         voltage5V.append(sr.busPwr.voltage5V)
@@ -611,10 +624,20 @@ try:
         dpg.set_value("highG_accely",   round(sr.busADXL375.highG_accely,3)) 
         dpg.set_value("highG_accelz",   round(sr.busADXL375.highG_accelz,3)) 
         
-        dpg.set_value("busPwr_packetsSent",   f"Packets Sent: {round(sr.busPwr.packetsSent, 3)}") 
-        dpg.set_value("busBME280_packetsSent",   f"Packets Sent: {round(sr.busBME280.packetsSent, 3)}") 
-        dpg.set_value("busLSM9DS1_packetsSent",   f"Packets Sent: {round(sr.busLSM9DS1.packetsSent, 3)}") 
-        dpg.set_value("busADXL375_packetsSent",   f"Packets Sent: {round(sr.busADXL375.packetsSent, 3)}") 
+        dpg.set_value("busPwr_id",      f"ID: {sr.busPwr.id}") 
+        dpg.set_value("busBME280_id",   f"ID: {sr.busBME280.id}") 
+        dpg.set_value("busLSM9DS1_id",  f"ID: {sr.busLSM9DS1.id}") 
+        dpg.set_value("busADXL375_id",  f"ID: {sr.busADXL375.id}") 
+        
+        dpg.set_value("busPwr_packetsSent",     f"Packets Sent: {round(sr.busPwr.packetsSent, 3)}") 
+        dpg.set_value("busBME280_packetsSent",  f"Packets Sent: {round(sr.busBME280.packetsSent, 3)}") 
+        dpg.set_value("busLSM9DS1_packetsSent", f"Packets Sent: {round(sr.busLSM9DS1.packetsSent, 3)}") 
+        dpg.set_value("busADXL375_packetsSent", f"Packets Sent: {round(sr.busADXL375.packetsSent, 3)}") 
+        
+        dpg.set_value("busPwr_timestamp",       f"Timestamp: {sr.busPwr.timestamp}") 
+        dpg.set_value("busBME280_timestamp",    f"Timestamp: {sr.busBME280.timestamp}") 
+        dpg.set_value("busLSM9DS1_timestamp",   f"Timestamp: {sr.busLSM9DS1.timestamp}") 
+        dpg.set_value("busADXL375_timestamp",   f"Timestamp: {sr.busADXL375.timestamp}") 
         
         dpg.set_value("Altitude", [list(timestamps), list(altitudeM)]) 
         dpg.set_value("Accelx", [list(timestamps), list(accelx)]) 
