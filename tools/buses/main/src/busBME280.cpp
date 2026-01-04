@@ -88,14 +88,11 @@ std::array<uint8_t, 24> busBME280Config::serialize(SensorDataFrame &frame) const
 }
 
 void busBME280Config::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {
-    if (frame.currentMillis - busBME280.lastSendTime >= 1000 / 20) {
-        busBME280.lastSendTime = frame.currentMillis;
+    auto busBME280_serialized = busBME280.serialize(frame);
 
-        auto busBME280_serialized = busBME280.serialize(frame);
-
-        serial.write(busBME280_serialized.data(), busBME280_serialized.size());
-
-        busBME280.packetsSent++;
-    }
+    serial.write(busBME280_serialized.data(), busBME280_serialized.size());
+    
+    busBME280.packetsSent++;
+    busBME280.lastSendTime = frame.currentMillis;
 }
 

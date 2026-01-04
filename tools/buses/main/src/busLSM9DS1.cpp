@@ -10,7 +10,7 @@
 busLSM9DS1Config busLSM9DS1 = {
     6912,
     44,
-    50,
+    100,
     "little",
     "LSM9DS1",
     0,
@@ -133,14 +133,11 @@ std::array<uint8_t, 44> busLSM9DS1Config::serialize(SensorDataFrame &frame) cons
 }
 
 void busLSM9DS1Config::sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const {
-    // Only send packet for given frequency
-    
     auto busLSM9DS1_serialized = busLSM9DS1.serialize(frame);
 
-    int bytesSent = serial.write(busLSM9DS1_serialized.data(), busLSM9DS1_serialized.size());
-
+    serial.write(busLSM9DS1_serialized.data(), busLSM9DS1_serialized.size());
+    
     busLSM9DS1.packetsSent++;
     busLSM9DS1.lastSendTime = frame.currentMillis;
-        
 }
 

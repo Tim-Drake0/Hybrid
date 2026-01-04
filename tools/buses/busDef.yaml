@@ -35,7 +35,7 @@ busPwr:
       bits: 10
       c0: 0.0
       c1: 1.0
-      pin: A2
+      pin: A8
 busBME280:
   name: busBME280
   id: 6911
