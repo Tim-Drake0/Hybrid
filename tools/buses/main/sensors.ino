@@ -70,12 +70,14 @@ void beginLSM9DS1_AG() {
   /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/
   accel.range = 0x10; // 4G
   accel.datarate = 0xA0; // 238Hz
-  accel.gainX = accel.gainY = accel.gainZ = 0.000122;
+  accel.gainX = accel.gainY = accel.gainZ = 1;
+  accel.lsb = 0.00122; // 2G = 0.00061, 4G = 0.00122, 8G = 0.00244, 16G = 0.00732
   accel.timeBtwnSamp = 1000/100;   // 100 Hz
   
   gyro.range = 0x18; // 2000 dps
   gyro.datarate = 0xC0; // 912Hz
-  gyro.gainX = gyro.gainY = gyro.gainZ = 0.07000;
+  gyro.gainX = gyro.gainY = gyro.gainZ = 1;
+  gyro.lsb = 0.07000; // 245DPS = 0.00875, 500DPS = 0.01750, 2000DPS = 0.07000
   gyro.timeBtwnSamp = 1000/100;   // 100 Hz
   /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/  
 
@@ -90,9 +92,8 @@ void beginLSM9DS1_AG() {
   uint8_t ag_id = read8(CS_AG_pin, 0x0F);   // WHO_AM_I AG 
   MySerial.print("AG WHO_AM_I: 0x"); MySerial.println(ag_id, HEX); 
 
-  if(ag_id != 0x68){
-    MySerial.println("AG sensor not detected!");
-    while(1);
+  if(ag_id == 0x68){
+    bitSet(thisFrame.sensorsBIT, 1);
   } 
 
   // Accel: 119 Hz, ±2g
@@ -186,7 +187,8 @@ void beginLSM9DS1_M() {
   /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/
   mag.range = 0x00; // 4 gauss  
   mag.datarate = 0x7C; // 80Hz
-  mag.gainX = mag.gainY = mag.gainZ = 0.00014;
+  mag.gainX = mag.gainY = mag.gainZ = 1;
+  mag.lsb = 0.00014; // 4GAUSS = 0.00014, 8GAUSS = 0.00029, 12GAUSS = 0.00043, 16GAUSS = 0.00058
   mag.timeBtwnSamp = 1000/1;   // 1 Hz
   
   /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/  
@@ -200,9 +202,8 @@ void beginLSM9DS1_M() {
 
   MySerial.print("MAG WHO_AM_I: 0x"); MySerial.println(mag_id, HEX); 
 
-  if(mag_id != 0x3D){
-    MySerial.println("MAG sensor not detected!");
-    while(1);
+  if(mag_id == 0x3D){
+    bitSet(thisFrame.sensorsBIT, 2);
   } 
 
   // Mag reset

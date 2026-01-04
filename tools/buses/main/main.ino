@@ -49,6 +49,7 @@ typedef struct{
   uint32_t timeBtwnSamp = 10000UL;
   int datarate = 0;
   int range = 0;
+  int16_t lsb = 0;
   boolean newSamp = false;
 } sensor9DOFData;
 sensor9DOFData accel;
@@ -85,23 +86,9 @@ unsigned long lastReadLSM = 0;
 unsigned long lastReadADXL = 0;
 
 void sendSerialBuses(){
-    // send data over various serial buses enabled in the config file
-    // should be disabled for flight?
-
-    // assume all are enabled for right now
-    //if((thisFrame.currentMillis - busPwr.lastSendTime) >= 1000 / busPwr.frequency){
-    //    busPwr.sendPacket(thisFrame, MySerial);
-    //}
-
-    //if((thisFrame.currentMillis - busBME280.lastSendTime) >= 1000 / busBME280.frequency){
-    //    busBME280.sendPacket(thisFrame, MySerial);
-    //}
-
     if((thisFrame.currentMillis - streamSerialTelem.lastSendTime) >= 1000 / streamSerialTelem.frequency){
         streamSerialTelem.sendPacket(thisFrame, MySerial);
     };
-    
-    //busADXL375.sendPacket(thisFrame, MySerial);
 }
 
 void setup() {
