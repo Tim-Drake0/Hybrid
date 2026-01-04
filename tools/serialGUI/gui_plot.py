@@ -43,6 +43,8 @@ busBME_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 busLSM_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 busADX_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 
+fc_state = 0 # this will eventually come from the flight computer. temporary
+
 def _config(sender, keyword, user_data):
     widget_type = dpg.get_item_type(sender)
     items = user_data
@@ -58,33 +60,6 @@ def _config(sender, keyword, user_data):
             dpg.configure_item(item, **{keyword: value})
     else:
         dpg.configure_item(items, **{keyword: value})
-        
-def _add_config_options(item, columns, *names, **kwargs):
-    if columns == 1:
-        if 'before' in kwargs:
-            for name in names:
-                dpg.add_checkbox(label=name, callback=_config, user_data=item, before=kwargs['before'], default_value=dpg.get_item_configuration(item)[name])
-        else:
-            for name in names:
-                dpg.add_checkbox(label=name, callback=_config, user_data=item, default_value=dpg.get_item_configuration(item)[name])
-    else:
-        if 'before' in kwargs:
-            dpg.push_container_stack(dpg.add_table(header_row=False, before=kwargs['before']))
-        else:
-            dpg.push_container_stack(dpg.add_table(header_row=False))
-
-        for i in range(columns):
-            dpg.add_table_column()
-
-        for i in range((len(names)+(columns - 1))//columns):
-            with dpg.table_row():
-                for j in range(columns):
-                    if (i*columns + j) >= len(names): 
-                        break
-                    dpg.add_checkbox(label=names[i*columns + j], 
-                                        callback=_config, user_data=item, 
-                                        default_value=dpg.get_item_configuration(item)[names[i*columns + j]])
-        dpg.pop_container_stack()
         
 def _log(sender, app_data, user_data):
     print(f"sender: {sender}, \t app_data: {app_data}, \t user_data: {user_data}")
@@ -247,9 +222,10 @@ def updateDataWindow():
     dpg.set_value("comp_time", f"Computer Time: {time.localtime().tm_hour:02d}:{time.localtime().tm_min:02d}:{time.localtime().tm_sec:02d}")
     
     stampSecs = sr.streamTelem.timestamp / 1000
-    tov_min = round(stampSecs / 60, 0)
+    tov_min = (stampSecs / 60) % 60
+    tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
     tov_sec = stampSecs % 60
-    dpg.set_value("tov", f"Flight Computer Uptime: {int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
+    dpg.set_value("tov", f"Flight Computer Uptime: {int(tov_hour):02d}:{int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
     
     dpg.set_value("fc_flight_time", f"Flight Time: 00:00")
     dpg.set_value("fc_state", f"State: Burnout")
@@ -639,7 +615,7 @@ try:
         dpg.set_value("busLSM9DS1_timestamp",   f"Timestamp: {sr.busLSM9DS1.timestamp}") 
         dpg.set_value("busADXL375_timestamp",   f"Timestamp: {sr.busADXL375.timestamp}") 
         
-        dpg.set_value("Altitude", [list(timestamps), list(altitudeM)]) 
+        
         dpg.set_value("Accelx", [list(timestamps), list(accelx)]) 
         dpg.set_value("Accely", [list(timestamps), list(accely)]) 
         dpg.set_value("Accelz", [list(timestamps), list(accelz)]) 
@@ -670,6 +646,9 @@ try:
             dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
             dpg.set_axis_limits("x_axis_busIMUgyro", start, latest)
             dpg.set_axis_limits("x_axis_busIMUmag", start, latest)
+            
+        if fc_state > 0: #dont plot until launched
+            dpg.set_value("Altitude", [list(timestamps), list(altitudeM)]) 
 
         # Render one frame
         dpg.render_dearpygui_frame()

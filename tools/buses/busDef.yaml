@@ -7,7 +7,7 @@ busPwr:
   sensorName: PWR
   data:
     battVolts:
-      initinitVal: 1023
+      initVal: 1023
       unit: V
       type: uint16_t
       byteOffset: 8
