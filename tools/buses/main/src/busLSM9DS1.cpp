@@ -9,7 +9,7 @@
 
 busLSM9DS1Config busLSM9DS1 = {
     6912,
-    44,
+    56,
     100,
     "little",
     "LSM9DS1",
@@ -23,7 +23,10 @@ busLSM9DS1Config busLSM9DS1 = {
     { 9999, "gauss", "float", 28, 4, 32, 0.0, 1.0, 0},
     { 9999, "dps", "float", 32, 4, 32, 0.0, 1.0, 0},
     { 9999, "dps", "float", 36, 4, 32, 0.0, 1.0, 0},
-    { 9999, "dps", "float", 40, 4, 32, 0.0, 1.0, 0}
+    { 9999, "dps", "float", 40, 4, 32, 0.0, 1.0, 0},
+    { 9999, "deg", "float", 8, 4, 32, 0.0, 1.0, 0},
+    { 9999, "deg", "float", 8, 4, 32, 0.0, 1.0, 0},
+    { 9999, "deg", "float", 8, 4, 32, 0.0, 1.0, 0}
 };
 
 const busLSM9DS1FieldConfig* busLSM9DS1Config::getField(const char* fieldName) const {
@@ -36,13 +39,16 @@ const busLSM9DS1FieldConfig* busLSM9DS1Config::getField(const char* fieldName) c
    if (strcmp(fieldName, "gyrox") == 0) return &gyrox;
    if (strcmp(fieldName, "gyroy") == 0) return &gyroy;
    if (strcmp(fieldName, "gyroz") == 0) return &gyroz;
+   if (strcmp(fieldName, "pitch") == 0) return &pitch;
+   if (strcmp(fieldName, "roll") == 0) return &roll;
+   if (strcmp(fieldName, "yaw") == 0) return &yaw;
 
     return nullptr;
     
 }
 
-std::array<uint8_t, 44> busLSM9DS1Config::serialize(SensorDataFrame &frame) const {
-    std::array<uint8_t, 44> buffer{};
+std::array<uint8_t, 56> busLSM9DS1Config::serialize(SensorDataFrame &frame) const {
+    std::array<uint8_t, 56> buffer{};
     buffer.fill(0);
     
     union {float f;uint32_t u;} accelx_u;
@@ -54,6 +60,9 @@ std::array<uint8_t, 44> busLSM9DS1Config::serialize(SensorDataFrame &frame) cons
     union {float f;uint32_t u;} gyrox_u;
     union {float f;uint32_t u;} gyroy_u;
     union {float f;uint32_t u;} gyroz_u;
+    union {float f;uint32_t u;} pitch_u;
+    union {float f;uint32_t u;} roll_u;
+    union {float f;uint32_t u;} yaw_u;
     
     accelx_u.f = frame.accelx;
     accely_u.f = frame.accely;
@@ -64,6 +73,9 @@ std::array<uint8_t, 44> busLSM9DS1Config::serialize(SensorDataFrame &frame) cons
     gyrox_u.f = frame.gyrox;
     gyroy_u.f = frame.gyroy;
     gyroz_u.f = frame.gyroz;
+    pitch_u.f = frame.pitch;
+    roll_u.f = frame.roll;
+    yaw_u.f = frame.yaw;
     
     int i = 0;
     
@@ -126,6 +138,21 @@ std::array<uint8_t, 44> busLSM9DS1Config::serialize(SensorDataFrame &frame) cons
     buffer[i] = (gyroz_u.u >> 16) & 0xFF; i++;
     buffer[i] = (gyroz_u.u >> 8)  & 0xFF; i++;
     buffer[i] = gyroz_u.u & 0xFF;         i++;
+
+    buffer[i] = (pitch_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (pitch_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (pitch_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = pitch_u.u & 0xFF;         i++;
+
+    buffer[i] = (roll_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (roll_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (roll_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = roll_u.u & 0xFF;         i++;
+
+    buffer[i] = (yaw_u.u >> 24) & 0xFF; i++;
+    buffer[i] = (yaw_u.u >> 16) & 0xFF; i++;
+    buffer[i] = (yaw_u.u >> 8)  & 0xFF; i++;
+    buffer[i] = yaw_u.u & 0xFF;         i++;
 
     
     

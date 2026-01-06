@@ -33,5 +33,8 @@ SensorDataFrame thisFrame = {
     0,          // gyroz
     0,          // highG_accelx
     0,          // highG_accely
-    0           // highG_accelz
+    0,          // highG_accelz
+    0,          // pitch
+    0,          // roll
+    0           // yaw
 };

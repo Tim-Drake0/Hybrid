@@ -66,7 +66,7 @@ class BusBME280:
 class BusLSM9DS1:
     timestamp:   int = 0
     id:          int = 6912
-    size:        int = 44
+    size:        int = 56
     packetsSent: int = 0
     accelx:   float = 9999
     accely:   float = 9999
@@ -77,6 +77,9 @@ class BusLSM9DS1:
     gyrox:   float = 9999
     gyroy:   float = 9999
     gyroz:   float = 9999
+    pitch:   float = 9999
+    roll:   float = 9999
+    yaw:   float = 9999
 
     def readBuffer(self, packet, idx):
         self.id           = bytes2Num(packet, idx, 2);    idx += 2
@@ -91,6 +94,9 @@ class BusLSM9DS1:
         self.gyrox    = bytes2Float(packet, idx); idx += 4
         self.gyroy    = bytes2Float(packet, idx); idx += 4
         self.gyroz    = bytes2Float(packet, idx); idx += 4
+        self.pitch    = bytes2Float(packet, idx); idx += 4
+        self.roll    = bytes2Float(packet, idx); idx += 4
+        self.yaw    = bytes2Float(packet, idx); idx += 4
 
 class BusADXL375:
     timestamp:   int = 0
@@ -114,7 +120,7 @@ class StreamTelem:
     header:      int = 43962
     timestamp:   int = 0
     id:          int = 6900
-    size:        int = 111
+    size:        int = 123
     packetsSent: int = 0
     packet:      int = [0] * size
     sensorsBIT:  int = 0

@@ -156,6 +156,10 @@ void readLSM9DS1_AG(){
     thisFrame.accelx = accel.x;
     thisFrame.accely = accel.y;
     thisFrame.accelz = accel.z;
+
+    // apply trigonometry to get the pitch and roll:
+    thisFrame.pitch = atan(accel.x/sqrt(pow(accel.y,2) + pow(accel.z,2))) * (180.0/PI);
+    thisFrame.yaw = atan(accel.y/sqrt(pow(accel.x,2) + pow(accel.z,2))) * (180.0/PI);
   }
 
   // Read gyro

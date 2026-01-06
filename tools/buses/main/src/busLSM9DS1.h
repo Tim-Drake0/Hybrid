@@ -37,9 +37,12 @@ struct busLSM9DS1Config {
     busLSM9DS1FieldConfig gyrox;
     busLSM9DS1FieldConfig gyroy;
     busLSM9DS1FieldConfig gyroz;
+    busLSM9DS1FieldConfig pitch;
+    busLSM9DS1FieldConfig roll;
+    busLSM9DS1FieldConfig yaw;
  
     const busLSM9DS1FieldConfig* getField(const char* fieldName) const;
-    std::array<uint8_t, 44> serialize(SensorDataFrame &frame) const;
+    std::array<uint8_t, 56> serialize(SensorDataFrame &frame) const;
     void sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const;
 };
 

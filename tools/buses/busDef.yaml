@@ -87,7 +87,7 @@ busBME280:
 busLSM9DS1:
   name: busLSM9DS1
   id: 6912
-  size: 44
+  size: 56
   freq: 100
   endian: little
   sensorName: LSM9DS1
@@ -177,6 +177,36 @@ busLSM9DS1:
       unit: dps
       type: float
       byteOffset: 40
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    pitch:
+      initVal: 9999
+      unit: deg
+      type: float
+      byteOffset: 44
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    roll:
+      initVal: 9999
+      unit: deg
+      type: float
+      byteOffset: 48
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    yaw:
+      initVal: 9999
+      unit: deg
+      type: float
+      byteOffset: 52
       bytes: 4
       bits: 32
       c0: 0.0

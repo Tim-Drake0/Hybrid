@@ -32,6 +32,10 @@ struct SensorDataFrame {
     float highG_accelx;
     float highG_accely;
     float highG_accelz;
+
+    float pitch;
+    float roll;
+    float yaw;
 };
 
 extern SensorDataFrame thisFrame;

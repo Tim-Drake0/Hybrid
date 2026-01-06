@@ -154,24 +154,34 @@ def draw_fin_triangle(angle_deg, body_radius, z0, z1, span, color):
     dpg.draw_triangle(v0, v1, v2, fill=color, color=color)
     # Back face (reverse winding)
     dpg.draw_triangle(v2, v1, v0, fill=color, color=color)
-
+    
 def update_rocket():
-    view = dpg.create_fps_matrix([0,0,40], 0, 0)
-    proj = dpg.create_perspective_matrix(math.radians(45), 1, 0.1, 100)
-
-    rot = dpg.get_item_user_data("rocket_node")
-
-    if ROTATE_ENABLED:
-        rot[0] += 0.5
-        rot[1] += 1.0
-        rot[2] += 0.2
-
-    model = (
-        dpg.create_rotation_matrix(math.radians(rot[2]), [0,0,1]) *
-        dpg.create_rotation_matrix(math.radians(rot[1]), [0,1,0]) *
-        dpg.create_rotation_matrix(math.radians(rot[0]), [1,0,0])
+    """
+    pitch, roll, yaw in degrees
+    """
+    # Camera
+    view = dpg.create_lookat_matrix(
+        eye=[25, -25, 25],     # top-right, elevated
+        target=[0, 0, 0],      # look at rocket center
+        up=[0, 0, 1]           # Z-up world
     )
 
+    proj = dpg.create_perspective_matrix(math.radians(45),1.0,0.1,100.0)
+    
+    rot = dpg.get_item_user_data("rocket_node")
+
+    # Convert to radians
+    r = math.radians(sr.busLSM9DS1.roll)
+    p = math.radians(sr.busLSM9DS1.pitch)
+    y = math.radians(sr.busLSM9DS1.yaw)
+
+    # Rotation matrices
+    model = (
+        dpg.create_rotation_matrix(r, [0, 0, 1]) *  # roll
+        dpg.create_rotation_matrix(p, [0, 1, 0]) *  # pitch
+        dpg.create_rotation_matrix(y, [1, 0, 0])    # pitch
+    )
+    
     dpg.apply_transform("rocket_node", proj * view * model)
     dpg.set_item_user_data("rocket_node", rot)
 
@@ -234,7 +244,7 @@ def updateDataWindow():
     dpg.set_value("coords", f"Lat: 37.15248 Long: 118.65546")
 
 def updateOrientationWindow():
-    dpg.set_value("orientation", f"X: 0.10 deg Y: 0.01 deg Z = 89.97 deg")
+    dpg.set_value("orientation", f"P: {round(sr.busLSM9DS1.pitch,3)} deg R: {round(sr.busLSM9DS1.roll,3)} deg Y = {round(sr.busLSM9DS1.yaw,3)} deg")
     
 openRkt_Data = load_openrocket_csv_for_dpg("Assets/Simulation Imperial.csv")
 
@@ -596,6 +606,9 @@ try:
         dpg.set_value("gyrox",          round(sr.busLSM9DS1.gyrox,3)) 
         dpg.set_value("gyroy",          round(sr.busLSM9DS1.gyroy,3)) 
         dpg.set_value("gyroz",          round(sr.busLSM9DS1.gyroz,3)) 
+        dpg.set_value("pitch",          round(sr.busLSM9DS1.pitch,3)) 
+        dpg.set_value("roll",           round(sr.busLSM9DS1.roll,3)) 
+        dpg.set_value("yaw",            round(sr.busLSM9DS1.yaw,3))
         dpg.set_value("highG_accelx",   round(sr.busADXL375.highG_accelx,3)) 
         dpg.set_value("highG_accely",   round(sr.busADXL375.highG_accely,3)) 
         dpg.set_value("highG_accelz",   round(sr.busADXL375.highG_accelz,3)) 
@@ -638,6 +651,7 @@ try:
 
         updateOrientationWindow()
         updateDataWindow()
+        update_rocket()
         # Update x-axis limits to show a moving window
         if timestamps:
             latest = timestamps[-1]

@@ -11,15 +11,15 @@
 
 streamSerialTelemConfig streamSerialTelem = {
     6900,
-    111,
+    123,
     50,
     43962,
     0,
     0
 };
 
-std::array<uint8_t, 111> streamSerialTelemConfig::serialize(SensorDataFrame &frame) const {
-    std::array<uint8_t, 111> buffer{}; // initialize all to 0
+std::array<uint8_t, 123> streamSerialTelemConfig::serialize(SensorDataFrame &frame) const {
+    std::array<uint8_t, 123> buffer{}; // initialize all to 0
 
     auto busPwr_serialized = busPwr.serialize(frame);
     auto busBME280_serialized = busBME280.serialize(frame);
