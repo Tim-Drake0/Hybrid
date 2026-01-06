@@ -144,9 +144,18 @@ void readLSM9DS1_AG(){
     yhi |= ylo;
     zhi <<= 8;
     zhi |= zlo;
-    thisFrame.accelx = xhi;
-    thisFrame.accely = yhi;
-    thisFrame.accelz = zhi;
+
+    accel.rawX = xhi;
+    accel.rawY = yhi;
+    accel.rawZ = zhi;
+
+    accel.x = accel.rawX * accel.lsb;  
+    accel.y = accel.rawY * accel.lsb; 
+    accel.z = accel.rawZ * accel.lsb; 
+
+    thisFrame.accelx = accel.x;
+    thisFrame.accely = accel.y;
+    thisFrame.accelz = accel.z;
   }
 
   // Read gyro
@@ -170,9 +179,17 @@ void readLSM9DS1_AG(){
     zhi <<= 8;
     zhi |= zlo;
 
-    thisFrame.gyrox = xhi;
-    thisFrame.gyroy = yhi;
-    thisFrame.gyroz = zhi;
+    gyro.rawX = xhi;
+    gyro.rawY = yhi;
+    gyro.rawZ = zhi;
+
+    gyro.x = gyro.rawX * gyro.lsb;
+    gyro.y = gyro.rawY * gyro.lsb;
+    gyro.z = gyro.rawZ * gyro.lsb;
+
+    thisFrame.gyrox = gyro.x;
+    thisFrame.gyroy = gyro.y;
+    thisFrame.gyroz = gyro.z;
   }
 }
 
@@ -244,9 +261,18 @@ void readLSM9DS1_M(){
     yhi |= ylo;
     zhi <<= 8;
     zhi |= zlo;
-    thisFrame.magx = xhi;
-    thisFrame.magy = yhi;
-    thisFrame.magz = zhi;
+
+    mag.rawX = xhi;
+    mag.rawY = yhi;
+    mag.rawZ = zhi;
+
+    mag.x = mag.rawX * mag.lsb;
+    mag.y = mag.rawY * mag.lsb;
+    mag.z = mag.rawZ * mag.lsb;
+
+    thisFrame.magx = mag.x;
+    thisFrame.magy = mag.y;
+    thisFrame.magz = mag.z;
   }
 }
 

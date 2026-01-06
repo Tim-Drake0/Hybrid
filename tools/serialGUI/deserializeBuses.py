@@ -82,15 +82,15 @@ class BusLSM9DS1:
         self.id           = bytes2Num(packet, idx, 2);    idx += 2
         self.timestamp    = bytes2Num(packet, idx, 4);    idx += 4
         self.packetsSent  = bytes2Num(packet, idx, 2);    idx += 2
-        self.accelx    = bytes2Float(packet, idx) * accelLSB;     idx += 4
-        self.accely    = bytes2Float(packet, idx) * accelLSB;     idx += 4
-        self.accelz    = bytes2Float(packet, idx) * accelLSB;     idx += 4
-        self.magx      = bytes2Float(packet, idx) * magLSB;       idx += 4
-        self.magy      = bytes2Float(packet, idx) * magLSB;       idx += 4
-        self.magz      = bytes2Float(packet, idx) * magLSB;       idx += 4
-        self.gyrox     = bytes2Float(packet, idx) * gyroLSB;      idx += 4
-        self.gyroy     = bytes2Float(packet, idx) * gyroLSB;      idx += 4
-        self.gyroz     = bytes2Float(packet, idx) * gyroLSB;      idx += 4
+        self.accelx    = bytes2Float(packet, idx); idx += 4
+        self.accely    = bytes2Float(packet, idx); idx += 4
+        self.accelz    = bytes2Float(packet, idx); idx += 4
+        self.magx    = bytes2Float(packet, idx); idx += 4
+        self.magy    = bytes2Float(packet, idx); idx += 4
+        self.magz    = bytes2Float(packet, idx); idx += 4
+        self.gyrox    = bytes2Float(packet, idx); idx += 4
+        self.gyroy    = bytes2Float(packet, idx); idx += 4
+        self.gyroz    = bytes2Float(packet, idx); idx += 4
 
 class BusADXL375:
     timestamp:   int = 0

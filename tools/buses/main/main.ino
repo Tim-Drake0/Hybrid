@@ -42,14 +42,14 @@ typedef struct{
   int16_t rawX;
   int16_t rawY;
   int16_t rawZ;
-  int16_t x;
-  int16_t y;
-  int16_t z;
+  float x;
+  float y;
+  float z;
   uint32_t timeLastSamp = 0UL;
   uint32_t timeBtwnSamp = 10000UL;
   int datarate = 0;
   int range = 0;
-  int16_t lsb = 0;
+  float lsb = 0;
   boolean newSamp = false;
 } sensor9DOFData;
 sensor9DOFData accel;
@@ -115,7 +115,9 @@ void loop() {
     readLSM9DS1_M();
     readBME280();
 
-    
+    //MySerial.print(accel.x); MySerial.print(" "); MySerial.print(accel.rawX); MySerial.print(", ");
+    //MySerial.print(accel.y); MySerial.print(" "); MySerial.print(accel.rawY); MySerial.print(", ");
+    //MySerial.print(accel.z); MySerial.print(" "); MySerial.print(accel.rawZ); MySerial.println(" ");
     sendSerialBuses();
     
 }

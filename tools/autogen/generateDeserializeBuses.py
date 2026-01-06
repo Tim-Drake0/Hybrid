@@ -65,15 +65,7 @@ for stream_name, stream_info in streams.items():
                     if busName == "busPwr":
                         classBusLines += f'        self.{field_name}    = bytes2Num(packet, idx, {field_props["bytes"]}) * self.voltsLSB; idx += {field_props["bytes"]}\n'
                     else:   
-                        if field_name[0:5] == "accel":
-                            classBusLines += f'        self.{field_name}    = bytes2Float(packet, idx) * accelLSB;     idx += {field_props["bytes"]}\n'
-                        elif field_name[0:3] == "mag":
-                            classBusLines += f'        self.{field_name}      = bytes2Float(packet, idx) * magLSB;       idx += {field_props["bytes"]}\n'
-                        elif field_name[0:4] == "gyro":
-                            classBusLines += f'        self.{field_name}     = bytes2Float(packet, idx) * gyroLSB;      idx += {field_props["bytes"]}\n'
-                            
-                        else:    
-                            classBusLines += f'        self.{field_name}    = bytes2Float(packet, idx); idx += {field_props["bytes"]}\n'
+                        classBusLines += f'        self.{field_name}    = bytes2Float(packet, idx); idx += {field_props["bytes"]}\n'
         
 
         classBusLines += f'\n'
