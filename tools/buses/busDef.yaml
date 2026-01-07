@@ -222,31 +222,31 @@ busADXL375:
   data:
     highG_accelx:
       initVal: 9999
-      unit: m/s^2
+      unit: G
       type: float
       byteOffset: 8
       bytes: 4
-      bits: 13
+      bits: 32
       c0: 0.0
       c1: 1.0
       pin: 0
     highG_accely:
       initVal: 9999
-      unit: m/s^2
+      unit: G
       type: float
       byteOffset: 12
       bytes: 4
-      bits: 13
+      bits: 32
       c0: 0.0
       c1: 1.0
       pin: 0
     highG_accelz:
       initVal: 9999
-      unit: m/s^2
+      unit: G
       type: float
       byteOffset: 16
       bytes: 4
-      bits: 13
+      bits: 32
       c0: 0.0
       c1: 1.0
       pin: 0

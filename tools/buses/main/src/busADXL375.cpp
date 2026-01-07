@@ -15,9 +15,9 @@ busADXL375Config busADXL375 = {
     "ADXL375",
     0,
     0,
-    { 9999, "m/s^2", "float", 8, 4, 13, 0.0, 1.0, 0},
-    { 9999, "m/s^2", "float", 12, 4, 13, 0.0, 1.0, 0},
-    { 9999, "m/s^2", "float", 16, 4, 13, 0.0, 1.0, 0}
+    { 9999, "G", "float", 8, 4, 32, 0.0, 1.0, 0},
+    { 9999, "G", "float", 12, 4, 32, 0.0, 1.0, 0},
+    { 9999, "G", "float", 16, 4, 32, 0.0, 1.0, 0}
 };
 
 const busADXL375FieldConfig* busADXL375Config::getField(const char* fieldName) const {

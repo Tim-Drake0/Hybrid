@@ -24,9 +24,9 @@ busLSM9DS1Config busLSM9DS1 = {
     { 9999, "dps", "float", 32, 4, 32, 0.0, 1.0, 0},
     { 9999, "dps", "float", 36, 4, 32, 0.0, 1.0, 0},
     { 9999, "dps", "float", 40, 4, 32, 0.0, 1.0, 0},
-    { 9999, "deg", "float", 8, 4, 32, 0.0, 1.0, 0},
-    { 9999, "deg", "float", 8, 4, 32, 0.0, 1.0, 0},
-    { 9999, "deg", "float", 8, 4, 32, 0.0, 1.0, 0}
+    { 9999, "deg", "float", 44, 4, 32, 0.0, 1.0, 0},
+    { 9999, "deg", "float", 48, 4, 32, 0.0, 1.0, 0},
+    { 9999, "deg", "float", 52, 4, 32, 0.0, 1.0, 0}
 };
 
 const busLSM9DS1FieldConfig* busLSM9DS1Config::getField(const char* fieldName) const {
