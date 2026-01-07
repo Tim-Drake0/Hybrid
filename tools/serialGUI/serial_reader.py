@@ -57,6 +57,7 @@ def read_serial_loop():
             busPwr.readBuffer(streamTelem.packet, idx); idx += busPwr.size
             busBME280.readBuffer(streamTelem.packet, idx); idx += busBME280.size
             busLSM9DS1.readBuffer(streamTelem.packet, idx); idx += busLSM9DS1.size
+            busADXL375.readBuffer(streamTelem.packet, idx); idx += busADXL375.size
              
         except Exception as e:
             print("Serial read error:", e)

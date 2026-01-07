@@ -8,7 +8,6 @@
 #include <Arduino.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
-#include <Adafruit_ADXL375.h>
 
 #include <SPI.h> 
 
@@ -81,15 +80,18 @@ void beginLSM9DS1_AG() {
   gyro.timeBtwnSamp = 1000/100;   // 100 Hz
   /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/  
 
+  accel.dataMode = SPI_MODE0;
+  gyro.dataMode = SPI_MODE0;
+
   pinMode(CS_AG_pin, OUTPUT);
   digitalWrite(CS_AG_pin, HIGH);  // inactive high  
   SPI.begin();    
 
   // soft reset & reboot accel/gyro
-  write8(CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG8, 0x05);  
+  write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG8, 0x05);  
   delay(20);  
 
-  uint8_t ag_id = read8(CS_AG_pin, 0x0F);   // WHO_AM_I AG 
+  uint8_t ag_id = read8(accel, CS_AG_pin, 0x0F);   // WHO_AM_I AG 
   MySerial.print("AG WHO_AM_I: 0x"); MySerial.println(ag_id, HEX); 
 
   if(ag_id == 0x68){
@@ -97,13 +99,13 @@ void beginLSM9DS1_AG() {
   } 
 
   // Accel: 119 Hz, ±2g
-  write8(CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG6_XL, accel.range | accel.datarate);
+  write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG6_XL, accel.range | accel.datarate);
 
   // Gyro: 119 Hz, 245 dps
-  write8(CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG1_G, gyro.range | gyro.datarate);  
+  write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG1_G, gyro.range | gyro.datarate);  
 
   // Enable accel axes
-  write8(CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG5_XL, 0x38); 
+  write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG5_XL, 0x38); 
 
   delay(10);  
 
@@ -128,7 +130,7 @@ void readLSM9DS1_AG(){
   if (thisFrame.currentMillis - accel.timeLastSamp >= accel.timeBtwnSamp) {
     accel.timeLastSamp = thisFrame.currentMillis;
   
-    readBuffer(CS_AG_pin, 0x80 | LSM9DS1_REGISTER_OUT_X_L_XL, 6, buffer);
+    readBuffer(accel, CS_AG_pin, 0x80 | LSM9DS1_REGISTER_OUT_X_L_XL, 6, buffer);
 
     xlo = buffer[0];
     xhi = buffer[1];
@@ -166,7 +168,7 @@ void readLSM9DS1_AG(){
   if (thisFrame.currentMillis - gyro.timeLastSamp >= gyro.timeBtwnSamp) {
     gyro.timeLastSamp = thisFrame.currentMillis;
   
-    readBuffer(CS_AG_pin, 0x80 | LSM9DS1_REGISTER_OUT_X_L_G, 6, buffer);
+    readBuffer(gyro, CS_AG_pin, 0x80 | LSM9DS1_REGISTER_OUT_X_L_G, 6, buffer);
 
     xlo = buffer[0];
     xhi = buffer[1];
@@ -214,12 +216,14 @@ void beginLSM9DS1_M() {
   
   /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/  
 
+  mag.dataMode = SPI_MODE0;
+
   pinMode(CS_MAG_pin, OUTPUT); 
   digitalWrite(CS_MAG_pin, HIGH);  // inactive high 
   SPI.begin();    
   delay(20);  
   
-  uint8_t mag_id = read8(CS_MAG_pin, 0x0F);   // WHO_AM_I AG 
+  uint8_t mag_id = read8(mag, CS_MAG_pin, 0x0F);   // WHO_AM_I AG 
 
   MySerial.print("MAG WHO_AM_I: 0x"); MySerial.println(mag_id, HEX); 
 
@@ -228,19 +232,19 @@ void beginLSM9DS1_M() {
   } 
 
   // Mag reset
-  write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG2_M, 0x0C | mag.range); 
+  write8(mag, CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG2_M, 0x0C | mag.range); 
 
   delay(10);  
 
-  write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG1_M, 0x7C); // ultra-high performance, 80 Hz 
-  write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG3_M, 0x00); // continuous
-  write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG4_M, 0x0C); // Z ultra-high 
+  write8(mag, CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG1_M, 0x7C); // ultra-high performance, 80 Hz 
+  write8(mag, CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG3_M, 0x00); // continuous
+  write8(mag, CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG4_M, 0x0C); // Z ultra-high 
 
   //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG1_M, 0x60 | mag.datarate); // 0x60 = ultra-high performance
   //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG2_M, 0x08 | mag.range); // 0x08 = reboot memory content
   //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG3_M, 0x84); // continuous, I2C disable, SPI R/W
   //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG4_M, 0x0C); // Z ultra-high 
-  uint8_t astat = read8(CS_MAG_pin, 0x27); MySerial.print("ASTAT: "); MySerial.println(astat, BIN); 
+  uint8_t astat = read8(mag, CS_MAG_pin, 0x27); MySerial.print("ASTAT: "); MySerial.println(astat, BIN); 
 }
 
 void readLSM9DS1_M(){
@@ -249,7 +253,7 @@ void readLSM9DS1_M(){
     mag.timeLastSamp = thisFrame.currentMillis;
 
     byte buffer[6];
-    readBuffer(CS_MAG_pin, 0xC0 | LSM9DS1_REGISTER_OUT_X_L_M, 6, buffer);
+    readBuffer(mag, CS_MAG_pin, 0xC0 | LSM9DS1_REGISTER_OUT_X_L_M, 6, buffer);
 
     uint8_t xlo = buffer[0];
     int16_t xhi = buffer[1];
@@ -280,11 +284,126 @@ void readLSM9DS1_M(){
   }
 }
 
+// ================ ADXL375 ================
+void beginADXL375() {
+  //Addresses for the registers
+  #define ADXL3XX_REG_DEVID           (0x00) // Device ID 
+  #define ADXL3XX_REG_THRESH_SHOCK    (0x1D) // Shock threshold
+  #define ADXL3XX_REG_OFSX            (0x1E) // X-axis offset
+  #define ADXL3XX_REG_OFSY            (0x1F) // Y-axis offset
+  #define ADXL3XX_REG_OFSZ            (0x20) // Z-axis offset
+  #define ADXL3XX_REG_DUR             (0x21) // Tap duration
+  #define ADXL3XX_REG_LATENT          (0x22) // Tap latency
+  #define ADXL3XX_REG_WINDOW          (0x23) // Tap window
+  #define ADXL3XX_REG_THRESH_ACT      (0x24) // Activity threshold
+  #define ADXL3XX_REG_THRESH_INACT    (0x25) // Inactivity threshold
+  #define ADXL3XX_REG_TIME_INACT      (0x26) // Inactivity time 
+  #define ADXL3XX_REG_ACT_INACT_CTL   (0x27) // Axis enable control for activity and inactivity detection
+  #define ADXL3XX_REG_THRESH_FF       (0x28) // Free-fall threshold
+  #define ADXL3XX_REG_TIME_FF         (0x29) // Free-fall time
+  #define ADXL3XX_REG_TAP_AXES        (0x2A) // Axis control for single/double tap
+  #define ADXL3XX_REG_ACT_TAP_STATUS  (0x2B) // Source for single/double tap
+  #define ADXL3XX_REG_BW_RATE         (0x2C) // Data rate and power mode control
+  #define ADXL3XX_REG_POWER_CTL       (0x2D) // Power-saving features control
+  #define ADXL3XX_REG_INT_ENABLE      (0x2E) // Interrupt enable control
+  #define ADXL3XX_REG_INT_MAP         (0x2F) // Interrupt mapping control
+  #define ADXL3XX_REG_INT_SOURCE      (0x30) // Source of interrupts
+  #define ADXL3XX_REG_DATA_FORMAT     (0x31) // Data format control
+  #define ADXL3XX_REG_DATAX0          (0x32) // X-axis data 0
+  #define ADXL3XX_REG_DATAX1          (0x33) // X-axis data 1
+  #define ADXL3XX_REG_DATAY0          (0x34) // Y-axis data 0
+  #define ADXL3XX_REG_DATAY1          (0x35) // Y-axis data 1
+  #define ADXL3XX_REG_DATAZ0          (0x36) // Z-axis data 0
+  #define ADXL3XX_REG_DATAZ1          (0x37) // Z-axis data 1
+  #define ADXL3XX_REG_FIFO_CTL        (0x38) // FIFO control
+  #define ADXL3XX_REG_FIFO_STATUS     (0x39) // FIFO status
+
+  /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/
+  highG.datarate = 0x0B; // 200Hz
+  highG.gainX = highG.gainY = highG.gainZ = 1;
+  highG.lsb = 0.049; // 49mg per lsb
+  highG.timeBtwnSamp = 1000/200;   // 200 Hz
+  /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/  
+
+  highG.dataMode = SPI_MODE3;
+
+  pinMode(CS_HIGHG_pin, OUTPUT);
+  digitalWrite(CS_HIGHG_pin, HIGH);  // inactive high  
+  SPI.begin();    
+
+  // soft reset & reboot accel/gyro
+  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_POWER_CTL, 0b00100000);
+  delay(20);
+  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_POWER_CTL, 0b00000000);
+  delay(20);  
+
+  uint8_t highg_id = read8(highG, CS_HIGHG_pin, 0x00);
+  MySerial.print("HIGH_G WHO_AM_I: 0x"); MySerial.println(highg_id, HEX); 
+
+  if(highg_id == 0xE5){
+    bitSet(thisFrame.sensorsBIT, 3);
+  } 
+
+  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_THRESH_SHOCK, 0x04); // 5g shock threashold
+  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_TAP_AXES, 0x7); // Enable the XYZ axis
+  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_BW_RATE, highG.datarate); // Set output data rate to 200Hz (1011)
+
+  // Enable measurements
+  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_POWER_CTL, 0x08);
+  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_DATA_FORMAT, 0b00001011);
+
+  delay(10);  
+}
+
+void readADXL375(){
+  byte buffer[6];
+
+  uint8_t xlo;
+  int16_t xhi;
+  uint8_t ylo;
+  int16_t yhi;
+  uint8_t zlo;
+  int16_t zhi;
+
+  // Read the accelerometer
+  if (thisFrame.currentMillis - highG.timeLastSamp >= highG.timeBtwnSamp) {
+    highG.timeLastSamp = thisFrame.currentMillis;
+  
+    readBuffer(highG, CS_HIGHG_pin, 0xC0 | ADXL3XX_REG_DATAX0, 6, buffer);
+
+    xlo = buffer[0];
+    xhi = buffer[1];
+    ylo = buffer[2];
+    yhi = buffer[3];
+    zlo = buffer[4];
+    zhi = buffer[5];
+
+    xhi <<= 8;
+    xhi |= xlo;
+    yhi <<= 8;
+    yhi |= ylo;
+    zhi <<= 8;
+    zhi |= zlo;
+
+    highG.rawX = xhi;
+    highG.rawY = yhi;
+    highG.rawZ = zhi;
+
+    highG.x = highG.rawX * highG.lsb;  
+    highG.y = highG.rawY * highG.lsb; 
+    highG.z = highG.rawZ * highG.lsb; 
+
+    thisFrame.highG_accelx = highG.x;
+    thisFrame.highG_accely = highG.y;
+    thisFrame.highG_accelz = highG.z;
+  }
+}
+
 // ==== HELPERS ====
-uint8_t read8(PinName CS, uint8_t reg) {
+uint8_t read8(sensor9DOFData sensor, PinName CS, uint8_t reg) {
   uint8_t val;
   //begin SPI transaction
-  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+  SPI.beginTransaction(SPISettings(sensor.clock, sensor.bitOrder, sensor.dataMode));
   digitalWrite(CS, LOW);
   //send register
   SPI.transfer(reg | 0x80);
@@ -296,9 +415,9 @@ uint8_t read8(PinName CS, uint8_t reg) {
   return val;
 }
 
-void write8(PinName CS, uint8_t reg, uint8_t val) {
+void write8(sensor9DOFData sensor, PinName CS, uint8_t reg, uint8_t val) {
   //begin SPI transaction
-  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+  SPI.beginTransaction(SPISettings(sensor.clock, sensor.bitOrder, sensor.dataMode));
   digitalWrite(CS, LOW);
   SPI.transfer(reg & 0x7F);
   //Send data
@@ -308,10 +427,9 @@ void write8(PinName CS, uint8_t reg, uint8_t val) {
   SPI.endTransaction();
 }
 
-void readBuffer(PinName CS, byte reg, byte len, uint8_t *buffer) {
-  //uint8_t regbuf[1] = {uint8_t(reg | 0x80)};
+void readBuffer(sensor9DOFData sensor, PinName CS, byte reg, byte len, uint8_t *buffer) {
   //begin SPI transaction
-  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+  SPI.beginTransaction(SPISettings(sensor.clock, sensor.bitOrder, sensor.dataMode));
   digitalWriteFast(CS, LOW);
   //send register
   SPI.transfer(reg);
@@ -324,13 +442,3 @@ void readBuffer(PinName CS, byte reg, byte len, uint8_t *buffer) {
   SPI.endTransaction();
   
 }
-
-//void readADXL375(SensorDataFrame &frame){
-//    sensors_event_t event;
-//    adx.getEvent(&event);
-//
-//    frame.highG_accelx = event.acceleration.x; 
-//    frame.highG_accely = event.acceleration.y; 
-//    frame.highG_accelz = event.acceleration.z; 
-//
-//}

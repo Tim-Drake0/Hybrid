@@ -7,7 +7,6 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
-#include <Adafruit_ADXL375.h>
 
 #include <SPI.h> 
 
@@ -32,40 +31,44 @@ Author: Tim Drake
 
 const PinName CS_AG_pin     = PA_2;
 const PinName CS_MAG_pin    = PA_3;
-const PinName CS_BARO_pin   = PA_4;
+const PinName CS_HIGHG_pin  = PA_4;
 
 typedef struct{
-  byte addr;
-  float gainX;
-  float gainY;
-  float gainZ;
-  int16_t rawX;
-  int16_t rawY;
-  int16_t rawZ;
-  float x;
-  float y;
-  float z;
-  uint32_t timeLastSamp = 0UL;
-  uint32_t timeBtwnSamp = 10000UL;
-  int datarate = 0;
-  int range = 0;
-  float lsb = 0;
-  boolean newSamp = false;
+    byte addr;
+    float gainX;
+    float gainY;
+    float gainZ;
+    int16_t rawX;
+    int16_t rawY;
+    int16_t rawZ;
+    float x;
+    float y;
+    float z;
+    uint32_t timeLastSamp = 0UL;
+    uint32_t timeBtwnSamp = 10000UL;
+    int datarate = 0;
+    int range = 0;
+    float lsb = 0;
+    boolean newSamp = false;
+    uint32_t clock = 1000000;     
+    BitOrder bitOrder = MSBFIRST; 
+    uint8_t dataMode;   
 } sensor9DOFData;
 sensor9DOFData accel;
 sensor9DOFData gyro;
 sensor9DOFData mag;
+sensor9DOFData highG;
 
 typedef struct{
-  byte addr;
-  float gain;
-  int16_t raw;
-  int16_t value;
-  uint32_t timeLastSamp = 0UL;
-  uint32_t timeBtwnSamp = 10000UL;
-  int datarate = 0;
-  int range = 0;
-  boolean newSamp = false;
+    byte addr;
+    float gain;
+    int16_t raw;
+    int16_t value;
+    uint32_t timeLastSamp = 0UL;
+    uint32_t timeBtwnSamp = 10000UL;
+    int datarate = 0;
+    int range = 0;
+    boolean newSamp = false;
 } sensorData;
 
 sensorData temp;
@@ -77,7 +80,6 @@ TwoWire Wire2(PB11, PB10); // SDA, SCL for I2C2
 HardwareSerial MySerial(USART1);
 
 Adafruit_BME280 bme;
-//Adafruit_ADXL375 adx = Adafruit_ADXL375(12345, &Wire2);
 
 unsigned long lastSendTime = 0;
 unsigned long lastReadPwr = 0;
@@ -98,12 +100,8 @@ void setup() {
     // Start sensors
     beginLSM9DS1_AG();
     beginLSM9DS1_M();
-
     beginBME280();
-
-    //if(adx.begin(0x53)) {
-    //    bitSet(thisFrame.sensorsBIT, 2);
-    //}   
+    beginADXL375();
 }
 
 void loop() {
@@ -114,10 +112,8 @@ void loop() {
     readLSM9DS1_AG();
     readLSM9DS1_M();
     readBME280();
+    readADXL375();
 
-    //MySerial.print(accel.x); MySerial.print(" "); MySerial.print(accel.rawX); MySerial.print(", ");
-    //MySerial.print(accel.y); MySerial.print(" "); MySerial.print(accel.rawY); MySerial.print(", ");
-    //MySerial.print(accel.z); MySerial.print(" "); MySerial.print(accel.rawZ); MySerial.println(" ");
     sendSerialBuses();
     
 }

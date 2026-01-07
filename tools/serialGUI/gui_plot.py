@@ -242,6 +242,7 @@ def updateDataWindow():
     dpg.set_value("max_accel", f"Max Accel: 4G")
     dpg.set_value("max_vel", f"Max Velocity: 0.57 Mach")
     dpg.set_value("coords", f"Lat: 37.15248 Long: 118.65546")
+    dpg.set_value("sensBITs", f"Sensor BITs: {sr.streamTelem.sensorsBIT:08b}")
 
 def updateOrientationWindow():
     dpg.set_value("orientation", f"P: {round(sr.busLSM9DS1.pitch,3)} deg R: {round(sr.busLSM9DS1.roll,3)} deg Y = {round(sr.busLSM9DS1.yaw,3)} deg")
@@ -469,6 +470,10 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
                 # Coordinates
                 txt_coords = dpg.add_text(" ", tag="coords")
                 dpg.bind_item_font(txt_coords, large)
+                
+                # Sensor BITs
+                txt_sensBITs = dpg.add_text(" ", tag="sensBITs")
+                dpg.bind_item_font(txt_sensBITs, large)
 
             # Map Window
             #with dpg.child_window(label="Data Readout", width=DATA_WINDOW_SIZE[0], height=DATA_WINDOW_SIZE[1], pos=DATA_WINDOW_POS):
