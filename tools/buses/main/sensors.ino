@@ -12,9 +12,9 @@
 #include <SPI.h> 
 
 void readPWR(){
-    thisFrame.battVolts = (analogRead(busPwr.battVolts.pin) * busPwr.battVolts.c1) + busPwr.battVolts.c1;
-    thisFrame.voltage3V = (analogRead(busPwr.voltage3V.pin) * busPwr.voltage3V.c1) + busPwr.voltage3V.c1;
-    thisFrame.voltage5V = (analogRead(busPwr.voltage5V.pin) * busPwr.voltage5V.c1) + busPwr.voltage5V.c1;
+    thisFrame.battVolts = (analogRead(BATTV_pin) * busPwr.battVolts.c1) + busPwr.battVolts.c1;
+    thisFrame.voltage3V = (analogRead(PIN_3V)    * busPwr.voltage3V.c1) + busPwr.voltage3V.c1;
+    thisFrame.voltage5V = (analogRead(PIN_5V)    * busPwr.voltage5V.c1) + busPwr.voltage5V.c1;
 }
 
 // ================ BME280 ================
@@ -400,7 +400,7 @@ void readADXL375(){
 }
 
 // ==== HELPERS ====
-uint8_t read8(sensor9DOFData sensor, PinName CS, uint8_t reg) {
+uint8_t read8(const sensor9DOFData& sensor, PinName CS, uint8_t reg) {
   uint8_t val;
   //begin SPI transaction
   SPI.beginTransaction(SPISettings(sensor.clock, sensor.bitOrder, sensor.dataMode));
@@ -415,7 +415,7 @@ uint8_t read8(sensor9DOFData sensor, PinName CS, uint8_t reg) {
   return val;
 }
 
-void write8(sensor9DOFData sensor, PinName CS, uint8_t reg, uint8_t val) {
+void write8(const sensor9DOFData& sensor, PinName CS, uint8_t reg, uint8_t val) {
   //begin SPI transaction
   SPI.beginTransaction(SPISettings(sensor.clock, sensor.bitOrder, sensor.dataMode));
   digitalWrite(CS, LOW);
@@ -427,7 +427,7 @@ void write8(sensor9DOFData sensor, PinName CS, uint8_t reg, uint8_t val) {
   SPI.endTransaction();
 }
 
-void readBuffer(sensor9DOFData sensor, PinName CS, byte reg, byte len, uint8_t *buffer) {
+void readBuffer(const sensor9DOFData& sensor, PinName CS, byte reg, byte len, uint8_t *buffer) {
   //begin SPI transaction
   SPI.beginTransaction(SPISettings(sensor.clock, sensor.bitOrder, sensor.dataMode));
   digitalWriteFast(CS, LOW);

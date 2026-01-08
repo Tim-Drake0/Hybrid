@@ -6,7 +6,7 @@
 1: LSM9DS1_AG
 2: LSM9DS1_M
 3: ADXL375
-4:
+4: SD Card
 5:
 6:
 7:
