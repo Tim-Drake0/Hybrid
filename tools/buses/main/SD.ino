@@ -8,7 +8,7 @@
 #include <SPI.h> 
 #include <SD.h>
 
-
+#define MAX_FILE_INDEX 999
 
 bool sd_present = false;
 
@@ -19,6 +19,7 @@ int SD_writeFreq = 20; // Hz
 int SD_flushFreq = 5; // seconds
 uint32_t SD_timeLastWrite = 0UL;
 uint32_t SD_timeLastFlush = 0UL;
+char filename[32];
 
 void beginSD(){
     if (SD.begin(CS_SD_pin)){
@@ -27,11 +28,18 @@ void beginSD(){
     }
 
     if(sd_present){
-        if(SD.exists("test.bin")){
-            SD.remove("test.bin");
+        
+        strcpy(filename, "datalog.bin"); // base filename
+        if(SD.exists(filename)){
+            for (int i = 1; i <= MAX_FILE_INDEX; i++) {
+                sprintf(filename, "datalog%03d.bin", i);
+                if (!SD.exists(filename)) {
+                    break; // found a free filename
+                }
+            }
         }
 
-        myFile = SD.open("test.bin", FILE_WRITE);
+        myFile = SD.open(filename, FILE_WRITE);
 
         // might want to write some info at the top of the file, or maybe a separate config output file?
     }
