@@ -40,10 +40,16 @@ highG_accelz = deque([sr.busADXL375.highG_accelz], maxlen=MAX_POINTS)
 loopTime = deque([sr.debug.loopTime], maxlen=MAX_POINTS)
 AvgloopTimePlot = deque([sr.debug.loopTime], maxlen=MAX_POINTS)
 
+gui_loopTime = deque([0], maxlen=MAX_POINTS)
+gui_AvgloopTimePlot = deque([0], maxlen=MAX_POINTS)
+
 busPwr_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 busBME_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 busLSM_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 busADX_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
+
+guiLoopTime = 0
+frameTime = 0
 
 fc_state = 0 # this will eventually come from the flight computer. temporary
 
@@ -252,23 +258,30 @@ def updateOrientationWindow():
 def updateDebugWindow():
     t = 10 * 50 # sent at 50z, want the last 10 seconds
     avgTime = sum(list(loopTime)[-t:])/len(list(loopTime)[-t:])
-    
-    dpg.set_value("debug_timestamp", f"Timestamp: {round(sr.debug.timestamp, 3)}") 
-    dpg.set_value("loop_time", f"Main Loop Time: {sr.debug.loopTime}ms")
+    gui_avgTime = sum(list(gui_loopTime)[-t:])/len(list(gui_loopTime)[-t:])
     
     if avgTime != 0:
-        dpg.set_value("avgloop_time", f"Average Main Loop Time: {int(avgTime)}ms [{int(1000/avgTime)}Hz]")
+        dpg.set_value("avgloop_time", f"{int(avgTime)}ms [{int(1000/avgTime)}Hz]")
     
-    dpg.set_axis_limits("y_axis_loopTime", 0, (max(list(loopTime)[-t:])*(5/4)))
+    
+    fc_max = max(list(loopTime)[-t:])*(5/4)
+    gui_max = max(list(gui_loopTime)[-t:])*(5/4)
+    
+    dpg.set_axis_limits("y_axis_loopTime", 0, max(fc_max,gui_max))
     
     loopTime.append(sr.debug.loopTime)  
     dpg.set_value("loopTimePlot", [list(timestamps), list(loopTime)]) 
     
-    
-    
     AvgloopTimePlot.append(avgTime)  
     dpg.set_value("AvgloopTimePlot", [list(timestamps), list(AvgloopTimePlot)]) 
     
+    
+    gui_loopTime.append(guiLoopTime)  
+    dpg.set_value("gui_loopTime", [list(timestamps), list(gui_loopTime)]) 
+    
+    gui_AvgloopTimePlot.append(gui_avgTime)  
+    dpg.set_value("gui_AvgloopTimePlot", [list(timestamps), list(gui_AvgloopTimePlot)]) 
+  
 
     
 openRkt_Data = load_openrocket_csv_for_dpg("Assets/Simulation Imperial.csv")
@@ -326,6 +339,9 @@ with dpg.window(label="Flight Computer Viewer", width=TAB_WINDOW_DIM[0], height=
         
             DATA_WINDOW_POS = (800, 0+y_offset)
             DATA_WINDOW_SIZE = (TAB_WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-DATA_WINDOW_POS[0]-x_offset, 450)
+            
+            BUSINFO_POS = (0, 0)
+            BUSINFO_SIZE = (TAB_WINDOW_DIM[0]/4, 550)            
 
             # Events window
             with dpg.child_window(width=EVENTS_WINDOW_SIZE[0], height=EVENTS_WINDOW_SIZE[1], pos=EVENTS_WINDOW_POS):
@@ -543,7 +559,7 @@ with dpg.window(label="Flight Computer Viewer", width=TAB_WINDOW_DIM[0], height=
                 with dpg.table_row():
                     # Nested table inside the "Details" cell
                     for bus_name, bus_info in sr.buses.items():
-                        with dpg.child_window(width=TAB_WINDOW_DIM[0]/4, height=TAB_WINDOW_DIM[1]-102):
+                        with dpg.child_window(width=BUSINFO_SIZE[0], height=BUSINFO_SIZE[1]):
                             with dpg.table(header_row=False, resizable=True,row_background=False):
                                 dpg.add_table_column(label="Name")
                                 dpg.add_table_column(label="Val")
@@ -557,6 +573,36 @@ with dpg.window(label="Flight Computer Viewer", width=TAB_WINDOW_DIM[0], height=
                                         dpg.add_text(" ", tag=field_name)
                                         dpg.add_text(field_props['unit'])
                                         dpg.add_input_text(callback=_log) # add function that overrides all variables when enter is hit
+            
+            offset = 170      
+            LOOPTIME_POS = (TAB_WINDOW_DIM[0]-BUSINFO_SIZE[0]+5, TAB_WINDOW_DIM[1]-BUSINFO_SIZE[1]+offset)                           
+                               
+            with dpg.plot(label="Loop Time", width=BUSINFO_SIZE[0]-30, height=BUSINFO_SIZE[1] - (1.25*offset), pos=LOOPTIME_POS):
+                dpg.add_plot_legend()
+                with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_loopTime"):
+                    pass
+                with dpg.plot_axis(dpg.mvYAxis, label="ms", tag="y_axis_loopTime"):
+                    dpg.set_axis_limits(dpg.last_item(), 0, 100) 
+                    dpg.add_line_series([], [], label="Loop Time", tag="loopTimePlot")
+                    dpg.add_line_series([], [], label="Avg Loop Time", tag="AvgloopTimePlot")
+                    dpg.add_line_series([], [], label="GUI Loop Time", tag="gui_loopTime")
+                    dpg.add_line_series([], [], label="GUI Avg Loop Time", tag="gui_AvgloopTimePlot")
+
+            with dpg.child_window(width=100, height=40, pos=(LOOPTIME_POS[0]+350, LOOPTIME_POS[1])):
+                # Average Loop time
+                txt_avg_loop_time = dpg.add_text(" ", tag="avgloop_time")
+                dpg.bind_item_font(txt_avg_loop_time, default)
+            """
+            flight computer Loop time
+            gui loop time
+            serial 
+            send frequency
+            bandwidth
+            """
+                    
+                    
+                    
+                    
                                         
         with dpg.tab(label="IMU Plots"): 
             with dpg.plot(label="busIMU Accel", width=TAB_WINDOW_DIM[0]-16, height=300, pos=[0,45]):
@@ -592,36 +638,6 @@ with dpg.window(label="Flight Computer Viewer", width=TAB_WINDOW_DIM[0], height=
                     dpg.add_line_series([], [], label="magy", tag="Magy")
                     dpg.add_line_series([], [], label="magz", tag="Magz")     
 
-        with dpg.tab(label="Debug"): 
-            """
-            flight computer Loop time
-            gui loop time
-            serial 
-            send frequency
-            bandwidth
-            """
-            # Packets sent
-            txt_debug_timestamp = dpg.add_text(" ", tag="debug_timestamp")
-            dpg.bind_item_font(txt_debug_timestamp, large)
-                       
-            # Loop time
-            txt_loop_time = dpg.add_text(" ", tag="loop_time")
-            dpg.bind_item_font(txt_loop_time, large)
-            
-            # Average Loop time
-            txt_avg_loop_time = dpg.add_text(" ", tag="avgloop_time")
-            dpg.bind_item_font(txt_avg_loop_time, large)
-            
-            
-            with dpg.plot(label="loop time", width=700, height=700, pos=(TAB_WINDOW_DIM[0]-700-40,0+y_offset)):
-                dpg.add_plot_legend()
-                with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_loopTime"):
-                    pass
-                with dpg.plot_axis(dpg.mvYAxis, label="ms", tag="y_axis_loopTime"):
-                    dpg.set_axis_limits(dpg.last_item(), 0, 100) 
-                    dpg.add_line_series([], [], label="Loop Time", tag="loopTimePlot")
-                    dpg.add_line_series([], [], label="Avg Loop Time", tag="AvgloopTimePlot")
-
 # Setup viewport
 dpg.create_viewport(title='Flight Computer Viewer', width=WINDOW_DIM[0], height=WINDOW_DIM[1])
 dpg.setup_dearpygui()
@@ -632,6 +648,7 @@ WINDOW_SIZE = 10  # seconds or timestamp units to display
 lastTime = 0
 try:
     while dpg.is_dearpygui_running():
+        frameTime = time.time()
         # Append latest data
         timestamps.append(sr.streamTelem.timestamp/1000)
         battVolts.append(sr.busPwr.battVolts)
@@ -740,7 +757,10 @@ try:
 
         # Render one frame
         dpg.render_dearpygui_frame()
-        time.sleep(1/50)  # 50 FPS
+        time.sleep(1/1000)  # 50 FPS
+        
+        
+        guiLoopTime = (time.time() - frameTime) * 1000
 
 finally:
     dpg.destroy_context()
