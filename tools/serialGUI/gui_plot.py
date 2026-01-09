@@ -259,7 +259,6 @@ def updateDebugWindow():
     if avgTime != 0:
         dpg.set_value("avgloop_time", f"Average Main Loop Time: {int(avgTime)}ms [{int(1000/avgTime)}Hz]")
     
-    print((max(list(loopTime)[-t:])*(5/4)))
     dpg.set_axis_limits("y_axis_loopTime", 0, (max(list(loopTime)[-t:])*(5/4)))
     
     loopTime.append(sr.debug.loopTime)  
