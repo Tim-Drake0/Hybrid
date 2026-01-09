@@ -2,6 +2,7 @@
 #include "src/busBME280.h"
 #include "src/streamSerialTelem.h"
 #include "src/SensorDataFrame.h"
+#include "src/debug.h"
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <Wire.h>
@@ -26,6 +27,11 @@ Author: Tim Drake
 - edit settings in gui
 - figure out where to store the pin assignments
 - eeprom
+- restructure file system
+- sensor calibration
+- sensor settings gui
+- add info at top of sd file (or separate file?)
+- maybe flush sd less often, need to test how fast it can write
 */
 
 const PinName BATTV_pin  = PA_0;
@@ -128,4 +134,9 @@ void loop() {
     // Write to SD card
     writeSDFrame();
     
+
+
+
+
+    thisFrame.loopTime = millis() - thisFrame.currentMillis;
 }

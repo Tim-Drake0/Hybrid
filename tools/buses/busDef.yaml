@@ -250,3 +250,21 @@ busADXL375:
       c0: 0.0
       c1: 1.0
       pin: 0
+debug:
+  name: debug
+  id: 6914
+  size: 12
+  freq: 50
+  endian: little
+  sensorName: NA
+  data:
+    loopTime:
+      initVal: 0
+      unit: ms
+      type: uint32_t
+      byteOffset: 8
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0

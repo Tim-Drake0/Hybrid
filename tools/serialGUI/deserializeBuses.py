@@ -115,12 +115,25 @@ class BusADXL375:
         self.highG_accely    = bytes2Float(packet, idx); idx += 4
         self.highG_accelz    = bytes2Float(packet, idx); idx += 4
 
+class Debug:
+    timestamp:   int = 0
+    id:          int = 6914
+    size:        int = 12
+    packetsSent: int = 0
+    loopTime:   int = 0
+
+    def readBuffer(self, packet, idx):
+        self.id           = bytes2Num(packet, idx, 2);    idx += 2
+        self.timestamp    = bytes2Num(packet, idx, 4);    idx += 4
+        self.packetsSent  = bytes2Num(packet, idx, 2);    idx += 2
+        self.loopTime    = bytes2Num(packet, idx, 4); idx += 4
+
 
 class StreamTelem:
     header:      int = 43962
     timestamp:   int = 0
     id:          int = 6900
-    size:        int = 123
+    size:        int = 135
     packetsSent: int = 0
     packet:      int = [0] * size
     sensorsBIT:  int = 0

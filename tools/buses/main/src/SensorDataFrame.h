@@ -36,6 +36,8 @@ struct SensorDataFrame {
     float pitch;
     float roll;
     float yaw;
+
+    unsigned long loopTime;
 };
 
 extern SensorDataFrame thisFrame;

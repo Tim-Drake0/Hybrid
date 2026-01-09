@@ -1,6 +1,6 @@
 streamSerialTelem:
   id: 6900
-  size: 123
+  size: 135
   freq: 50
   header: 43962
   buses:
@@ -8,3 +8,4 @@ streamSerialTelem:
   - busBME280
   - busLSM9DS1
   - busADXL375
+  - debug

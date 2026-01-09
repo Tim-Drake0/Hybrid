@@ -11,6 +11,7 @@
 #include "busBME280.h"
 #include "busLSM9DS1.h"
 #include "busADXL375.h"
+#include "debug.h"
 
 struct streamSerialTelemConfig {
     int id;
@@ -20,7 +21,7 @@ struct streamSerialTelemConfig {
     uint16_t packetsSent;
     uint32_t lastSendTime;
     
-    std::array<uint8_t, 123> serialize(SensorDataFrame &frame) const;
+    std::array<uint8_t, 135> serialize(SensorDataFrame &frame) const;
     void sendPacket(SensorDataFrame &frame, HardwareSerial &serial) const;
     
 };

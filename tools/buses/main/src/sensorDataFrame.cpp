@@ -36,5 +36,6 @@ SensorDataFrame thisFrame = {
     0,          // highG_accelz
     0,          // pitch
     0,          // roll
-    0           // yaw
+    0,          // yaw
+    0           // loopTime
 };

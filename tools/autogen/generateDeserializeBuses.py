@@ -44,6 +44,8 @@ for stream_name, stream_info in streams.items():
                     fieldType = field_props["type"]
                     if fieldType == "uint16_t":
                         fieldType = "float"
+                    elif fieldType != "float":
+                        fieldType = "int"
                         
                     classBusLines += f'    {field_name}:   {fieldType} = {field_props["initVal"]}\n'
         
@@ -62,9 +64,16 @@ for stream_name, stream_info in streams.items():
             if bus_name == busName:
                 
                 for field_name, field_props in bus_info['data'].items(): # look at each variable
+                    fieldType = field_props["type"]
+                    
+                    # special case for busPwr, need to generalize this...
                     if busName == "busPwr":
                         classBusLines += f'        self.{field_name}    = bytes2Num(packet, idx, {field_props["bytes"]}) * self.voltsLSB; idx += {field_props["bytes"]}\n'
-                    else:   
+                        continue
+                    
+                    if fieldType == "int" or fieldType == "uint8_t" or fieldType == "uint16_t" or fieldType == "uint32_t":    
+                        classBusLines += f'        self.{field_name}    = bytes2Num(packet, idx, {field_props["bytes"]}); idx += {field_props["bytes"]}\n'
+                    elif fieldType == "float":
                         classBusLines += f'        self.{field_name}    = bytes2Float(packet, idx); idx += {field_props["bytes"]}\n'
         
 

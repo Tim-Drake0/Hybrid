@@ -37,6 +37,8 @@ gyroz = deque([sr.busLSM9DS1.gyroz], maxlen=MAX_POINTS)
 highG_accelx = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 highG_accely = deque([sr.busADXL375.highG_accely], maxlen=MAX_POINTS)
 highG_accelz = deque([sr.busADXL375.highG_accelz], maxlen=MAX_POINTS)
+loopTime = deque([sr.debug.loopTime], maxlen=MAX_POINTS)
+AvgloopTimePlot = deque([sr.debug.loopTime], maxlen=MAX_POINTS)
 
 busPwr_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
 busBME_packetsSent = deque([sr.busADXL375.highG_accelx], maxlen=MAX_POINTS)
@@ -247,10 +249,40 @@ def updateDataWindow():
 def updateOrientationWindow():
     dpg.set_value("orientation", f"P: {round(sr.busLSM9DS1.pitch,3)} deg R: {round(sr.busLSM9DS1.roll,3)} deg Y = {round(sr.busLSM9DS1.yaw,3)} deg")
     
+def updateDebugWindow():
+    t = 10 * 50 # sent at 50z, want the last 10 seconds
+    avgTime = sum(list(loopTime)[-t:])/len(list(loopTime)[-t:])
+    
+    dpg.set_value("debug_timestamp", f"Timestamp: {round(sr.debug.timestamp, 3)}") 
+    dpg.set_value("loop_time", f"Main Loop Time: {sr.debug.loopTime}ms")
+    
+    if avgTime != 0:
+        dpg.set_value("avgloop_time", f"Average Main Loop Time: {int(avgTime)}ms [{int(1000/avgTime)}Hz]")
+    
+    print((max(list(loopTime)[-t:])*(5/4)))
+    dpg.set_axis_limits("y_axis_loopTime", 0, (max(list(loopTime)[-t:])*(5/4)))
+    
+    loopTime.append(sr.debug.loopTime)  
+    dpg.set_value("loopTimePlot", [list(timestamps), list(loopTime)]) 
+    
+    
+    
+    AvgloopTimePlot.append(avgTime)  
+    dpg.set_value("AvgloopTimePlot", [list(timestamps), list(AvgloopTimePlot)]) 
+    
+
+    
 openRkt_Data = load_openrocket_csv_for_dpg("Assets/Simulation Imperial.csv")
 
 dpg.create_context()
+
+WINDOW_POS = (0,0)
 WINDOW_DIM = (1920,1080)
+
+
+TAB_WINDOW_POS = (0,0)
+TAB_WINDOW_DIM = (WINDOW_DIM[0],WINDOW_DIM[1]-TAB_WINDOW_POS[1])
+
 
 with dpg.font_registry():
     small = dpg.add_font("Assets/RobotoMono-Regular.ttf", 14)
@@ -261,7 +293,8 @@ with dpg.font_registry():
     
 dpg.bind_font(default)
 
-with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WINDOW_DIM[1], no_title_bar=True, no_move=True):
+with dpg.window(label="Flight Computer Viewer", width=TAB_WINDOW_DIM[0], height=TAB_WINDOW_DIM[1], pos=TAB_WINDOW_POS, 
+                min_size=WINDOW_DIM, max_size=WINDOW_DIM,no_title_bar=True, no_move=True):
     with dpg.tab_bar(label="Main Tabs"): # Create the tab bar 
         with dpg.tab(label="Flight Monitor"):
 
@@ -284,16 +317,16 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
 
             # Child window size and positions:
             EVENTS_WINDOW_SIZE = (450, 470)
-            EVENTS_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, 0+y_offset)
+            EVENTS_WINDOW_POS = (TAB_WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, 0+y_offset)
 
             ORIENT_WINDOW_SIZE = (450,50)
-            ORIENT_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, EVENTS_WINDOW_SIZE[1])
+            ORIENT_WINDOW_POS = (TAB_WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, EVENTS_WINDOW_SIZE[1])
 
             PLOT3D_WINDOW_SIZE = (450, 450)
-            PLOT3D_WINDOW_POS = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, EVENTS_WINDOW_SIZE[1]+ORIENT_WINDOW_SIZE[1])
+            PLOT3D_WINDOW_POS = (TAB_WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-x_offset, EVENTS_WINDOW_SIZE[1]+ORIENT_WINDOW_SIZE[1])
         
             DATA_WINDOW_POS = (800, 0+y_offset)
-            DATA_WINDOW_SIZE = (WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-DATA_WINDOW_POS[0]-x_offset, 450)
+            DATA_WINDOW_SIZE = (TAB_WINDOW_DIM[0]-EVENTS_WINDOW_SIZE[0]-DATA_WINDOW_POS[0]-x_offset, 450)
 
             # Events window
             with dpg.child_window(width=EVENTS_WINDOW_SIZE[0], height=EVENTS_WINDOW_SIZE[1], pos=EVENTS_WINDOW_POS):
@@ -511,7 +544,7 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
                 with dpg.table_row():
                     # Nested table inside the "Details" cell
                     for bus_name, bus_info in sr.buses.items():
-                        with dpg.child_window(width=WINDOW_DIM[0]/4, height=WINDOW_DIM[1]-102):
+                        with dpg.child_window(width=TAB_WINDOW_DIM[0]/4, height=TAB_WINDOW_DIM[1]-102):
                             with dpg.table(header_row=False, resizable=True,row_background=False):
                                 dpg.add_table_column(label="Name")
                                 dpg.add_table_column(label="Val")
@@ -527,7 +560,7 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
                                         dpg.add_input_text(callback=_log) # add function that overrides all variables when enter is hit
                                         
         with dpg.tab(label="IMU Plots"): 
-            with dpg.plot(label="busIMU Accel", width=1990, height=300, pos=[0,45]):
+            with dpg.plot(label="busIMU Accel", width=TAB_WINDOW_DIM[0]-16, height=300, pos=[0,45]):
                 dpg.add_plot_legend()
                 with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
                     pass
@@ -540,7 +573,7 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
                     dpg.add_line_series([], [], label="highG_accely", tag="HighG_accely")
                     dpg.add_line_series([], [], label="highG_accelz", tag="HighG_accelz")
 
-            with dpg.plot(label="busIMU Gyro", width=1990, height=300, pos=[0,345]):
+            with dpg.plot(label="busIMU Gyro", width=TAB_WINDOW_DIM[0]-16, height=300, pos=[0,345]):
                 dpg.add_plot_legend()
                 with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUgyro"):
                     pass
@@ -550,7 +583,7 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
                     dpg.add_line_series([], [], label="gyroy", tag="Gyroy")
                     dpg.add_line_series([], [], label="gyroz", tag="Gyroz")
 
-            with dpg.plot(label="busIMU Mag", width=1990, height=300, pos=[0,645]):
+            with dpg.plot(label="busIMU Mag", width=TAB_WINDOW_DIM[0]-16, height=300, pos=[0,645]):
                 dpg.add_plot_legend()
                 with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUmag"):
                     pass
@@ -560,11 +593,38 @@ with dpg.window(label="Flight Computer Viewer", width=WINDOW_DIM[0], height=WIND
                     dpg.add_line_series([], [], label="magy", tag="Magy")
                     dpg.add_line_series([], [], label="magz", tag="Magz")     
 
-        with dpg.tab(label="Serial Monitor"):    
-            pass
+        with dpg.tab(label="Debug"): 
+            """
+            flight computer Loop time
+            gui loop time
+            serial 
+            send frequency
+            bandwidth
+            """
+            # Packets sent
+            txt_debug_timestamp = dpg.add_text(" ", tag="debug_timestamp")
+            dpg.bind_item_font(txt_debug_timestamp, large)
+                       
+            # Loop time
+            txt_loop_time = dpg.add_text(" ", tag="loop_time")
+            dpg.bind_item_font(txt_loop_time, large)
+            
+            # Average Loop time
+            txt_avg_loop_time = dpg.add_text(" ", tag="avgloop_time")
+            dpg.bind_item_font(txt_avg_loop_time, large)
+            
+            
+            with dpg.plot(label="loop time", width=700, height=700, pos=(TAB_WINDOW_DIM[0]-700-40,0+y_offset)):
+                dpg.add_plot_legend()
+                with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_loopTime"):
+                    pass
+                with dpg.plot_axis(dpg.mvYAxis, label="ms", tag="y_axis_loopTime"):
+                    dpg.set_axis_limits(dpg.last_item(), 0, 100) 
+                    dpg.add_line_series([], [], label="Loop Time", tag="loopTimePlot")
+                    dpg.add_line_series([], [], label="Avg Loop Time", tag="AvgloopTimePlot")
 
 # Setup viewport
-dpg.create_viewport(title='Flight Computer Viewer', width=2000, height=1000)
+dpg.create_viewport(title='Flight Computer Viewer', width=WINDOW_DIM[0], height=WINDOW_DIM[1])
 dpg.setup_dearpygui()
 dpg.show_viewport()
 
@@ -593,7 +653,10 @@ try:
         gyroz.append(sr.busLSM9DS1.gyroz) 
         highG_accelx.append(sr.busADXL375.highG_accelx) 
         highG_accely.append(sr.busADXL375.highG_accely) 
-        highG_accelz.append(sr.busADXL375.highG_accelz) 
+        highG_accelz.append(sr.busADXL375.highG_accelz)
+        
+        
+        
         
         dpg.set_value("battVolts",      round(sr.busPwr.battVolts,3))
         dpg.set_value("voltage3V",      round(sr.busPwr.voltage3V,3))
@@ -646,6 +709,10 @@ try:
         dpg.set_value("HighG_accelx", [list(timestamps), list(highG_accelx)]) 
         dpg.set_value("HighG_accely", [list(timestamps), list(highG_accely)]) 
         dpg.set_value("HighG_accelz", [list(timestamps), list(highG_accelz)]) 
+            
+        
+        
+        
         
         
         if time.time() - lastTime > 5:
@@ -657,6 +724,7 @@ try:
         updateOrientationWindow()
         updateDataWindow()
         update_rocket()
+        updateDebugWindow()
         # Update x-axis limits to show a moving window
         if timestamps:
             latest = timestamps[-1]
@@ -665,6 +733,8 @@ try:
             dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
             dpg.set_axis_limits("x_axis_busIMUgyro", start, latest)
             dpg.set_axis_limits("x_axis_busIMUmag", start, latest)
+            dpg.set_axis_limits("x_axis_loopTime", start, latest)
+            
             
         if fc_state > 0: #dont plot until launched
             dpg.set_value("Altitude", [list(timestamps), list(altitudeM)]) 

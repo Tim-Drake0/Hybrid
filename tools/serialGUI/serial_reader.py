@@ -38,6 +38,7 @@ busPwr = dsb.BusPwr()
 busBME280 = dsb.BusBME280()
 busLSM9DS1 = dsb.BusLSM9DS1()
 busADXL375 = dsb.BusADXL375()
+debug = dsb.Debug()
 
 def read_serial_loop():
     while True:
@@ -58,6 +59,7 @@ def read_serial_loop():
             busBME280.readBuffer(streamTelem.packet, idx); idx += busBME280.size
             busLSM9DS1.readBuffer(streamTelem.packet, idx); idx += busLSM9DS1.size
             busADXL375.readBuffer(streamTelem.packet, idx); idx += busADXL375.size
+            debug.readBuffer(streamTelem.packet, idx); idx += debug.size
              
         except Exception as e:
             print("Serial read error:", e)
