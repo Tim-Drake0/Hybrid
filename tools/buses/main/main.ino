@@ -88,8 +88,17 @@ sensorData pressure;
 sensorData humidity;
 sensorData baroAlt;
 
+typedef struct{
+    bool testMode;
+    bool recordData;
+    bool serialOut;
+} EEPROM;
+
+EEPROM eeprom;
+
+TwoWire Wire1(PB7,  PB6);  // SDA, SCL for I2C1
 TwoWire Wire2(PB11, PB10); // SDA, SCL for I2C2
-HardwareSerial MySerial(USART1);
+HardwareSerial MySerial(USART1); 
 
 Adafruit_BME280 bme;
 
@@ -129,7 +138,7 @@ void loop() {
     readBME280();
     readADXL375();
     
-    sendSerialBuses();
+    //  sendSerialBuses();
 
     // Write to SD card
     writeSDFrame();

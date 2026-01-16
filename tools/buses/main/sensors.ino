@@ -92,7 +92,7 @@ void beginLSM9DS1_AG() {
   delay(20);  
 
   uint8_t ag_id = read8(accel, CS_AG_pin, 0x0F);   // WHO_AM_I AG 
-  MySerial.print("AG WHO_AM_I: 0x"); MySerial.println(ag_id, HEX); 
+  //MySerial.print("AG WHO_AM_I: 0x"); MySerial.println(ag_id, HEX); 
 
   if(ag_id == 0x68){
     bitSet(thisFrame.sensorsBIT, 1);
@@ -224,8 +224,7 @@ void beginLSM9DS1_M() {
   delay(20);  
   
   uint8_t mag_id = read8(mag, CS_MAG_pin, 0x0F);   // WHO_AM_I AG 
-
-  MySerial.print("MAG WHO_AM_I: 0x"); MySerial.println(mag_id, HEX); 
+  //MySerial.print("MAG WHO_AM_I: 0x"); MySerial.println(mag_id, HEX); 
 
   if(mag_id == 0x3D){
     bitSet(thisFrame.sensorsBIT, 2);
@@ -244,7 +243,6 @@ void beginLSM9DS1_M() {
   //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG2_M, 0x08 | mag.range); // 0x08 = reboot memory content
   //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG3_M, 0x84); // continuous, I2C disable, SPI R/W
   //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG4_M, 0x0C); // Z ultra-high 
-  uint8_t astat = read8(mag, CS_MAG_pin, 0x27); MySerial.print("ASTAT: "); MySerial.println(astat, BIN); 
 }
 
 void readLSM9DS1_M(){
@@ -338,7 +336,7 @@ void beginADXL375() {
   delay(20);  
 
   uint8_t highg_id = read8(highG, CS_HIGHG_pin, 0x00);
-  MySerial.print("HIGH_G WHO_AM_I: 0x"); MySerial.println(highg_id, HEX); 
+  //MySerial.print("HIGH_G WHO_AM_I: 0x"); MySerial.println(highg_id, HEX); 
 
   if(highg_id == 0xE5){
     bitSet(thisFrame.sensorsBIT, 3);
