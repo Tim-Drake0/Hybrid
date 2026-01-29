@@ -98,7 +98,7 @@ EEPROM eeprom;
 
 TwoWire Wire1(PB7,  PB6);  // SDA, SCL for I2C1
 TwoWire Wire2(PB11, PB10); // SDA, SCL for I2C2
-HardwareSerial MySerial(USART1); 
+//HardwareSerial MySerial(USART1); 
 
 Adafruit_BME280 bme;
 
@@ -110,12 +110,12 @@ unsigned long lastReadADXL = 0;
 
 void sendSerialBuses(){
     if((thisFrame.currentMillis - streamSerialTelem.lastSendTime) >= 1000 / streamSerialTelem.frequency){
-        streamSerialTelem.sendPacket(thisFrame, MySerial);
+        streamSerialTelem.sendPacket(thisFrame, Serial);
     };
 }
 
 void setup() {
-    MySerial.begin(1000000);
+    Serial.begin(1000000);
     Wire2.begin(PB11, PB10); // I2C2
 
     // Start sensors
@@ -138,7 +138,7 @@ void loop() {
     readBME280();
     readADXL375();
     
-    //  sendSerialBuses();
+    sendSerialBuses();
 
     // Write to SD card
     writeSDFrame();

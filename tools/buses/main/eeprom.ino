@@ -25,9 +25,9 @@ void readEEPROM(){
     }
     eepromFile.close();
 
-    MySerial.print("testMode: "); MySerial.println(eeprom.testMode);
-    MySerial.print("recordData: "); MySerial.println(eeprom.recordData);
-    MySerial.print("serialOut: "); MySerial.println(eeprom.serialOut);
+    Serial.print("testMode: "); Serial.println(eeprom.testMode);
+    Serial.print("recordData: "); Serial.println(eeprom.recordData);
+    Serial.print("serialOut: "); Serial.println(eeprom.serialOut);
     
 }
 

@@ -8,8 +8,9 @@ import deserializeBuses as dsb
 
 
 # ---------------- CONFIG ----------------
-SERIAL_PORT = "COM4"
+SERIAL_PORTS = ["COM2","COM3","COM4","COM5","COM6","COM7","COM8"]
 BAUD_RATE = 1000000
+
 STREAM_NAME = "streamSerialTelem"
 MAX_POINTS = 500
 # ---------------------------------------
@@ -24,21 +25,21 @@ with open(STREAMS_YAML_FILE, "r") as f:
 with open(BUS_YAML_FILE, "r") as f:
     buses = yaml.safe_load(f)
 
-# Open serial
-try:
-    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-    SERIAL_VALID = 1
-
-except:
-    SERIAL_VALID = 0
-    print("Serial Invalid!")
-
 streamTelem = dsb.StreamTelem()  
 busPwr = dsb.BusPwr()
 busBME280 = dsb.BusBME280()
 busLSM9DS1 = dsb.BusLSM9DS1()
 busADXL375 = dsb.BusADXL375()
 debug = dsb.Debug()
+
+def find_serial():
+    for port in SERIAL_PORTS:
+        try:
+            ser = serial.Serial(port, BAUD_RATE, timeout=1)
+            return ser, port, BAUD_RATE
+        except serial.SerialException:
+            pass
+    return None, None, None
 
 def read_serial_loop():
     while True:
@@ -65,7 +66,12 @@ def read_serial_loop():
             print("Serial read error:", e)
             time.sleep(0.01)
 
-# Start reading in background thread
-if SERIAL_VALID:
+ser, activePort, activeRate = find_serial()
+
+if activePort:
+    # Start reading in background thread
+    print(f"Found activity on {activePort} at {activeRate} baudrate")
     thread = threading.Thread(target=read_serial_loop, daemon=True)
     thread.start()
+else:
+    print("Serial Invalid!")

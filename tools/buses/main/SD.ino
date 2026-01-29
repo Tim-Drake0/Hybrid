@@ -38,13 +38,13 @@ void beginSD(){
         readEEPROM();
 
         if (!findNextFlightDir()) {
-            MySerial.println("No free flight directories");
+            Serial.println("No free flight directories");
             return;
         }
-        MySerial.print("Making flight directory: "); MySerial.println(flightDir);
+        Serial.print("Making flight directory: "); Serial.println(flightDir);
 
         if (!SD.mkdir(flightDir)) {
-            MySerial.println("Failed to create flight dir");
+            Serial.println("Failed to create flight dir");
             return;
         }
 
@@ -53,12 +53,12 @@ void beginSD(){
         dataFile = SD.open(dataFileName, FILE_WRITE);
 
         if (!dataFile) {
-            MySerial.println("Failed to create data file!");
+            Serial.println("Failed to create data file!");
         } else {
             // Set bit only when SD present and found valid file
             bitSet(thisFrame.sensorsBIT, 4); 
-            MySerial.print("Logging to: ");
-            MySerial.println(dataFileName);
+            Serial.print("Logging to: ");
+            Serial.println(dataFileName);
             dataFile.flush();   // force FAT entry to appear
         }
     }
