@@ -60,8 +60,11 @@ float batt_volt;
 int servoopen = 67; // Servo open state (angle) [degrees]
 int servoclose = 0; // Servo close state (angle) [degrees]
 
+int servoopen_mini = 90; // Servo open state (angle) [degrees]
+int servoclose_mini = 0; // Servo close state (angle) [degrees]
+
 int servo1_trim = 5;
-int servo2_trim = 5;
+int servo2_trim = 10;
 int servo3_trim = 5;
 int servo4_trim = 9;
 
@@ -73,13 +76,13 @@ int servo1off = servoopen + servo1_trim; // Actuated state of servo1
 
 Servo servo2; // Initialize servo2 object (vent)
 bool servo2_bool = 0;
-int servo2on = servoclose + servo2_trim; // Actuated state of servo2
-int servo2off = servoopen + servo2_trim; // Dectuated state of servo2
+int servo2on = servoclose_mini + servo2_trim; // Actuated state of servo2
+int servo2off = servoopen_mini + servo2_trim; // Dectuated state of servo2
 
 Servo servo3; // Initialize servo3 object (mov)
 bool servo3_bool = 0;
-int servo3on = servoclose + servo3_trim; // Dectuated state of servo3
-int servo3off = servoopen + servo3_trim; // Actuated state of servo3
+int servo3on = servoclose_mini + servo3_trim; // Dectuated state of servo3
+int servo3off = servoopen_mini + servo3_trim; // Actuated state of servo3
 
 Servo servo4; // Initialize servo4 object (extra)
 bool servo4_bool = 0;

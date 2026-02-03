@@ -25,6 +25,12 @@ char flightDir[16];    // "flight999" + \0
 char dataFileName[32];    // "flight999/data.bin"
 
 void beginSD(){
+    pinMode(CS_SD_pin, OUTPUT);
+    digitalWrite(CS_SD_pin, HIGH);
+
+    SPI.begin();                 // ← REQUIRED on STM32
+    delay(10);
+
     if (SD.begin(CS_SD_pin)){
         sd_present = true; 
     }
@@ -38,13 +44,13 @@ void beginSD(){
         readEEPROM();
 
         if (!findNextFlightDir()) {
-            Serial.println("No free flight directories");
+            //Serial.println("No free flight directories");
             return;
         }
-        Serial.print("Making flight directory: "); Serial.println(flightDir);
+        //Serial.print("Making flight directory: "); Serial.println(flightDir);
 
         if (!SD.mkdir(flightDir)) {
-            Serial.println("Failed to create flight dir");
+            //Serial.println("Failed to create flight dir");
             return;
         }
 
@@ -57,8 +63,8 @@ void beginSD(){
         } else {
             // Set bit only when SD present and found valid file
             bitSet(thisFrame.sensorsBIT, 4); 
-            Serial.print("Logging to: ");
-            Serial.println(dataFileName);
+            //Serial.print("Logging to: ");
+            //Serial.println(dataFileName);
             dataFile.flush();   // force FAT entry to appear
         }
     }

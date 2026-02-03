@@ -9,7 +9,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 
-#include <SPI.h> 
+//#include <SPI.h> 
 
 /*======================================================================
 Author: Tim Drake
@@ -34,16 +34,15 @@ Author: Tim Drake
 - commands from gui to flight computer
 */
 
-const PinName BATTV_pin  = PA_0;
-const PinName PIN_3V     = PA_1;
-const PinName PIN_5V     = PA_8;
+#define BATTV_pin A0 //PA_3;
+#define PIN_3V    A1 //PA_1;
+#define PIN_5V    A2 //PC_3;
 
-const PinName CS_AG_pin     = PA_2;
-const PinName CS_MAG_pin    = PA_3;
-const PinName CS_HIGHG_pin  = PA_4;
-
-const PinName CS_SD_pin     = PB_12; // **do not use PA0–PA7 PB0–PB1 for SD CS
-
+#define CS_AG_pin     D0 // PB_7; 
+#define CS_MAG_pin    D1 // PB_6; 
+#define CS_HIGHG_pin  D2 // PG_14;
+ 
+#define CS_SD_pin     D3 // PE_13; // **do not use PA0–PA7 PB0–PB1 for SD CS
 
 typedef struct{
     byte addr;
@@ -62,9 +61,12 @@ typedef struct{
     int range = 0;
     float lsb = 0;
     boolean newSamp = false;
-    uint32_t clock = 1000000;     
+    uint32_t clock = 500000;     
     BitOrder bitOrder = MSBFIRST; 
     uint8_t dataMode;   
+    SPI_HandleTypeDef* spi;
+    uint16_t CS_Pin;
+    GPIO_TypeDef* CS_Port;  
 } sensor9DOFData;
 sensor9DOFData accel;
 sensor9DOFData gyro;
@@ -96,9 +98,11 @@ typedef struct{
 
 EEPROM eeprom;
 
-TwoWire Wire1(PB7,  PB6);  // SDA, SCL for I2C1
+//TwoWire Wire1(PB7,  PB6);  // SDA, SCL for I2C1
 TwoWire Wire2(PB11, PB10); // SDA, SCL for I2C2
 //HardwareSerial MySerial(USART1); 
+SPI_HandleTypeDef hspi1;
+SPI_HandleTypeDef hspi2;
 
 Adafruit_BME280 bme;
 
@@ -118,6 +122,16 @@ void setup() {
     Serial.begin(1000000);
     Wire2.begin(PB11, PB10); // I2C2
 
+    if (startHalSPI1() != true) {
+      Serial.println("HAL SPI1 bad!");
+      while(1);
+    }
+
+    if (startHalSPI2() != true) {
+      Serial.println("HAL SPI2 bad!");
+      while(1);
+    }
+
     // Start sensors
     beginLSM9DS1_AG();
     beginLSM9DS1_M();
@@ -125,7 +139,7 @@ void setup() {
     beginADXL375();
 
     // Start SD card
-    beginSD();
+    //beginSD();
 }
 
 void loop() {
@@ -141,7 +155,7 @@ void loop() {
     sendSerialBuses();
 
     // Write to SD card
-    writeSDFrame();
+    //writeSDFrame();
     
 
 

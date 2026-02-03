@@ -9,22 +9,22 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 
-#include <SPI.h> 
+//#include <SPI.h> 
 
 void readPWR(){
-    thisFrame.battVolts = (analogRead(BATTV_pin) * busPwr.battVolts.c1) + busPwr.battVolts.c1;
-    thisFrame.voltage3V = (analogRead(PIN_3V)    * busPwr.voltage3V.c1) + busPwr.voltage3V.c1;
-    thisFrame.voltage5V = (analogRead(PIN_5V)    * busPwr.voltage5V.c1) + busPwr.voltage5V.c1;
+    thisFrame.battVolts = (analogRead(BATTV_pin) * busPwr.battVolts.c1) + busPwr.battVolts.c0;
+    thisFrame.voltage3V = (analogRead(PIN_3V)    * busPwr.voltage3V.c1) + busPwr.voltage3V.c0;
+    thisFrame.voltage5V = (analogRead(PIN_5V)    * busPwr.voltage5V.c1) + busPwr.voltage5V.c0;
 }
 
 // ================ BME280 ================
 void beginBME280(){
-  /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/
+  //====  NEEDS TO BE UPDATEED FROM SETTINGS  ====
   temp.timeBtwnSamp       = 1000/1;   // 1 Hz
   pressure.timeBtwnSamp   = 1000/20;  // 20 Hz
   humidity.timeBtwnSamp   = 1000/1;   // 1  Hz
   baroAlt.timeBtwnSamp    = 1000/30;  // 30 Hz
-  /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/  
+  //====  NEEDS TO BE UPDATEED FROM SETTINGS  ==== 
 
   if(bme.begin(0x77, &Wire2)){
       bitSet(thisFrame.sensorsBIT, 0);
@@ -66,32 +66,37 @@ void beginLSM9DS1_AG() {
   #define LSM9DS1_REGISTER_OUT_X_L_G           (0x18)
   #define LSM9DS1_REGISTER_OUT_X_L_XL          (0x28)
 
-  /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/
+  //====  NEEDS TO BE UPDATEED FROM SETTINGS  ====
   accel.range = 0x10; // 4G
   accel.datarate = 0xA0; // 238Hz
   accel.gainX = accel.gainY = accel.gainZ = 1;
   accel.lsb = 0.00122; // 2G = 0.00061, 4G = 0.00122, 8G = 0.00244, 16G = 0.00732
   accel.timeBtwnSamp = 1000/100;   // 100 Hz
+  accel.CS_Pin = GPIO_PIN_7;
+  accel.CS_Port = GPIOB;
+  accel.spi = &hspi1;
   
   gyro.range = 0x18; // 2000 dps
   gyro.datarate = 0xC0; // 912Hz
   gyro.gainX = gyro.gainY = gyro.gainZ = 1;
   gyro.lsb = 0.07000; // 245DPS = 0.00875, 500DPS = 0.01750, 2000DPS = 0.07000
   gyro.timeBtwnSamp = 1000/100;   // 100 Hz
-  /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/  
+  gyro.CS_Pin = GPIO_PIN_7;
+  gyro.CS_Port = GPIOB;
+  gyro.spi = &hspi1;
+  //====  NEEDS TO BE UPDATEED FROM SETTINGS  ====  
 
-  accel.dataMode = SPI_MODE0;
-  gyro.dataMode = SPI_MODE0;
+ 
 
-  pinMode(CS_AG_pin, OUTPUT);
-  digitalWrite(CS_AG_pin, HIGH);  // inactive high  
-  SPI.begin();    
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);  // inactive high  
 
   // soft reset & reboot accel/gyro
-  write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG8, 0x05);  
+  write8_HAL(accel, LSM9DS1_REGISTER_CTRL_REG8, 0x05);
+  //write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG8, 0x05);  
   delay(20);  
 
-  uint8_t ag_id = read8(accel, CS_AG_pin, 0x0F);   // WHO_AM_I AG 
+  uint8_t ag_id = read8_HAL(accel, 0x0F);   // WHO_AM_I AG 
+  //uint8_t ag_id = read8(accel, CS_AG_pin, 0x0F);   // WHO_AM_I AG 
   //Serial.print("AG WHO_AM_I: 0x"); Serial.println(ag_id, HEX); 
 
   if(ag_id == 0x68){
@@ -99,13 +104,16 @@ void beginLSM9DS1_AG() {
   } 
 
   // Accel: 119 Hz, ±2g
-  write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG6_XL, accel.range | accel.datarate);
+  write8_HAL(accel, LSM9DS1_REGISTER_CTRL_REG6_XL, accel.range | accel.datarate);
+  //write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG6_XL, accel.range | accel.datarate);
 
   // Gyro: 119 Hz, 245 dps
-  write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG1_G, gyro.range | gyro.datarate);  
+  write8_HAL(accel, LSM9DS1_REGISTER_CTRL_REG1_G, gyro.range | gyro.datarate);  
+  //write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG1_G, gyro.range | gyro.datarate);  
 
   // Enable accel axes
-  write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG5_XL, 0x38); 
+  write8_HAL(accel, LSM9DS1_REGISTER_CTRL_REG5_XL, 0x38); 
+  //write8(accel, CS_AG_pin, LSM9DS1_REGISTER_CTRL_REG5_XL, 0x38); 
 
   delay(10);  
 
@@ -130,7 +138,7 @@ void readLSM9DS1_AG(){
   if (thisFrame.currentMillis - accel.timeLastSamp >= accel.timeBtwnSamp) {
     accel.timeLastSamp = thisFrame.currentMillis;
   
-    readBuffer(accel, CS_AG_pin, 0x80 | LSM9DS1_REGISTER_OUT_X_L_XL, 6, buffer);
+    readBuffer_HAL(accel, 0x80 | LSM9DS1_REGISTER_OUT_X_L_XL, 6, buffer);
 
     xlo = buffer[0];
     xhi = buffer[1];
@@ -168,7 +176,7 @@ void readLSM9DS1_AG(){
   if (thisFrame.currentMillis - gyro.timeLastSamp >= gyro.timeBtwnSamp) {
     gyro.timeLastSamp = thisFrame.currentMillis;
   
-    readBuffer(gyro, CS_AG_pin, 0x80 | LSM9DS1_REGISTER_OUT_X_L_G, 6, buffer);
+    readBuffer_HAL(gyro, 0x80 | LSM9DS1_REGISTER_OUT_X_L_G, 6, buffer);
 
     xlo = buffer[0];
     xhi = buffer[1];
@@ -207,23 +215,22 @@ void beginLSM9DS1_M() {
   #define LSM9DS1_REGISTER_CTRL_REG4_M         (0x23)
   #define LSM9DS1_REGISTER_OUT_X_L_M           (0x28)
 
-  /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/
+  //====  NEEDS TO BE UPDATEED FROM SETTINGS  ====
   mag.range = 0x00; // 4 gauss  
   mag.datarate = 0x7C; // 80Hz
   mag.gainX = mag.gainY = mag.gainZ = 1;
   mag.lsb = 0.00014; // 4GAUSS = 0.00014, 8GAUSS = 0.00029, 12GAUSS = 0.00043, 16GAUSS = 0.00058
   mag.timeBtwnSamp = 1000/1;   // 1 Hz
-  
-  /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/  
+  mag.CS_Pin = GPIO_PIN_6;
+  mag.CS_Port = GPIOB;
+  mag.spi = &hspi1;
+  //====  NEEDS TO BE UPDATEED FROM SETTINGS  ====  
 
-  mag.dataMode = SPI_MODE0;
 
-  pinMode(CS_MAG_pin, OUTPUT); 
-  digitalWrite(CS_MAG_pin, HIGH);  // inactive high 
-  SPI.begin();    
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);  // inactive high  
   delay(20);  
   
-  uint8_t mag_id = read8(mag, CS_MAG_pin, 0x0F);   // WHO_AM_I AG 
+  uint8_t mag_id = read8_HAL(mag, 0x0F);   // WHO_AM_I AG 
   //Serial.print("MAG WHO_AM_I: 0x"); Serial.println(mag_id, HEX); 
 
   if(mag_id == 0x3D){
@@ -231,18 +238,13 @@ void beginLSM9DS1_M() {
   } 
 
   // Mag reset
-  write8(mag, CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG2_M, 0x0C | mag.range); 
+  write8_HAL(mag, LSM9DS1_REGISTER_CTRL_REG2_M, 0x0C | mag.range); 
 
   delay(10);  
 
-  write8(mag, CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG1_M, 0x7C); // ultra-high performance, 80 Hz 
-  write8(mag, CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG3_M, 0x00); // continuous
-  write8(mag, CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG4_M, 0x0C); // Z ultra-high 
-
-  //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG1_M, 0x60 | mag.datarate); // 0x60 = ultra-high performance
-  //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG2_M, 0x08 | mag.range); // 0x08 = reboot memory content
-  //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG3_M, 0x84); // continuous, I2C disable, SPI R/W
-  //write8(CS_MAG_pin, LSM9DS1_REGISTER_CTRL_REG4_M, 0x0C); // Z ultra-high 
+  write8_HAL(mag, LSM9DS1_REGISTER_CTRL_REG1_M, 0x7C); // ultra-high performance, 80 Hz 
+  write8_HAL(mag, LSM9DS1_REGISTER_CTRL_REG3_M, 0x00); // continuous
+  write8_HAL(mag, LSM9DS1_REGISTER_CTRL_REG4_M, 0x0C); // Z ultra-high 
 }
 
 void readLSM9DS1_M(){
@@ -251,7 +253,7 @@ void readLSM9DS1_M(){
     mag.timeLastSamp = thisFrame.currentMillis;
 
     byte buffer[6];
-    readBuffer(mag, CS_MAG_pin, 0xC0 | LSM9DS1_REGISTER_OUT_X_L_M, 6, buffer);
+    readBuffer_HAL(mag, 0xC0 | LSM9DS1_REGISTER_OUT_X_L_M, 6, buffer);
 
     uint8_t xlo = buffer[0];
     int16_t xhi = buffer[1];
@@ -323,32 +325,32 @@ void beginADXL375() {
   highG.timeBtwnSamp = 1000/200;   // 200 Hz
   /*====  NEEDS TO BE UPDATEED FROM SETTINGS  ====*/  
 
-  highG.dataMode = SPI_MODE3;
+  highG.CS_Pin = GPIO_PIN_14;
+  highG.CS_Port = GPIOG;
+  highG.spi = &hspi2;
 
-  pinMode(CS_HIGHG_pin, OUTPUT);
-  digitalWrite(CS_HIGHG_pin, HIGH);  // inactive high  
-  SPI.begin();    
+  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_14, GPIO_PIN_SET);  // inactive high  
 
   // soft reset & reboot accel/gyro
-  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_POWER_CTL, 0b00100000);
+  write8_HAL(highG, ADXL3XX_REG_POWER_CTL, 0b00100000);
   delay(20);
-  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_POWER_CTL, 0b00000000);
+  write8_HAL(highG, ADXL3XX_REG_POWER_CTL, 0b00000000);
   delay(20);  
 
-  uint8_t highg_id = read8(highG, CS_HIGHG_pin, 0x00);
+  uint8_t highg_id = read8_HAL(highG, 0x00);
   //Serial.print("HIGH_G WHO_AM_I: 0x"); Serial.println(highg_id, HEX); 
 
   if(highg_id == 0xE5){
     bitSet(thisFrame.sensorsBIT, 3);
   } 
 
-  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_THRESH_SHOCK, 0x04); // 5g shock threashold
-  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_TAP_AXES, 0x7); // Enable the XYZ axis
-  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_BW_RATE, highG.datarate); // Set output data rate to 200Hz (1011)
+  write8_HAL(highG, ADXL3XX_REG_THRESH_SHOCK, 0x04); // 5g shock threashold
+  write8_HAL(highG, ADXL3XX_REG_TAP_AXES, 0x7); // Enable the XYZ axis
+  write8_HAL(highG, ADXL3XX_REG_BW_RATE, highG.datarate); // Set output data rate to 200Hz (1011)
 
   // Enable measurements
-  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_POWER_CTL, 0x08);
-  write8(highG, CS_HIGHG_pin, ADXL3XX_REG_DATA_FORMAT, 0b00001011);
+  write8_HAL(highG, ADXL3XX_REG_POWER_CTL, 0x08);
+  write8_HAL(highG, ADXL3XX_REG_DATA_FORMAT, 0b00001011);
 
   delay(10);  
 }
@@ -367,7 +369,8 @@ void readADXL375(){
   if (thisFrame.currentMillis - highG.timeLastSamp >= highG.timeBtwnSamp) {
     highG.timeLastSamp = thisFrame.currentMillis;
   
-    readBuffer(highG, CS_HIGHG_pin, 0xC0 | ADXL3XX_REG_DATAX0, 6, buffer);
+    //readBuffer(highG, CS_HIGHG_pin, 0xC0 | ADXL3XX_REG_DATAX0, 6, buffer);
+    readBuffer_HAL(highG, 0xC0 | ADXL3XX_REG_DATAX0, 6, buffer);
 
     xlo = buffer[0];
     xhi = buffer[1];
@@ -398,45 +401,58 @@ void readADXL375(){
 }
 
 // ==== HELPERS ====
-uint8_t read8(const sensor9DOFData& sensor, PinName CS, uint8_t reg) {
-  uint8_t val;
-  //begin SPI transaction
-  SPI.beginTransaction(SPISettings(sensor.clock, sensor.bitOrder, sensor.dataMode));
-  digitalWrite(CS, LOW);
-  //send register
-  SPI.transfer(reg | 0x80);
-  //read data
-  val = SPI.transfer(0);
-  //end SPI transaction
-  digitalWrite(CS, HIGH);
-  SPI.endTransaction();
-  return val;
+uint8_t read8_HAL(const sensor9DOFData& sensor, uint8_t reg) {
+  uint8_t tx = reg | 0x80;   // set MSB = read
+  uint8_t rx = 0;
+
+  // CS low → begin transaction
+  HAL_GPIO_WritePin(sensor.CS_Port, sensor.CS_Pin, GPIO_PIN_RESET);
+
+  // Send register address and receive one byte
+  HAL_SPI_TransmitReceive(sensor.spi, &tx, &rx, 1, HAL_MAX_DELAY);
+
+  // CS high → end transaction
+  HAL_GPIO_WritePin(sensor.CS_Port, sensor.CS_Pin, GPIO_PIN_SET);
+
+  return rx;
 }
 
-void write8(const sensor9DOFData& sensor, PinName CS, uint8_t reg, uint8_t val) {
-  //begin SPI transaction
-  SPI.beginTransaction(SPISettings(sensor.clock, sensor.bitOrder, sensor.dataMode));
-  digitalWrite(CS, LOW);
-  SPI.transfer(reg & 0x7F);
-  //Send data
-  SPI.transfer(val);
-  //End transaction
-  digitalWrite(CS, HIGH);
-  SPI.endTransaction();
+void write8_HAL(const sensor9DOFData& sensor, uint8_t reg, uint8_t val){
+  // for highg only:
+  uint8_t txData[2];
+
+  // First byte: register address (write = MSB 0)
+  txData[0] = reg & 0x7F;
+  // Second byte: value to write
+  txData[1] = val;
+
+  // Pull CS low → begin transaction
+  HAL_GPIO_WritePin(sensor.CS_Port, sensor.CS_Pin, GPIO_PIN_RESET);
+
+  // Send both bytes in one SPI transfer
+  HAL_SPI_Transmit(sensor.spi, txData, 2, HAL_MAX_DELAY);
+
+  // Pull CS high → end transaction
+  HAL_GPIO_WritePin(sensor.CS_Port, sensor.CS_Pin, GPIO_PIN_SET);
+
 }
 
-void readBuffer(const sensor9DOFData& sensor, PinName CS, byte reg, byte len, uint8_t *buffer) {
-  //begin SPI transaction
-  SPI.beginTransaction(SPISettings(sensor.clock, sensor.bitOrder, sensor.dataMode));
-  digitalWriteFast(CS, LOW);
-  //send register
-  SPI.transfer(reg);
-  //read data
-  for(uint8_t i = 0; i < len; i++){
-    buffer[i] = SPI.transfer(0);
-  }
-  //end SPI transaction
-  digitalWriteFast(CS, HIGH);
-  SPI.endTransaction();
-  
+void readBuffer_HAL(const sensor9DOFData& sensor, uint8_t reg, uint8_t len, uint8_t *buffer) {
+    HAL_GPIO_WritePin(sensor.CS_Port, sensor.CS_Pin, GPIO_PIN_RESET);
+
+    // Build tx buffer: first byte = register, rest are dummy 0s
+    uint8_t tx[1 + len];
+    tx[0] = reg;                  // already includes read flag if needed
+    memset(&tx[1], 0, len);
+
+    uint8_t rx[1 + len]; 
+    HAL_SPI_TransmitReceive(sensor.spi, tx, rx, 1 + len, HAL_MAX_DELAY);
+
+    // Copy only the actual data to user buffer
+    memcpy(buffer, &rx[1], len);
+
+    // Pull CS high → end transaction
+    HAL_GPIO_WritePin(sensor.CS_Port, sensor.CS_Pin, GPIO_PIN_SET);
 }
+
+

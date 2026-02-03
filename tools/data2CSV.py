@@ -1,7 +1,7 @@
 import struct
 import csv
 
-input_file = "DATA009.bin"
+input_file = "G:flight002/data.bin"
 output_file = "sd_binary_log.csv"
 
 # Struct format with padding and correct types
