@@ -77,7 +77,7 @@ class StreamTelem:
     tsy_timestamp:     int   = 0
     valve_states:      int   = 0
     pyro_states:       int   = 0
-    arm_state:         int   = 0
+    arm_states:        int   = 0
     pt1:               float = 0.0
     pt2:               float = 0.0
     pt3:               float = 0.0
@@ -89,6 +89,15 @@ class StreamTelem:
     fiveVolts:         float = 0.0
     radioVolts:        float = 0.0
     
+    fill_state:        int   = 0
+    vent_state:        int   = 0
+    mov_state:         int   = 0
+    py1_state:         int   = 0
+    py2_state:         int   = 0
+    arm_state:         int   = 0
+    c1_state:          int   = 0
+    c2_state:          int   = 0
+    
     
     def readBuffer(self):
         import struct
@@ -99,7 +108,7 @@ class StreamTelem:
         self.tsy_timestamp,
         self.valve_states,
         self.pyro_states,
-        self.arm_state,
+        self.arm_states,
         self.pt1,
         self.pt2,
         self.pt3,
@@ -114,6 +123,15 @@ class StreamTelem:
                                         "Ib"               # daq: timestamp (uint32), RSSI (int8)
                                         "IBBBffffffffff",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio
                                         bytes(self.packet))
+        
+        self.fill_status    = (self.valve_states >> 0) & 1
+        self.vent_status    = (self.valve_states >> 1) & 1
+        self.mov_status     = (self.valve_states >> 2) & 1
+        self.py1_state      = (self.pyro_states >> 0) & 1
+        self.py2_state      = (self.pyro_states >> 1) & 1
+        self.arm_state      = (self.arm_states >> 0) & 1
+        self.c1_state       = (self.arm_states >> 1) & 1 
+        self.c2_state       = (self.arm_states >> 2) & 1 
 
 
     

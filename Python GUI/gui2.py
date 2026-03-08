@@ -60,31 +60,34 @@ def _log(sender, app_data, user_data):
 
 def updateStatusBar():
     if valid_connection == True:
-        color = [0, 255, 0]
-        label = "CONNECTED"
-        pos = [35, draw_y // 2 - 15]
+        conn_color = [0, 255, 0]
+        conn_label = "CONNECTED"
+        conn_pos = [35, draw_y // 2 - 15]
     else: 
-        color = [255, 0, 0]
-        label = "DISCONNECTED"
-        pos = [15, draw_y // 2 - 15]
+        conn_color = [255, 0, 0]
+        conn_label = "DISCONNECTED"
+        conn_pos = [15, draw_y // 2 - 15]
         
-    dpg.configure_item("conn_status_rect", color=color, fill=color)
-    dpg.configure_item("conn_status_text", text=label, pos=pos)
+    if sr.streamTelem.arm_state == True:
+        arm_color = [255, 115, 0]
+        arm_label = "ARMED"
+        arm_pos = [35+190, draw_y // 2 - 15]
+    else: 
+        arm_color = [0, 255, 0]
+        arm_label = "SAFE"
+        arm_pos = [40+190, draw_y // 2 - 15]
+        
+    dpg.configure_item("conn_status_rect", color=conn_color, fill=conn_color)
+    dpg.configure_item("conn_status_text", text=conn_label, pos=conn_pos)
     
-    
+    dpg.configure_item("arm_status_rect", color=arm_color, fill=arm_color)
+    dpg.configure_item("arm_status_text", text=arm_label, pos=arm_pos)
     
     stampSecs = sr.streamTelem.tsy_timestamp / 1000
     tov_min = (stampSecs / 60) % 60
     tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
     tov_sec = stampSecs % 60
     dpg.set_value("tov", f"{int(tov_hour):02d}:{int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
-    
-    #dpg.set_value("fc_flight_time", f"Flight Time: 00:00")
-    #dpg.set_value("fc_state", f"State: Burnout")
-    #dpg.set_value("max_accel", f"Max Accel: 4G")
-    #dpg.set_value("max_vel", f"Max Velocity: 0.57 Mach")
-    #dpg.set_value("coords", f"Lat: 37.15248 Long: 118.65546")
-    #dpg.set_value("sensBITs", f"Sensor BITs: {sr.streamTelem.sensorsBIT:08b}")
                   
 dpg.create_context()
 
@@ -108,6 +111,7 @@ events = {
 with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0], height=settings.TAB_WINDOW_DIM[1], pos=settings.TAB_WINDOW_POS, 
                 min_size=settings.WINDOW_DIM, max_size=settings.WINDOW_DIM,no_title_bar=True, no_move=True):
     
+    # Status Bar
     with dpg.child_window(width=settings.STATUS_BAR_SIZE[0], height=settings.STATUS_BAR_SIZE[1], no_scrollbar=True):
         with dpg.group(horizontal=True):
             
@@ -115,22 +119,23 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
             draw_size = 20
             draw_spacing = 10
             draw_rounding = draw_size/5.0
-            draw_color = [0, 255, 0]
-            draw_x = 190
+            draw_color = [100, 100, 100]
             draw_y = settings.STATUS_BAR_SIZE[1] - 15
             
-            with dpg.drawlist(width=draw_x, height=settings.STATUS_BAR_SIZE[1]):
+            box1_x = 10
+            box1_w = 180
+            box2_x = box1_x + box1_w + draw_spacing
+            box2_w = 115
+
+            with dpg.drawlist(width=box2_x + box2_w + 10, height=settings.STATUS_BAR_SIZE[1]):
                 
-                dpg.draw_rectangle([1, 1], [draw_x, draw_y], rounding=draw_rounding, thickness=_draw_t, color=draw_color, fill=(draw_color), tag="conn_status_rect")
-                draw_x = draw_x + draw_spacing + draw_size
-                
-                txt_connection_status = dpg.draw_text(
-                    [15, draw_y // 2 - 15], 
-                    "CONNECTED",           
-                    color=[0, 0, 0],
-                    size=30,
-                    tag="conn_status_text"   
-                )
+                # Connection status box
+                dpg.draw_rectangle([box1_x, 1], [box1_x + box1_w, draw_y], rounding=draw_rounding, thickness=_draw_t, color=draw_color, fill=draw_color, tag="conn_status_rect")
+                dpg.draw_text([box1_x + 15, draw_y // 2 - 15], "CONNECTED", color=[0, 0, 0], size=30, tag="conn_status_text")
+
+                # Arm status box
+                dpg.draw_rectangle([box2_x, 1], [box2_x + box2_w, draw_y], rounding=draw_rounding, thickness=_draw_t, color=draw_color, fill=draw_color, tag="arm_status_rect")
+                dpg.draw_text([box2_x + 15, draw_y // 2 - 15], "SAFE", color=[0, 0, 0], size=30, tag="arm_status_text")
 
             # TOV
             txt_tov = dpg.add_text(" ", tag="tov")
