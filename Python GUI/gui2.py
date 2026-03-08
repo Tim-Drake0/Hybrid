@@ -15,7 +15,7 @@ ROTATE_ENABLED = True
 valid_connection = False
 last_timestamp = 0
 disconnect_counter = 0
-disconnect_timeout = 10 # loops 
+disconnect_timeout = 100 # loops 
 
 class dpgVariable:
     plotBuffer = 1
@@ -26,10 +26,6 @@ lastCmdTime = 0
 
 # rolling buffers, pre-filled with starting timestamp
 timestamps = deque([sr.streamTelem.timestamp], maxlen=MAX_POINTS)
-temperatureC = deque([sr.streamTelem.baroTemp], maxlen=MAX_POINTS)
-pressurePasc = deque([sr.streamTelem.baroPress], maxlen=MAX_POINTS)
-humidityRH = deque([sr.streamTelem.baroHum], maxlen=MAX_POINTS)
-altitudeM = deque([sr.streamTelem.baroAlt], maxlen=MAX_POINTS)
 
 gui_loopTime = deque([0], maxlen=MAX_POINTS)
 gui_AvgloopTimePlot = deque([0], maxlen=MAX_POINTS)
@@ -140,6 +136,13 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
             dpg.bind_item_font(txt_tov,settings.xl)
             
     with dpg.child_window(width=settings.INFO_WINDOW_SIZE[0], height=settings.INFO_WINDOW_SIZE[1], pos=settings.INFO_WINDOW_POS, tag="right_window_bus_info", show=True):
+        
+        txt_tov = dpg.add_text(" ", tag="timestamp")
+        
+        
+        
+        
+    with dpg.child_window(width=settings.PLOT_WINDOW_SIZE[0], height=settings.PLOT_WINDOW_SIZE[1], pos=settings.PLOT_WINDOW_POS, tag="plot_window", show=True):
                        
         with dpg.plot(label="busIMU Accel", width=settings.INFO_WINDOW_SIZE[0]-16, height=300, pos=[0,45]):
             dpg.add_plot_legend()
@@ -231,33 +234,16 @@ try:
         frameTime = time.time()
         # Append latest data
         timestamps.append(sr.streamTelem.timestamp/1000)
-        temperatureC.append(sr.streamTelem.baroTemp) 
-        pressurePasc.append(sr.streamTelem.baroPress) 
-        humidityRH.append(sr.streamTelem.baroHum) 
-        altitudeM.append(sr.streamTelem.baroAlt) 
         
         
         
-        #dpg.set_value("timestamp",      round(sr.streamTelem.timestamp,3))
-        #dpg.set_value("sensorsBIT",     round(sr.streamTelem.sensorsBIT,3))
-        #dpg.set_value("temperatureC",   round(sr.streamTelem.baroTemp,3))
-        #dpg.set_value("temperatureC",   round(sr.streamTelem.baroTemp,3))
-        #dpg.set_value("pressurePasc",   round(sr.streamTelem.baroPress,3))
-        #dpg.set_value("humidityRH",     round(sr.streamTelem.baroHum,3))
-        #dpg.set_value("altitudeM",      round(sr.streamTelem.baroAlt,3))
-        #dpg.set_value("accelx",         round(sr.streamTelem.accelx,5)) 
-        #dpg.set_value("accely",         round(sr.streamTelem.accely,5)) 
-        #dpg.set_value("accelz",         round(sr.streamTelem.accelz,5)) 
-        #dpg.set_value("magx",           round(sr.streamTelem.magx,3)) 
-        #dpg.set_value("magy",           round(sr.streamTelem.magy,3)) 
-        #dpg.set_value("magz",           round(sr.streamTelem.magz,3)) 
-        #dpg.set_value("gyrox",          round(sr.streamTelem.gyrox,3)) 
-        #dpg.set_value("gyroy",          round(sr.streamTelem.gyroy,3)) 
-        #dpg.set_value("gyroz",          round(sr.streamTelem.gyroz,3)) 
-        #dpg.set_value("pitch",          round(sr.streamTelem.pitch,3)) 
-        #dpg.set_value("roll",           round(sr.streamTelem.roll,3)) 
-        #dpg.set_value("yaw",            round(sr.streamTelem.yaw,3))
-        #dpg.set_value("looptime",       round(sr.streamTelem.looptime,3))
+        dpg.set_value("timestamp",      round(sr.streamTelem.timestamp,3))
+        #dpg.set_value("C1",             round(sr.streamTelem.C1,3))
+        #dpg.set_value("C2",             round(sr.streamTelem.C2,3))
+        #dpg.set_value("loadCell",       round(sr.streamTelem.loadCell,3))
+        #dpg.set_value("PT_tank",        round(sr.streamTelem.PT_tank,3))
+        #dpg.set_value("battVolts",      round(sr.streamTelem.battVolts,3))
+        #dpg.set_value("altitudRSSIeM",  round(sr.streamTelem.RSSI,3))
             
         
         
@@ -276,8 +262,6 @@ try:
         
         updateStatusBar()    
             
-        if fc_state > 0: #dont plot until launched
-            dpg.set_value("Altitude", [list(timestamps), list(altitudeM)]) 
 
         # Render one frame
         dpg.render_dearpygui_frame()

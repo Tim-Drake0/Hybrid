@@ -17,8 +17,8 @@ import INFO_LSM9DS1 as lsm9ds1
 import INFO_EEPROM as eeprom
 
 # ---------------- CONFIG ----------------
-SERIAL_PORT = "COM9"#["COM2","COM3","COM4","COM5","COM6","COM7","COM8"]
-BAUD_RATE = 115200
+SERIAL_PORT = "COM5"#["COM2","COM3","COM4","COM5","COM6","COM7","COM8"]
+BAUD_RATE = 9600
 
 STREAM_NAME = "streamSerialTelem"
 MAX_POINTS = 500
@@ -68,51 +68,21 @@ def read_sync(ser):
 class StreamTelem:
     header:      int = 43962
     timestamp:   int = 0
-    id:          int = 6900
-    size:        int = 78
-    packetsSent: int = 0
-    packet:      int = [0] * size
-    sensorsBIT:  int = 0
-    baroTemp:    float = 0.0
-    baroPress:   float = 0.0
-    baroHum:     float = 0.0
-    baroAlt:     float = 0.0
-    accelx:      float = 0.0
-    accely:      float = 0.0
-    accelz:      float = 0.0
-    magx:        float = 0.0
-    magy:        float = 0.0
-    magz:        float = 0.0
-    gyrox:       float = 0.0
-    gyroy:       float = 0.0
-    gyroz:       float = 0.0
-    pitch:       float = 0.0
-    yaw:         float = 0.0
-    roll:        float = 0.0
-    looptime:    int   = 0
+    states:      int = 0
+    loadCell:    float = 0
+    PT_tank:    float = 0
+    battVolts:    float = 0
+    RSSI:    float = 0
     
     
     def readBuffer(self):
         import struct
         (self.timestamp, 
-        self.sensorsBIT,
-        self.baroTemp, 
-        self.baroPress, 
-        self.baroHum, 
-        self.baroAlt,
-        self.accelx, 
-        self.accely, 
-        self.accelz,
-        self.magx, 
-        self.magy, 
-        self.magz,
-        self.gyrox, 
-        self.gyroy, 
-        self.gyroz,
-        self.pitch, 
-        self.yaw, 
-        self.roll,
-        self.looptime) = struct.unpack_from("<IB16fI", bytes(self.packet))
+        self.states,
+        self.loadCell, 
+        self.PT_tank, 
+        self.battVolts,
+        self.RSSI) = struct.unpack_from("<IB3fH", bytes(self.packet))
 
 
     

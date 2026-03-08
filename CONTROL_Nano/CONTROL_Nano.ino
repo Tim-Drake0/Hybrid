@@ -77,7 +77,6 @@ uint8_t switchstate[9];
 int RFM95_PWR = 23;
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 
-LiquidCrystal lcd(RS,EN,D4,D5,D6,D7); // Initialize LCD object
 
 bool CON_ERR = 0; // Track if there was successful transmission
 bool RECV_ERR = 0;
@@ -92,64 +91,6 @@ int switch_data_count = 0;
 bool lowBattery = 0;
 float maxThrust = 0;
 float thisThrust = 0;
-
-void printlcd(uint8_t buf[9], int switch_data_count) {
-  lcd.clear();
-  lcd.setCursor(0,0); // set cursor to beginning of top row
-  lcd.print("TANK:"); // Display tank pressure
-  lcd.print((word(buf[4],buf[5])*3.255177532)+(-123.3104072));
-
-  lcd.setCursor(13,0); // set cursor to column 10 of row 0
-  lcd.print("C");
-  lcd.print(!buf[0]);
-  lcd.print(!buf[1]);
-
-  lcd.setCursor(0,1); // Set cursor to beginning of botton row
-  lcd.print("LC:");
-  thisThrust = word(buf[2], buf[3])*0.939416365405;
-  if(switchstate[6] == 1){
-    if(thisThrust > maxThrust){
-      lcd.print(thisThrust);
-      maxThrust = thisThrust;
-    } else {
-      lcd.print(maxThrust);
-    }
-  } else {
-    maxThrust = 0;
-    lcd.print(thisThrust);
-  }
-  
-  if (CON_ERR) { // If transmission failed
-    lcd.setCursor(10,1); 
-    lcd.print("CON_ERR");
-    return;
-  }
-
-  if(word(buf[6], buf[7])*0.0213 > 7.5){ // check if low battery and only display that
-    if(switch_data_count < 21){
-      lcd.setCursor(10,1); 
-      lcd.print("RS:"); 
-      if( abs(rf95.lastRssi()) >= 100){
-        lcd.setCursor(13,1);
-      } else {
-        lcd.setCursor(14,1);
-      }
-      lcd.print(String(abs(rf95.lastRssi())));
-    } else {
-      lcd.setCursor(9,1); 
-      lcd.print("BT:"); 
-      if(word(buf[6], buf[7])*0.0213<7.5){ 
-        lcd.print("LOW!"); // If low battery for a 2 cell
-      } else{
-      lcd.print(word(buf[6], buf[7])*0.0213);// word(high,low)
-      }
-    }
-  } else {
-    lcd.setCursor(9,1); 
-    lcd.print("BT:"); 
-    lcd.print("LOW!"); // If low battery for a 2 cell
-  }
-}
 
 void readswitches(void) {
   switchstate[0] = !digitalRead(SWP1); // get state of switch 1 for transmission
@@ -238,8 +179,7 @@ void setup() {
 
 void loop() {
   // TRANSCEIVER CODE ====================================================================================================
-  uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
-  uint8_t len = sizeof(buf);
+  
   if (millis()-last_time_tx > dt_tx) { 
     readswitches(); // record state of switches
     rf95.send(switchstate, sizeof(switchstate));
@@ -247,31 +187,11 @@ void loop() {
     CON_ERR = 0;// connection error bool to false
     rf95.waitPacketSent();
     // Now wait for a reply
+
+    handle_telemetry();
     
-    if (rf95.waitAvailableTimeout(5)) {
-      // Should be a reply message for us now   
-      rf95.recv(buf, &len);
-
-      uint32_t timestamp = millis();
-      serPyld.battVolts = word(buf[6], buf[7])*0.0213;
-      serPyld.loadCell = word(buf[2], buf[3])*0.939416365405;
-      serPyld.PT_tank = (word(buf[4],buf[5])*3.255177532)+(-123.3104072);
-      serPyld.RSII = abs(rf95.lastRssi());
-
-      Serial.write(START_MARKER); // send a fixed byte to mark the start
-      Serial.write((uint8_t*)&timestamp, 4); 
-      Serial.write((uint8_t*)&serPyld.battVolts, 4);
-      Serial.write((uint8_t*)&serPyld.loadCell, 4);
-      Serial.write((uint8_t*)&serPyld.PT_tank, 4);
-      Serial.write(serPyld.RSII);
-      Serial.write(!buf[0]);
-      Serial.write(!buf[1]);
-      //length = 19 bytes
-
-    } else {
-      CON_ERR = 1;
-    }
-    last_time_tx = millis(); // Save time at end of transceiver loop for tracking
+    
+    
   }
 
 }

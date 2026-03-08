@@ -285,12 +285,7 @@ void loop() { // LOOP ==========================================================
         switchstate.BU3 = buf[7];
         switchstate.BU4 = buf[8];
 
-        uint8_t data[] = {C1bool, C2bool, lc_high, lc_low, highByte(PT_tank), lowByte(PT_tank), highByte(batt_volt), lowByte(batt_volt)};
-        //uint8_t data[] = {C1bool, C2bool, LCint, PT_tank, highByte(batt_volt), lowByte(batt_volt), 69, 69, 69, 69};
-        rf95.send(data, sizeof(data));
-        rf95.waitPacketSent();
-        digitalWrite(RADIO_LED, LOW);
-        last_time_rx = millis(); // save new time of most recent transmission
+        handle_telemetry();
       } else {
         //Serial.println("Receive failed");
         digitalWrite(RADIO_LED, HIGH);
