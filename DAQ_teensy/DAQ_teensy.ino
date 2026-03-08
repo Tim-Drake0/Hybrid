@@ -171,18 +171,19 @@ int PT6int = 0; // int value of PT6 reading (extra)
 float PT6float = 0;
 float PT6coeff = 0; float PT6gain = 0;
 
-// 8bit Discrete Positions:
-byte disWord = B00000000;
-int C1 = 0;
-int C2 = 1;
-int ARM = 5;
-int PY1 = 6;
-int PY2 = 7;
-
 // valve_states bit offset:
 int FILL = 0;
 int VENT = 1;
 int MOV = 2;
+
+// pyro_states bit offset:
+int PY1 = 0;
+int PY2 = 1;
+
+// arm_state bit offset:
+int ARM = 0;
+int C1 = 1;
+int C2 = 2;
 
 // Loop timekeeping 
 const int dt_abort = 120*1000; // Time to abort if no signal received [ms] (120 seconds)
@@ -242,9 +243,9 @@ void save_data() { // Save data to SD card
     datafile.print(",");
     datafile.print(LC1float);
     datafile.print(",");
-    datafile.print(bitRead(disWord, C1));
+    datafile.print(bitRead(tsy_pkt.arm_state, C1));
     datafile.print(",");
-    datafile.print(bitRead(disWord, C2));
+    datafile.print(bitRead(tsy_pkt.arm_state, C2));
     datafile.print(",");
     datafile.print(bitRead(tsy_pkt.valve_states, FILL));
     datafile.print(",");
@@ -252,11 +253,11 @@ void save_data() { // Save data to SD card
     datafile.print(",");
     datafile.print(bitRead(tsy_pkt.valve_states, MOV));
     datafile.print(",");
-    datafile.print(bitRead(disWord, ARM));
+    datafile.print(bitRead(tsy_pkt.arm_state, ARM));
     datafile.print(",");
-    datafile.print(bitRead(disWord, PY1));
+    datafile.print(bitRead(tsy_pkt.pyro_states, PY1));
     datafile.print(",");
-    datafile.println(bitRead(disWord, PY2));
+    datafile.println(bitRead(tsy_pkt.pyro_states, PY2));
     datafile.close();
   }
 }
@@ -378,15 +379,15 @@ void loop() {
   // Read sensor data
   if (millis()-last_time_data > dt_data) { // Check time between data readings
     if(analogRead(pyro_1_cont_in) > 100){
-      bitWrite(disWord, C1, 1);
+      bitWrite(tsy_pkt.arm_state, C1, 1);
     } else {
-      bitWrite(disWord, C1, 0);
+      bitWrite(tsy_pkt.arm_state, C1, 0);
     }
     
     if(analogRead(pyro_2_cont_in) > 100){
-      bitWrite(disWord, C2, 1);
+      bitWrite(tsy_pkt.arm_state, C2, 1);
     } else {
-      bitWrite(disWord, C2, 0);
+      bitWrite(tsy_pkt.arm_state, C2, 0);
     }
 
     PT1int = analogRead(pt_1); PT1float = (PT1int*PT1coeff) + PT1gain; tsy_pkt.pt1 = PT1float;
@@ -408,29 +409,29 @@ void loop() {
     
     // Fire pyros if armed and signal sent
     if(digitalRead(arm_in) == 1){
-      bitWrite(disWord, ARM, 1);
+      bitWrite(tsy_pkt.arm_state, ARM, 1);
       dt_data = dt_data_fast;
       dt_lc = dt_lc_fast;
       if(digitalRead(pyro_1_fire_in)){
-        bitWrite(disWord, PY1, 1);
+        bitWrite(tsy_pkt.pyro_states, PY1, 1);
         digitalWrite(pyro_1_fire, LOW);
         digitalWrite(pyro_2_fire, LOW);
       } else if (digitalRead(pyro_2_fire_in)){
-        bitWrite(disWord, PY2, 1);
+        bitWrite(tsy_pkt.pyro_states, PY2, 1);
         digitalWrite(pyro_1_fire, LOW);
         digitalWrite(pyro_2_fire, LOW);
       } else {
-        bitWrite(disWord, PY1, 0);
-        bitWrite(disWord, PY2, 0);
+        bitWrite(tsy_pkt.pyro_states, PY1, 0);
+        bitWrite(tsy_pkt.pyro_states, PY2, 0);
         digitalWrite(pyro_1_fire, HIGH);
         digitalWrite(pyro_2_fire, HIGH);
       }
     } else {
       dt_data = dt_sd_slow;
       dt_lc = dt_sd_slow;
-      bitWrite(disWord, ARM, 0);
-      bitWrite(disWord, PY1, 0);
-      bitWrite(disWord, PY2, 0);
+      bitWrite(tsy_pkt.arm_state, ARM, 0);
+      bitWrite(tsy_pkt.pyro_states, PY1, 0);
+      bitWrite(tsy_pkt.pyro_states, PY2, 0);
       digitalWrite(pyro_1_fire, HIGH);
       digitalWrite(pyro_2_fire, HIGH);
     }
