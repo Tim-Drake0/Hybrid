@@ -175,12 +175,14 @@ float PT6coeff = 0; float PT6gain = 0;
 byte disWord = B00000000;
 int C1 = 0;
 int C2 = 1;
-int FILL = 2;
-int VENT = 3;
-int MOV = 4;
 int ARM = 5;
 int PY1 = 6;
 int PY2 = 7;
+
+// valve_states bit offset:
+int FILL = 0;
+int VENT = 1;
+int MOV = 2;
 
 // Loop timekeeping 
 const int dt_abort = 120*1000; // Time to abort if no signal received [ms] (120 seconds)
@@ -201,14 +203,14 @@ bool burn_ended = 0;
 
 void moveServo(int servo, bool state){
   if(state == 0){
-    if(servo == 1){bitWrite(disWord, FILL, 0); servo1.write(servo1off);}
-    if(servo == 2){bitWrite(disWord, VENT, 0); servo2.write(servo2off);}
-    if(servo == 3){bitWrite(disWord, MOV, 0); servo3.write(servo3off);}
+    if(servo == 1){bitWrite(tsy_pkt.valve_states, FILL, 0); servo1.write(servo1off);}
+    if(servo == 2){bitWrite(tsy_pkt.valve_states, VENT, 0); servo2.write(servo2off);}
+    if(servo == 3){bitWrite(tsy_pkt.valve_states, MOV, 0); servo3.write(servo3off);}
     //if(servo == 4){bitWrite(disWord, FILL, 0); servo4.write(servo4off);}
   }else if(state == 1){
-    if(servo == 1){bitWrite(disWord, FILL, 1); servo1.write(servo1on);}
-    if(servo == 2){bitWrite(disWord, VENT, 1); servo2.write(servo2on);}
-    if(servo == 3){bitWrite(disWord, MOV, 1); servo3.write(servo3on);}
+    if(servo == 1){bitWrite(tsy_pkt.valve_states, FILL, 1); servo1.write(servo1on);}
+    if(servo == 2){bitWrite(tsy_pkt.valve_states, VENT, 1); servo2.write(servo2on);}
+    if(servo == 3){bitWrite(tsy_pkt.valve_states, MOV, 1); servo3.write(servo3on);}
     //if(servo == 4){servo4.write(servo4on);}
   }
 }
@@ -244,11 +246,11 @@ void save_data() { // Save data to SD card
     datafile.print(",");
     datafile.print(bitRead(disWord, C2));
     datafile.print(",");
-    datafile.print(bitRead(disWord, FILL));
+    datafile.print(bitRead(tsy_pkt.valve_states, FILL));
     datafile.print(",");
-    datafile.print(bitRead(disWord, VENT));
+    datafile.print(bitRead(tsy_pkt.valve_states, VENT));
     datafile.print(",");
-    datafile.print(bitRead(disWord, MOV));
+    datafile.print(bitRead(tsy_pkt.valve_states, MOV));
     datafile.print(",");
     datafile.print(bitRead(disWord, ARM));
     datafile.print(",");
