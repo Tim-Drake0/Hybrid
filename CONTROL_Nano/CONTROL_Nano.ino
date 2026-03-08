@@ -41,33 +41,6 @@ struct Switch_Payload // Payload from switches
   bool DA1 = 0; // SWD 
 };
 
-struct DAQ_Payload // ACK Payload from DAQ
-{
-  bool CC1 = 0; // Continuity channel 1
-  bool CC2 = 0; // Continuity channel 2
-  char PTC1[5] = {}; // PT channel 1 (tank)
-  char LC1[7] = {}; // Load Cell reading
-};
-DAQ_Payload daqstate;
-
-//uint8_t data[] = {C1bool, C2bool, lc_high, lc_low, highByte(PT_tank), lowByte(PT_tank), highByte(batt_volt), lowByte(batt_volt)};
-struct Serial_Payload // Payload to serial
-{
-  uint32_t time = 0; 
-  bool C1 = 0;
-  bool C2 = 0;
-  float loadCell = 0;
-  float PT_tank = 0;
-  float battVolts = 0;
-  int RSSI = 0;
-};
-Serial_Payload serPyld ;
-const byte START_MARKER = 0xAA; // Unique sync byte
-
-byte serPacket[] = {millis()};
-
-
-
 uint8_t switchstate[9];
 
 #define RFM95_CS 9

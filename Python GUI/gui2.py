@@ -25,8 +25,8 @@ lastCmdTime = 0
 # Get current timestamp as starting point
 
 # rolling buffers, pre-filled with starting timestamp
-timestamps = deque([sr.streamTelem.timestamp], maxlen=MAX_POINTS)
-pt_tank_list = deque([sr.streamTelem.PT_tank], maxlen=MAX_POINTS)
+timestamps = deque([sr.streamTelem.tsy_timestamp], maxlen=MAX_POINTS)
+pt1_list = deque([sr.streamTelem.pt1], maxlen=MAX_POINTS)
 
 gui_loopTime = deque([0], maxlen=MAX_POINTS)
 gui_AvgloopTimePlot = deque([0], maxlen=MAX_POINTS)
@@ -73,7 +73,7 @@ def updateStatusBar():
     
     
     
-    stampSecs = sr.streamTelem.timestamp / 1000
+    stampSecs = sr.streamTelem.tsy_timestamp / 1000
     tov_min = (stampSecs / 60) % 60
     tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
     tov_sec = stampSecs % 60
@@ -138,11 +138,24 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
             
     with dpg.child_window(width=settings.INFO_WINDOW_SIZE[0], height=settings.INFO_WINDOW_SIZE[1], pos=settings.INFO_WINDOW_POS, tag="right_window_bus_info", show=True):
         
-        dpg.add_text(" ", tag="states")
+        dpg.add_text(" ", tag="ctrl_timestamp")
+        dpg.add_text(" ", tag="ctrl_RSSI")
+        dpg.add_text(" ", tag="daq_timestamp")
+        dpg.add_text(" ", tag="daq_RSSI")
+        dpg.add_text(" ", tag="tsy_timestamp")
+        dpg.add_text(" ", tag="valve_states")
+        dpg.add_text(" ", tag="pyro_states")
+        dpg.add_text(" ", tag="arm_state")
+        dpg.add_text(" ", tag="pt1")
+        dpg.add_text(" ", tag="pt2")
+        dpg.add_text(" ", tag="pt3")
+        dpg.add_text(" ", tag="pt4")
+        dpg.add_text(" ", tag="pt5")
+        dpg.add_text(" ", tag="pt6")
         dpg.add_text(" ", tag="loadCell")
-        dpg.add_text(" ", tag="PT_tank")
         dpg.add_text(" ", tag="battVolts")
-        dpg.add_text(" ", tag="RSSI")
+        dpg.add_text(" ", tag="fiveVolts")
+        dpg.add_text(" ", tag="radioVolts")
         
         
         
@@ -156,7 +169,7 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                 pass
             with dpg.plot_axis(dpg.mvYAxis, label="PSI", tag="y_axis_pressure"):
                 dpg.set_axis_limits(dpg.last_item(), -20, 20) 
-                dpg.add_line_series([], [], label="Tank Pressure", tag="pt_tank_list")
+                dpg.add_line_series([], [], label="Tank Pressure", tag="pt1_list")
                 
                 
         # Events window
@@ -222,7 +235,7 @@ try:
             dpg.add_key_press_handler(callback=on_key_released)
             
     while dpg.is_dearpygui_running():
-        if sr.streamTelem.timestamp == last_timestamp:
+        if sr.streamTelem.tsy_timestamp == last_timestamp:
             if disconnect_counter > disconnect_timeout:  
                 valid_connection = False
             disconnect_counter += 1
@@ -230,24 +243,38 @@ try:
             disconnect_counter = 0    
             valid_connection = True
         
-        last_timestamp = sr.streamTelem.timestamp
+        last_timestamp = sr.streamTelem.tsy_timestamp
         
         frameTime = time.time()
         # Append latest data
-        timestamps.append(sr.streamTelem.timestamp/1000)
-        pt_tank_list.append(sr.streamTelem.PT_tank)
+        timestamps.append(sr.streamTelem.tsy_timestamp/1000)
+        pt1_list.append(sr.streamTelem.pt1)
         
         
         
-        dpg.set_value("states",         f"states:{sr.streamTelem.states:08b}")
-        dpg.set_value("loadCell",       f"load cell: {round(sr.streamTelem.loadCell,3)}")
-        dpg.set_value("PT_tank",        f"tank pressure: {round(sr.streamTelem.PT_tank,3)} PSI")
-        dpg.set_value("battVolts",      f"battery voltage {round(sr.streamTelem.battVolts,3)}V")
-        dpg.set_value("RSSI",           f"Signal strength: {round(sr.streamTelem.RSSI,3)}dB")
+        # set_value
+        dpg.set_value("ctrl_timestamp",  f"Ctrl timestamp: {sr.streamTelem.ctrl_timestamp} ms")
+        dpg.set_value("ctrl_RSSI",       f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
+        dpg.set_value("daq_timestamp",   f"DAQ timestamp: {sr.streamTelem.daq_timestamp} ms")
+        dpg.set_value("daq_RSSI",        f"DAQ RSSI: {sr.streamTelem.daq_RSSI} dBm")
+        dpg.set_value("tsy_timestamp",   f"Teensy timestamp: {sr.streamTelem.tsy_timestamp} ms")
+        dpg.set_value("valve_states",    f"Valve states: {sr.streamTelem.valve_states:08b}")
+        dpg.set_value("pyro_states",     f"Pyro states: {sr.streamTelem.pyro_states:08b}")
+        dpg.set_value("arm_state",       f"Arm state: {sr.streamTelem.arm_state}")
+        dpg.set_value("pt1",             f"PT1: {round(sr.streamTelem.pt1, 2)} PSI")
+        dpg.set_value("pt2",             f"PT2: {round(sr.streamTelem.pt2, 2)} PSI")
+        dpg.set_value("pt3",             f"PT3: {round(sr.streamTelem.pt3, 2)} PSI")
+        dpg.set_value("pt4",             f"PT4: {round(sr.streamTelem.pt4, 2)} PSI")
+        dpg.set_value("pt5",             f"PT5: {round(sr.streamTelem.pt5, 2)} PSI")
+        dpg.set_value("pt6",             f"PT6: {round(sr.streamTelem.pt6, 2)} PSI")
+        dpg.set_value("loadCell",        f"Load cell: {round(sr.streamTelem.loadCell, 3)} lbf")
+        dpg.set_value("battVolts",       f"Battery voltage: {round(sr.streamTelem.battVolts, 3)} V")
+        dpg.set_value("fiveVolts",       f"5V bus voltage: {round(sr.streamTelem.fiveVolts, 3)} V")
+        dpg.set_value("radioVolts",      f"Radio voltage: {round(sr.streamTelem.radioVolts, 3)} V")
             
         
-        dpg.set_value("pt_tank_list", [list(timestamps), list(pt_tank_list)]) 
-        dpg.set_axis_limits("y_axis_pressure", min(pt_tank_list), max(pt_tank_list))
+        dpg.set_value("pt1_list", [list(timestamps), list(pt1_list)]) 
+        dpg.set_axis_limits("y_axis_pressure", min(pt1_list), max(pt1_list))
         
         
         if time.time() - lastTime > 5:

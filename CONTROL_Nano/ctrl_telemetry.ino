@@ -22,14 +22,43 @@ volatile uint8_t telem_ready = 0;
 unsigned long last_time_serial = 0;
 int dt_serial = 100;
 
-typedef struct __attribute__((packed)) {
-    uint32_t time = 0; 
-    uint8_t states = 0;
-    float loadCell = 0;
-    float PT_tank = 0;
-    float battVolts = 0;
-    int RSSI = 0;
-} TelemetryDataFrame;
+// Layer 1 - Teensy collects and sends to DAQ Nano
+struct __attribute__((packed)) TSY_Payload // Payload from teensy
+{
+  uint32_t timestamp = 0; 
+  uint8_t valve_states = 0;
+  uint8_t pyro_states = 0;
+  uint8_t arm_state = 0;
+  float pt1 = 0;
+  float pt2 = 0;
+  float pt3 = 0;
+  float pt4 = 0;
+  float pt5 = 0;
+  float pt6 = 0;
+  float load_cell = 0;
+  float batt_volts = 0;
+  float five_volts = 0;
+  float radio_volts = 0;
+};
+TSY_Payload tsy_pkt;
+
+// Layer 2 - DAQ Nano adds its own fields, embeds TSY_Payload
+struct __attribute__((packed)) DAQ_Payload  {
+    uint32_t    daq_nano_timestamp;
+    int8_t      daq_nanoRSSI;
+    TSY_Payload tsy;
+};
+DAQ_Payload daq_pkt;
+
+// Layer 3 - Ctrl Nano adds its own fields, embeds DAQ_Payload
+struct __attribute__((packed)) CTRL_Payload {
+    uint32_t    ctrl_nano_timestamp;
+    int8_t      ctrl_nanoRSSI;
+    DAQ_Payload daq;         // daq data appended
+};
+CTRL_Payload ctrl_pkt;
+
+
 
 static uint8_t crc8(const uint8_t *data, uint8_t len) {
     uint8_t crc = 0x00;
@@ -76,20 +105,12 @@ void handle_telemetry() {
         // Should be a reply message for us now   
         rf95.recv(buf, &len);
 
-        TelemetryDataFrame pkt;
-
-        uint8_t state;
-        state |= (buf[8] & 1) << 0;  // C1 into bit 0
-        state |= (buf[9] & 1) << 1;  // C2 into bit 1
-
-        pkt.time      = millis();
-        pkt.states    = state;
-        pkt.loadCell  = word(buf[11], buf[10])*0.939416365405;
-        pkt.PT_tank   = (word(buf[13],buf[12])*3.255177532)+(-123.3104072);
-        pkt.battVolts = word(buf[15], buf[14])*0.0213;
-        pkt.RSSI      = abs(rf95.lastRssi());
+        ctrl_pkt.ctrl_nano_timestamp = millis(),
+        ctrl_pkt.ctrl_nanoRSSI = rf95.lastRssi();
+        // buf layout: 2 start + 1 resp_id + 1 length = 4 bytes header, then payload starts
+        memcpy(&ctrl_pkt.daq, &buf[4], sizeof(DAQ_Payload));
         
-        send_response(TELEM_FRAME_START_0, TELEM_FRAME_START_1, 0x69, &pkt, sizeof(pkt));
+        send_response(TELEM_FRAME_START_0, TELEM_FRAME_START_1, 0x69, &ctrl_pkt, sizeof(ctrl_pkt));
 
 
     } else {

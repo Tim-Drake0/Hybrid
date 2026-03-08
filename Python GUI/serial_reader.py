@@ -7,6 +7,7 @@ from pathlib import Path
 import struct
 import serial_writer as sw 
 import queue
+from dataclasses import dataclass, field
 
 import sys
 from pathlib import Path
@@ -64,25 +65,55 @@ def read_sync(ser):
         if pair == CMD_HEADER:
             return 'CMD'
         b0 = b1  # slide the window
-          
+    
+@dataclass      
 class StreamTelem:
-    header:      int = 43962
-    timestamp:   int = 0
-    states:      int = 0
-    loadCell:    float = 0
-    PT_tank:    float = 0
-    battVolts:    float = 0
-    RSSI:    float = 0
+    header:            int   = 43962
+    packet:            bytes = field(default_factory=bytes)
+    ctrl_timestamp:    int   = 0
+    ctrl_RSSI:         int   = 0
+    daq_timestamp:     int   = 0
+    daq_RSSI:          int   = 0
+    tsy_timestamp:     int   = 0
+    valve_states:      int   = 0
+    pyro_states:       int   = 0
+    arm_state:         int   = 0
+    pt1:               float = 0.0
+    pt2:               float = 0.0
+    pt3:               float = 0.0
+    pt4:               float = 0.0
+    pt5:               float = 0.0
+    pt6:               float = 0.0
+    loadCell:          float = 0.0
+    battVolts:         float = 0.0
+    fiveVolts:         float = 0.0
+    radioVolts:        float = 0.0
     
     
     def readBuffer(self):
         import struct
-        (self.timestamp, 
-        self.states,
+        (self.ctrl_timestamp, 
+        self.ctrl_RSSI, 
+        self.daq_timestamp, 
+        self.daq_RSSI, 
+        self.tsy_timestamp,
+        self.valve_states,
+        self.pyro_states,
+        self.arm_state,
+        self.pt1,
+        self.pt2,
+        self.pt3,
+        self.pt4,
+        self.pt5,
+        self.pt6,
         self.loadCell, 
-        self.PT_tank, 
         self.battVolts,
-        self.RSSI) = struct.unpack_from("<IB3fH", bytes(self.packet))
+        self.fiveVolts,
+        self.radioVolts) = struct.unpack_from("<"
+                                        "Ib"               # ctrl: timestamp (uint32), RSSI (int8)
+                                        "Ib"               # daq: timestamp (uint32), RSSI (int8)
+                                        "IBBBffffffffff",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio
+                                        bytes(self.packet))
 
 
     

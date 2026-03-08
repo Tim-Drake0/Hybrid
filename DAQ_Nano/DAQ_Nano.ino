@@ -67,18 +67,14 @@ struct Switch_Payload // Payload from switchbox [9 bytes total payload size]
   bool ARM = 0; // Switch D state on switchbox [1 byte]
 };
 
-struct DAQ_Payload // ACK Payload to send back to switchbox [16 bytes total payload size]
-{
-  bool CC1 = 0; // Continuity channel 1 [1 byte]
-  bool CC2 = 0; // Continuity channel 2 [1 byte]
-  char PTC1[5] = {}; // PT channel 1 reading (tank) (format: 0000) [5 bytes]
-  char LC1[7] = {}; // Load Cell reading (format: 0000.0) [7 bytes] 
-};
-
 Switch_Payload switchstate; // Initialize switchbox payload struct
-DAQ_Payload daqstate; // Initialize daq payload struct
 bool testRelay = 0;
 float teensy_packet;
+
+// Serial comms to teensy ===========================
+const int dt_serial2 = 1000/30; // transmission speed [ms]
+long int last_time_serial2 = 0;
+bool valid_tsy_serial = 0;
 
 
 /// FUNCTIONS ========================================================================
@@ -265,6 +261,12 @@ void loop() { // LOOP ==========================================================
 
     last_time_data = millis(); // Record time of data reading
   }
+
+  // get packet from teensy
+  if (Serial.available() > 0) {
+    valid_tsy_serial = readPacket() ? 1 : 0;
+  }
+  
   
   // TRANSCEIVER CODE ====================================================================================================
   
@@ -300,7 +302,6 @@ void loop() { // LOOP ==========================================================
   // AUTO ABORT
   // if the last received transmission happened longer than abort time ago
   if (millis() - last_time_rx > 60000){ABORT_DAQ();}
-  Serial.print(millis() - last_time_rx); Serial.println(dt_abort); 
 
   if(switchstate.ARM){
     tone(buzzerPin, 4750);
