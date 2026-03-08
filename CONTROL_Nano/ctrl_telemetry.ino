@@ -79,14 +79,14 @@ void handle_telemetry() {
         TelemetryDataFrame pkt;
 
         uint8_t state;
-        state |= (buf[0] & 1) << 0;  // C1 into bit 0
-        state |= (buf[1] & 1) << 1;  // C2 into bit 1
+        state |= (buf[8] & 1) << 0;  // C1 into bit 0
+        state |= (buf[9] & 1) << 1;  // C2 into bit 1
 
         pkt.time      = millis();
         pkt.states    = state;
-        pkt.loadCell  = word(buf[3], buf[2])*0.939416365405;
-        pkt.PT_tank   = (word(buf[5],buf[4])*3.255177532)+(-123.3104072);
-        pkt.battVolts = word(buf[7], buf[6])*0.0213;
+        pkt.loadCell  = word(buf[11], buf[10])*0.939416365405;
+        pkt.PT_tank   = (word(buf[13],buf[12])*3.255177532)+(-123.3104072);
+        pkt.battVolts = word(buf[15], buf[14])*0.0213;
         pkt.RSSI      = abs(rf95.lastRssi());
         
         send_response(TELEM_FRAME_START_0, TELEM_FRAME_START_1, 0x69, &pkt, sizeof(pkt));

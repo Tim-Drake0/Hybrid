@@ -26,6 +26,7 @@ lastCmdTime = 0
 
 # rolling buffers, pre-filled with starting timestamp
 timestamps = deque([sr.streamTelem.timestamp], maxlen=MAX_POINTS)
+pt_tank_list = deque([sr.streamTelem.PT_tank], maxlen=MAX_POINTS)
 
 gui_loopTime = deque([0], maxlen=MAX_POINTS)
 gui_AvgloopTimePlot = deque([0], maxlen=MAX_POINTS)
@@ -72,7 +73,7 @@ def updateStatusBar():
     
     
     
-    stampSecs = sr.streamTelem.timestamp / 1000000
+    stampSecs = sr.streamTelem.timestamp / 1000
     tov_min = (stampSecs / 60) % 60
     tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
     tov_sec = stampSecs % 60
@@ -137,25 +138,25 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
             
     with dpg.child_window(width=settings.INFO_WINDOW_SIZE[0], height=settings.INFO_WINDOW_SIZE[1], pos=settings.INFO_WINDOW_POS, tag="right_window_bus_info", show=True):
         
-        txt_tov = dpg.add_text(" ", tag="timestamp")
+        dpg.add_text(" ", tag="states")
+        dpg.add_text(" ", tag="loadCell")
+        dpg.add_text(" ", tag="PT_tank")
+        dpg.add_text(" ", tag="battVolts")
+        dpg.add_text(" ", tag="RSSI")
+        
         
         
         
         
     with dpg.child_window(width=settings.PLOT_WINDOW_SIZE[0], height=settings.PLOT_WINDOW_SIZE[1], pos=settings.PLOT_WINDOW_POS, tag="plot_window", show=True):
                        
-        with dpg.plot(label="busIMU Accel", width=settings.INFO_WINDOW_SIZE[0]-16, height=300, pos=[0,45]):
+        with dpg.plot(label="Pressures", width=settings.PLOT_WINDOW_SIZE[0]-16, height=400, pos=[0,45]):
             dpg.add_plot_legend()
             with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
                 pass
-            with dpg.plot_axis(dpg.mvYAxis, label="m/s^2"):
+            with dpg.plot_axis(dpg.mvYAxis, label="PSI", tag="y_axis_pressure"):
                 dpg.set_axis_limits(dpg.last_item(), -20, 20) 
-                dpg.add_line_series([], [], label="accelx", tag="Accelx")
-                dpg.add_line_series([], [], label="accely", tag="Accely")
-                dpg.add_line_series([], [], label="accelz", tag="Accelz")
-                dpg.add_line_series([], [], label="highG_accelx", tag="HighG_accelx")
-                dpg.add_line_series([], [], label="highG_accely", tag="HighG_accely")
-                dpg.add_line_series([], [], label="highG_accelz", tag="HighG_accelz")
+                dpg.add_line_series([], [], label="Tank Pressure", tag="pt_tank_list")
                 
                 
         # Events window
@@ -234,17 +235,19 @@ try:
         frameTime = time.time()
         # Append latest data
         timestamps.append(sr.streamTelem.timestamp/1000)
+        pt_tank_list.append(sr.streamTelem.PT_tank)
         
         
         
-        dpg.set_value("timestamp",      round(sr.streamTelem.timestamp,3))
-        #dpg.set_value("C1",             round(sr.streamTelem.C1,3))
-        #dpg.set_value("C2",             round(sr.streamTelem.C2,3))
-        #dpg.set_value("loadCell",       round(sr.streamTelem.loadCell,3))
-        #dpg.set_value("PT_tank",        round(sr.streamTelem.PT_tank,3))
-        #dpg.set_value("battVolts",      round(sr.streamTelem.battVolts,3))
-        #dpg.set_value("altitudRSSIeM",  round(sr.streamTelem.RSSI,3))
+        dpg.set_value("states",         f"states:{sr.streamTelem.states:08b}")
+        dpg.set_value("loadCell",       f"load cell: {round(sr.streamTelem.loadCell,3)}")
+        dpg.set_value("PT_tank",        f"tank pressure: {round(sr.streamTelem.PT_tank,3)} PSI")
+        dpg.set_value("battVolts",      f"battery voltage {round(sr.streamTelem.battVolts,3)}V")
+        dpg.set_value("RSSI",           f"Signal strength: {round(sr.streamTelem.RSSI,3)}dB")
             
+        
+        dpg.set_value("pt_tank_list", [list(timestamps), list(pt_tank_list)]) 
+        dpg.set_axis_limits("y_axis_pressure", min(pt_tank_list), max(pt_tank_list))
         
         
         if time.time() - lastTime > 5:

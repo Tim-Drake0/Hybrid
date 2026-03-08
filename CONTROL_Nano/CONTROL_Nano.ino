@@ -82,7 +82,7 @@ bool CON_ERR = 0; // Track if there was successful transmission
 bool RECV_ERR = 0;
 
 // Loop parameters
-const int dt_tx = 100; // Loop transmission speed [ms]
+const int dt_tx = 1000/30; // Loop transmission speed [ms]
 const int dt_lcd = 100; // Loop lcd print speed [ms] 
 long int last_time_tx = 0; // Last transmission completion time tracking [ms]
 long int last_time_lcd = 0; // Last lcd time tracking [ms]
