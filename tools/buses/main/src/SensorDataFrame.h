@@ -1,12 +1,13 @@
 #ifndef SENSOR_DATA_FRAME_H
 #define SENSOR_DATA_FRAME_H
 
-#include <Arduino.h>
-#include <cstdint>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct SensorDataFrame {
     unsigned long currentMillis;
-    byte sensorsBIT;
+    uint8_t sensorsBIT;
 
     uint16_t battVolts;
     uint16_t voltage3V;

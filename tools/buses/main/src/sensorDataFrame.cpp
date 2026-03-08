@@ -1,5 +1,4 @@
 #include "SensorDataFrame.h"
-#include <Arduino.h>
 
 /* Sensors BIT:
 0: BME280

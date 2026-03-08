@@ -261,7 +261,7 @@ def updateDebugWindow():
     gui_avgTime = sum(list(gui_loopTime)[-t:])/len(list(gui_loopTime)[-t:])
     
     if avgTime != 0:
-        dpg.set_value("avgloop_time", f"{int(avgTime)}ms [{int(1000/avgTime)}Hz]")
+        dpg.set_value("avgloop_time", f"{avgTime:.2f}ms [{int(1000/avgTime)}Hz]")
     
     
     fc_max = max(list(loopTime)[-t:])*(5/4)
@@ -588,7 +588,7 @@ with dpg.window(label="Flight Computer Viewer", width=TAB_WINDOW_DIM[0], height=
                     dpg.add_line_series([], [], label="GUI Loop Time", tag="gui_loopTime")
                     dpg.add_line_series([], [], label="GUI Avg Loop Time", tag="gui_AvgloopTimePlot")
 
-            with dpg.child_window(width=100, height=40, pos=(LOOPTIME_POS[0]+350, LOOPTIME_POS[1])):
+            with dpg.child_window(width=135, height=40, pos=(LOOPTIME_POS[0], LOOPTIME_POS[1])):
                 # Average Loop time
                 txt_avg_loop_time = dpg.add_text(" ", tag="avgloop_time")
                 dpg.bind_item_font(txt_avg_loop_time, default)
