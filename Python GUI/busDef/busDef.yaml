@@ -1,0 +1,238 @@
+busPwr:
+  name: telemetry
+  id: 69
+  data:
+    timestamp:
+      initVal: 9999
+      unit: ms
+      type: uint32_t
+    sensorsBIT:
+      initVal: 255
+      unit: b
+      type: uint8_t
+    temperatureC:
+      initVal: 9999
+      unit: C
+      type: float
+      byteOffset: 8
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    pressurePasc:
+      initVal: 9999
+      unit: Pa
+      type: float
+      byteOffset: 12
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    humidityRH:
+      initVal: 9999
+      unit: '%'
+      type: float
+      byteOffset: 16
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    altitudeM:
+      initVal: 9999
+      unit: m
+      type: float
+      byteOffset: 20
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    accelx:
+      initVal: 9999
+      unit: m/s^2
+      type: float
+      byteOffset: 8
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    accely:
+      initVal: 9999
+      unit: m/s^2
+      type: float
+      byteOffset: 12
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    accelz:
+      initVal: 9999
+      unit: m/s^2
+      type: float
+      byteOffset: 16
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    magx:
+      initVal: 9999
+      unit: gauss
+      type: float
+      byteOffset: 20
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    magy:
+      initVal: 9999
+      unit: gauss
+      type: float
+      byteOffset: 24
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    magz:
+      initVal: 9999
+      unit: gauss
+      type: float
+      byteOffset: 28
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    gyrox:
+      initVal: 9999
+      unit: dps
+      type: float
+      byteOffset: 32
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    gyroy:
+      initVal: 9999
+      unit: dps
+      type: float
+      byteOffset: 36
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    gyroz:
+      initVal: 9999
+      unit: dps
+      type: float
+      byteOffset: 40
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    pitch:
+      initVal: 9999
+      unit: deg
+      type: float
+      byteOffset: 44
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    roll:
+      initVal: 9999
+      unit: deg
+      type: float
+      byteOffset: 48
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    yaw:
+      initVal: 9999
+      unit: deg
+      type: float
+      byteOffset: 52
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    looptime:
+      initVal: 0
+      unit: ms
+      type: uint32_t
+      byteOffset: 8
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+busADXL375:
+  name: busADXL375
+  id: 6913
+  size: 20
+  freq: 100
+  endian: little
+  sensorName: ADXL375
+  data:
+    highG_accelx:
+      initVal: 9999
+      unit: G
+      type: float
+      byteOffset: 8
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    highG_accely:
+      initVal: 9999
+      unit: G
+      type: float
+      byteOffset: 12
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+    highG_accelz:
+      initVal: 9999
+      unit: G
+      type: float
+      byteOffset: 16
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
+debug:
+  name: debug
+  id: 6914
+  size: 12
+  freq: 50
+  endian: little
+  sensorName: NA
+  data:
+    loopTime_old:
+      initVal: 0
+      unit: ms
+      type: uint32_t
+      byteOffset: 8
+      bytes: 4
+      bits: 32
+      c0: 0.0
+      c1: 1.0
+      pin: 0
