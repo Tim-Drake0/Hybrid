@@ -69,7 +69,6 @@ def updateStatusBar():
     else: 
         if sr.streamTelem.tsy_timestamp > 0 and not abort_counter_started:
             abort_counter = time.time()
-            print(abort_counter)
             abort_counter_started = 1
             
             
@@ -162,7 +161,7 @@ def update_leds():
     
 def show_modal(message: str):
     secs = int(time.time()-abort_counter)
-    stampSecs = 120 - secs
+    stampSecs = 60 - secs
     tov_min = (stampSecs / 60) % 60
     tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
     tov_sec = stampSecs % 60
@@ -222,12 +221,14 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
         dpg.add_text(" ", tag="valve_states")
         dpg.add_text(" ", tag="pyro_states")
         dpg.add_text(" ", tag="arm_state")
-        dpg.add_text(" ", tag="pt1")
-        dpg.add_text(" ", tag="pt2")
-        dpg.add_text(" ", tag="pt3")
-        dpg.add_text(" ", tag="pt4")
-        dpg.add_text(" ", tag="pt5")
-        dpg.add_text(" ", tag="pt6")
+        with dpg.group(horizontal=True):
+            dpg.add_text(" ", tag="pt1")
+            dpg.add_text(" ", tag="pt2")
+            dpg.add_text(" ", tag="pt3")
+        with dpg.group(horizontal=True):
+            dpg.add_text(" ", tag="pt4")
+            dpg.add_text(" ", tag="pt5")
+            dpg.add_text(" ", tag="pt6")
         dpg.add_text(" ", tag="loadCell")
         with dpg.group(horizontal=True):
             dpg.add_text(" ", tag="battVolts")
