@@ -16,6 +16,8 @@ valid_connection = False
 last_timestamp = 0
 disconnect_counter = 0
 disconnect_timeout = 100 # loops 
+abort_counter = 0
+abort_counter_started = 0
 
 class dpgVariable:
     plotBuffer = 1
@@ -56,11 +58,22 @@ def _log(sender, app_data, user_data):
     print(f"sender: {sender}, \t app_data: {app_data}, \t user_data: {user_data}")
 
 def updateStatusBar():
+    global abort_counter_started
+    global abort_counter
     if valid_connection == True:
+        dpg.configure_item("state_modal", show=False)
+        abort_counter_started = 0
         conn_color = [0, 255, 0]
         conn_label = "CONNECTED"
         conn_pos = [35, draw_y // 2 - 15]
     else: 
+        if sr.streamTelem.tsy_timestamp > 0 and not abort_counter_started:
+            abort_counter = time.time()
+            print(abort_counter)
+            abort_counter_started = 1
+            
+            
+            
         conn_color = [255, 0, 0]
         conn_label = "DISCONNECTED"
         conn_pos = [15, draw_y // 2 - 15]
@@ -80,11 +93,47 @@ def updateStatusBar():
     dpg.configure_item("arm_status_rect", color=arm_color, fill=arm_color)
     dpg.configure_item("arm_status_text", text=arm_label, pos=arm_pos)
     
-    stampSecs = sr.streamTelem.tsy_timestamp / 1000
-    tov_min = (stampSecs / 60) % 60
-    tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
-    tov_sec = stampSecs % 60
-    dpg.set_value("tov", f"{int(tov_hour):02d}:{int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
+    if valid_connection == True:
+        stampSecs = sr.streamTelem.tsy_timestamp / 1000
+        tov_min = (stampSecs / 60) % 60
+        tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
+        tov_sec = stampSecs % 60
+        dpg.set_value("tov", f"{int(tov_hour):02d}:{int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
+        
+    # show pop up if abort countdown started
+    if valid_connection == False and sr.streamTelem.tsy_timestamp > 0:
+        show_modal(f"ABORT")
+            
+ 
+def lipo_2s_percent(voltage: float) -> int:
+    # 2S voltage -> approximate % remaining
+    curve = [
+        (8.40, 100),
+        (8.16, 90),
+        (8.00, 80),
+        (7.84, 70),
+        (7.60, 60),
+        (7.44, 50),
+        (7.36, 40),
+        (7.20, 30),
+        (7.04, 20),
+        (6.90, 20),
+        (6.80, 0),
+    ]
+    
+    if voltage >= curve[0][0]:  return 100
+    if voltage <= curve[-1][0]: return 0
+    
+    for i in range(len(curve) - 1):
+        v_high, p_high = curve[i]
+        v_low,  p_low  = curve[i + 1]
+        if v_low <= voltage <= v_high:
+            # linear interpolation between points
+            t = (voltage - v_low) / (v_high - v_low)
+            return round(p_low + t * (p_high - p_low))
+    
+    return 0           
+        
                   
 def update_leds():
     new_states = {
@@ -108,6 +157,17 @@ def update_leds():
             dpg.configure_item(f"led_{name}",     color=color, fill=color)
             dpg.configure_item(f"led_name_{name}",   color=text_color)
             dpg.configure_item(f"led_status_{name}", text=label, color=text_color)
+            
+            
+    
+def show_modal(message: str):
+    secs = int(time.time()-abort_counter)
+    stampSecs = 120 - secs
+    tov_min = (stampSecs / 60) % 60
+    tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
+    tov_sec = stampSecs % 60
+    dpg.set_value("abort_tov", f"ABORT IN {int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
+    dpg.configure_item("state_modal", show=True)
     
 dpg.create_context()
 
@@ -169,9 +229,13 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
         dpg.add_text(" ", tag="pt5")
         dpg.add_text(" ", tag="pt6")
         dpg.add_text(" ", tag="loadCell")
-        dpg.add_text(" ", tag="battVolts")
-        dpg.add_text(" ", tag="fiveVolts")
-        dpg.add_text(" ", tag="radioVolts")
+        with dpg.group(horizontal=True):
+            dpg.add_text(" ", tag="battVolts")
+            dpg.add_text(" ", tag="batt_perc")
+        with dpg.group(horizontal=True):
+            dpg.add_text(" ", tag="fiveVolts")
+            dpg.add_text(" ", tag="radioVolts")
+        
         
         
         
@@ -227,6 +291,13 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                     size=33,
                     tag=f"led_status_{name}"
                 )
+                
+    # Abort modal screen
+    with dpg.window(label="ABORT WARNING", modal=True, show=False, tag="state_modal", 
+                    no_resize=True, width=300, height=120):
+        
+        abort_tov = dpg.add_text(" ", tag="abort_tov")
+        dpg.bind_item_font(abort_tov,settings.xl)
 
 
 def on_key_released(sender, key):
@@ -289,6 +360,7 @@ try:
         dpg.set_value("battVolts",       f"Battery voltage: {round(sr.streamTelem.battVolts, 3)} V")
         dpg.set_value("fiveVolts",       f"5V bus voltage: {round(sr.streamTelem.fiveVolts, 3)} V")
         dpg.set_value("radioVolts",      f"Radio voltage: {round(sr.streamTelem.radioVolts, 3)} V")
+        dpg.set_value("batt_perc", f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
             
         
         dpg.set_value("pt1_list", [list(timestamps), list(pt1_list)]) 
