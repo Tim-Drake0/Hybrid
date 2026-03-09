@@ -161,10 +161,12 @@ void loop() {
     rf95.waitPacketSent();
     // Now wait for a reply
 
-    handle_telemetry();
+    
     
     
     
   }
+
+  handle_telemetry();
 
 }
