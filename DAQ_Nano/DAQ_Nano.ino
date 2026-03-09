@@ -152,7 +152,7 @@ void ABORT_DAQ(void) { // ABORT ================================================
 }
 
 void setup() { // SETUP =================================================================================================
-  Serial.begin(9600);
+  Serial.begin(115200);
   // Sensor setup
   pinMode(CP1,INPUT); // Continuity pins digital input
   pinMode(CP2,INPUT);

@@ -69,7 +69,7 @@ File datafile; // Data file instance
 String fileheader = "Time[ms],BATT[V],5V[V],RADIO[V],PT1[psi],PT2[psi],PT3[psi],PT4[psi],PT5[psi],PT6[psi],LC[lbf],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2";
 
 // Serial comms to arduino nano
-const int dt_serial2 = 1000/30; // transmission speed [ms]
+const int dt_serial2 = 1000/60; // transmission speed [ms]
 long int last_time_serial2 = 0;
 
 struct __attribute__((packed)) TSY_Payload // Payload to arduino nano
@@ -197,7 +197,7 @@ const int dt_sd_slow = 1000; // Time between slow readings [ms]
 int dt_data = dt_sd_slow; // Variable to use for dt between data readings
 int dt_lc = dt_sd_slow; // Variable to use for dt between lc readings
 
-int burn_time = 5000; // [ms] burn time
+int burn_time = 50000; // [ms] burn time
 unsigned long int burn_start = 0;
 bool burn_started = 0;
 bool burn_ended = 0;
@@ -301,7 +301,7 @@ void send2nano(uint8_t start0, uint8_t start1, uint8_t resp_id, const void *payl
 
 void setup() {
   Serial.begin(9600);
-  Serial2.begin(9600); // serial data to/from arduino nano
+  Serial2.begin(115200); // serial data to/from arduino nano
 
   pinMode(batt_volt_mon, INPUT);
   pinMode(five_volt_mon, INPUT);
