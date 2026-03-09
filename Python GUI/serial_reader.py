@@ -66,6 +66,30 @@ def read_sync(ser):
             return 'CMD'
         b0 = b1  # slide the window
     
+def crc8(data: bytes) -> int:
+    crc = 0x00
+    for byte in data:
+        crc ^= byte
+    return crc
+
+def check_crc(packet: bytes) -> bool:
+    # packet layout: 2 start + 1 resp_id + 1 length + payload + 1 crc + 2 end
+    if len(packet) < 7:
+        return False
+    
+    payload_len = packet[3]
+    crc_index = 4 + payload_len
+    
+    if crc_index >= len(packet):
+        return False
+    
+    # crc is calculated over resp_id + length + payload (same as Arduino: &buf[2], 2 + payload_len)
+    data_to_check = packet[2:2 + 2 + payload_len]
+    calculated = crc8(data_to_check)
+    received = packet[crc_index]
+    
+    return calculated == received
+
 @dataclass      
 class StreamTelem:
     header:            int   = 43962
@@ -124,9 +148,9 @@ class StreamTelem:
                                         "IBBBffffffffff",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio
                                         bytes(self.packet))
         
-        self.fill_status    = (self.valve_states >> 0) & 1
-        self.vent_status    = (self.valve_states >> 1) & 1
-        self.mov_status     = (self.valve_states >> 2) & 1
+        self.fill_state    = (self.valve_states >> 0) & 1
+        self.vent_state    = (self.valve_states >> 1) & 1
+        self.mov_state     = (self.valve_states >> 2) & 1
         self.py1_state      = (self.pyro_states >> 0) & 1
         self.py2_state      = (self.pyro_states >> 1) & 1
         self.arm_state      = (self.arm_states >> 0) & 1
@@ -170,9 +194,15 @@ def read_serial_loop():
             crc_b   = ser.read(1)
             end_b   = ser.read(1)
             
+            # check crc
+            calculated = crc8(bytes([resp_id, length]) + payload)
+            if len(crc_b) < 1 or calculated != crc_b[0]:
+                print(f"[TELEM] CRC mismatch: got {crc_b.hex() if crc_b else 'none'}, expected {calculated:02X}")
+                continue
+            
             if len(payload) != length:
                 print(f"[TELEM] Dropped packet. Incorrect length {len(payload)}, {length}")
-                
+
             if not end_b:
                 print("[ROUTER] No frame end, re-syncing...")
                 ser.read(4)
@@ -182,13 +212,14 @@ def read_serial_loop():
                 print(f"[ROUTER] Bad frame end: {end_b.hex()}, re-syncing...")
                 ser.read(4)
                 continue
-                
-            packet = (resp_id, length, payload, crc_b)
             
+            packet = (resp_id, length, payload, crc_b)
+
             if pkt_type == 'TELEM':
                 telem_queue.put(packet)
             elif pkt_type == 'CMD':
                 cmd_queue.put(packet)
+            
                 
         except Exception as e:
             print("Serial read error:", e)

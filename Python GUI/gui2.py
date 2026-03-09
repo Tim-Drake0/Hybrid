@@ -36,9 +36,6 @@ frameTime = 0
 
 fc_state = 0 # this will eventually come from the flight computer. temporary
 
-
-
-    
 def _config(sender, keyword, user_data):
     widget_type = dpg.get_item_type(sender)
     items = user_data
@@ -89,6 +86,29 @@ def updateStatusBar():
     tov_sec = stampSecs % 60
     dpg.set_value("tov", f"{int(tov_hour):02d}:{int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
                   
+def update_leds():
+    new_states = {
+        "FILL": sr.streamTelem.fill_state,
+        "VENT": sr.streamTelem.vent_state,
+        "MOV":  sr.streamTelem.mov_state,
+        "ARM":  sr.streamTelem.arm_state,
+        "PY1":  sr.streamTelem.py1_state,
+        "PY2":  sr.streamTelem.py2_state,
+        "C1":   sr.streamTelem.c1_state,
+        "C2":   sr.streamTelem.c2_state,
+    }
+    for name, state in new_states.items():
+        if state != settings.led_panel_states[name]["state"]:
+            settings.led_panel_states[name]["state"] = state
+            cfg = settings.led_panel_states[name]
+            color = cfg["color_on"] if state else cfg["color_off"]
+            label = cfg["label_on"] if state else cfg["label_off"]
+            text_color = (0, 0, 0) if state else (100, 100, 100)
+
+            dpg.configure_item(f"led_{name}",     color=color, fill=color)
+            dpg.configure_item(f"led_name_{name}",   color=text_color)
+            dpg.configure_item(f"led_status_{name}", text=label, color=text_color)
+    
 dpg.create_context()
 
 settings.createFonts()
@@ -97,15 +117,6 @@ dpg.bind_font(settings.default)
 # Events *********************************************** move to config file
 events = {
     "Arm Command": 0,
-    "Launch Command": 0,
-    "Burnout":0,
-    "Main1": 0,
-    "Main2": 0,
-    "Drogue1": 0,
-    "Drogue2": 0,
-    "MOV": 0,
-    "Vent": 0,
-    "Fill": 0,
 }
 
 with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0], height=settings.TAB_WINDOW_DIM[1], pos=settings.TAB_WINDOW_POS, 
@@ -177,44 +188,46 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                 dpg.add_line_series([], [], label="Tank Pressure", tag="pt1_list")
                 
                 
-        # Events window
+    # Events window
     with dpg.child_window(width=settings.EVENTS_WINDOW_SIZE[0], height=settings.EVENTS_WINDOW_SIZE[1], pos=settings.EVENTS_WINDOW_POS):
-        # Create table
-        table_id = dpg.add_table(header_row=False, resizable=True, borders_innerH=True, borders_outerH=False)
-        dpg.add_table_column(parent=table_id, init_width_or_weight=25)  # Event
-        dpg.add_table_column(parent=table_id, init_width_or_weight=90)  # Button
-        dpg.add_table_column(parent=table_id, init_width_or_weight=40)  # Time
+        dpg.bind_item_font(dpg.last_item(), settings.large)
 
-        for event, val in events.items():
-            if val == 0:
-                color = (255,0,0) # red
-            elif val == 1:
-                color = (0,255,0) # green
-            else:
-                color = (0,0,255) # blue 
+        with dpg.drawlist(width=settings.EVENTS_WINDOW_SIZE[0]-20, height=settings.EVENTS_WINDOW_SIZE[1]-60, tag="led_drawlist"):
+            for i, (name, cfg) in enumerate(settings.led_panel_states.items()):
+                col = i % settings.LED_COLS
+                row = i // settings.LED_COLS
+                x = settings.LED_SPACING_X + col * (settings.LED_W + settings.LED_SPACING_X)
+                y = settings.LED_SPACING_Y + row * (settings.LED_H + settings.LED_SPACING_Y)
 
-            i = 3
-            row_id = dpg.add_table_row(parent=table_id)
+                color = cfg["color_on"] if cfg["state"] else cfg["color_off"]
+                label = cfg["label_on"] if cfg["state"] else cfg["label_off"]
+                text_color = (0, 0, 0) if cfg["state"] else (100, 100, 100)
 
-            # Button theme
-            theme_tag = f"{event}"
-            with dpg.theme(tag=theme_tag):
-                with dpg.theme_component(dpg.mvButton):
-                    dpg.add_theme_color(dpg.mvThemeCol_Button, color)
-                    dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 9)
-                    dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 9,9)
+                # LED rectangle
+                dpg.draw_rectangle(
+                    [x, y], [x + settings.LED_W, y + settings.LED_H],
+                    rounding=6,
+                    color=color,
+                    fill=color,
+                    tag=f"led_{name}"
+                )
+                # name label (top-left inside)
+                dpg.draw_text(
+                    [x + 5, y + 3],
+                    name,
+                    color=text_color,
+                    size=32,
+                    tag=f"led_name_{name}"
+                )
+                # status text (bottom-right inside)
+                dpg.draw_text(
+                    [x + 5, y + settings.LED_H-50],
+                    label,
+                    color=text_color,
+                    size=33,
+                    tag=f"led_status_{name}"
+                )
 
-            # Add button
-            btn = dpg.add_button(label="    ", parent=row_id)
-            dpg.bind_item_theme(btn, theme_tag)
-
-            # Event text
-            txt_event = dpg.add_text(theme_tag, parent=row_id)
-            dpg.bind_item_font(txt_event, settings.large)
-
-            # Time text
-            txt_time = dpg.add_text(f"000.00s", parent=row_id)
-            dpg.bind_item_font(txt_time, settings.large)
 
 def on_key_released(sender, key):
     global lastCmdTime 
@@ -280,14 +293,8 @@ try:
         
         dpg.set_value("pt1_list", [list(timestamps), list(pt1_list)]) 
         dpg.set_axis_limits("y_axis_pressure", min(pt1_list), max(pt1_list))
-        
-        
-        if time.time() - lastTime > 5:
-            random_key = random.choice(list(events.keys()))
-            events[random_key] = not events[random_key]  # new value
-            lastTime = time.time()
-            #print(f"updated {random_key} at {lastTime}")
 
+        
         # Update x-axis limits to show a moving window
         if timestamps:
             latest = timestamps[-1]
@@ -296,7 +303,7 @@ try:
             dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
         
         updateStatusBar()    
-            
+        update_leds()
 
         # Render one frame
         dpg.render_dearpygui_frame()
