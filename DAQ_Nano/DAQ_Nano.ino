@@ -54,6 +54,48 @@ int dt_rx = dt_rx_slow; // Time between radio readings [ms]
 #define RF95_FREQ 433.9869
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 
+// Layer 1 - Teensy collects and sends to DAQ Nano
+struct __attribute__((packed)) TSY_Payload // Payload from teensy
+{
+  uint32_t timestamp = 0; 
+  uint8_t valve_states = 0;
+  uint8_t pyro_states = 0;
+  uint8_t arm_state = 0;
+  float pt1 = 0;
+  float pt2 = 0;
+  float pt3 = 0;
+  float pt4 = 0;
+  float pt5 = 0;
+  float pt6 = 0;
+  float load_cell = 0;
+  float batt_volts = 0;
+  float five_volts = 0;
+  float radio_volts = 0;
+  uint32_t tsy_looptime = 0;
+};
+TSY_Payload tsy_pkt;
+
+// Layer 2 - DAQ Nano adds its own fields, embeds TSY_Payload
+struct __attribute__((packed)) DAQ_Payload  {
+    uint32_t    daq_nano_timestamp;
+    int8_t      daq_nanoRSSI;
+    uint32_t    daq_looptime;
+    TSY_Payload tsy;
+};
+DAQ_Payload daq_pkt;
+
+// Layer 3 - Ctrl Nano adds its own fields, embeds DAQ_Payload
+struct __attribute__((packed)) CTRL_Payload {
+    uint32_t    ctrl_nano_timestamp;
+    int8_t      ctrl_nanoRSSI;
+    uint32_t    ctrl_looptime;
+    DAQ_Payload daq;         // daq data appended
+};
+CTRL_Payload ctrl_pkt;
+
+
+
+
 struct Switch_Payload // Payload from switchbox [9 bytes total payload size]
 {
   bool FILL = 0; // Switch 1 state on switchbox [1 byte]
@@ -70,6 +112,7 @@ struct Switch_Payload // Payload from switchbox [9 bytes total payload size]
 Switch_Payload switchstate; // Initialize switchbox payload struct
 bool testRelay = 0;
 float teensy_packet;
+unsigned long startLoopTime = 0;
 
 // Serial comms to teensy ===========================
 const int dt_serial2 = 1000/30; // transmission speed [ms]
@@ -219,7 +262,7 @@ void setup() { // SETUP ========================================================
 }
 
 void loop() { // LOOP =================================================================================================
-  
+  startLoopTime = micros();
 
   // Read sensor data
   if (millis()-last_time_data > dt_data) { // Check time between data readings
@@ -307,4 +350,6 @@ void loop() { // LOOP ==========================================================
   } else {
     noTone(buzzerPin);
   }
+
+  daq_pkt.daq_looptime = micros() - startLoopTime;
 }

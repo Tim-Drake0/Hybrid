@@ -206,12 +206,22 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
             dpg.bind_item_font(txt_tov,settings.xl)
             
     with dpg.child_window(width=settings.INFO_WINDOW_SIZE[0], height=settings.INFO_WINDOW_SIZE[1], pos=settings.INFO_WINDOW_POS, tag="right_window_bus_info", show=True):
-        
-        dpg.add_text(" ", tag="ctrl_timestamp")
+        # Ctrl info
+        with dpg.group(horizontal=True):
+            dpg.add_text(" ", tag="ctrl_timestamp")
+            dpg.add_text(" ", tag="ctrl_looptime")
         dpg.add_text(" ", tag="ctrl_RSSI")
-        dpg.add_text(" ", tag="daq_timestamp")
+        
+        # DAQ info
+        with dpg.group(horizontal=True):
+            dpg.add_text(" ", tag="daq_timestamp")
+            dpg.add_text(" ", tag="daq_looptime")
         dpg.add_text(" ", tag="daq_RSSI")
-        dpg.add_text(" ", tag="tsy_timestamp")
+        
+        # Teensy info
+        with dpg.group(horizontal=True):
+            dpg.add_text(" ", tag="tsy_timestamp")
+            dpg.add_text(" ", tag="tsy_looptime")
         dpg.add_text(" ", tag="valve_states")
         dpg.add_text(" ", tag="pyro_states")
         dpg.add_text(" ", tag="arm_state")
@@ -339,9 +349,12 @@ try:
         # set_value
         dpg.set_value("ctrl_timestamp",  f"Ctrl timestamp: {sr.streamTelem.ctrl_timestamp} ms")
         dpg.set_value("ctrl_RSSI",       f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
+        dpg.set_value("ctrl_looptime",   f"Ctrl looptime: {sr.streamTelem.ctrl_looptime} us")
         dpg.set_value("daq_timestamp",   f"DAQ timestamp: {sr.streamTelem.daq_timestamp} ms")
         dpg.set_value("daq_RSSI",        f"DAQ RSSI: {sr.streamTelem.daq_RSSI} dBm")
+        dpg.set_value("daq_looptime",    f"DAQ looptime: {sr.streamTelem.daq_looptime} us")
         dpg.set_value("tsy_timestamp",   f"Teensy timestamp: {sr.streamTelem.tsy_timestamp} ms")
+        dpg.set_value("tsy_looptime",    f"Teensy looptime: {sr.streamTelem.tsy_looptime} us")
         dpg.set_value("valve_states",    f"Valve states: {sr.streamTelem.valve_states:08b}")
         dpg.set_value("pyro_states",     f"Pyro states: {sr.streamTelem.pyro_states:08b}")
         dpg.set_value("arm_state",       f"Arm state: {sr.streamTelem.arm_state}")

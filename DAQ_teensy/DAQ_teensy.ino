@@ -71,6 +71,7 @@ String fileheader = "Time[ms],BATT[V],5V[V],RADIO[V],PT1[psi],PT2[psi],PT3[psi],
 // Serial comms to arduino nano
 const int dt_serial2 = 1000/60; // transmission speed [ms]
 long int last_time_serial2 = 0;
+unsigned long startLoopTime = 0;
 
 struct __attribute__((packed)) TSY_Payload // Payload to arduino nano
 {
@@ -88,6 +89,7 @@ struct __attribute__((packed)) TSY_Payload // Payload to arduino nano
   float batt_volts = 0;
   float five_volts = 0;
   float radio_volts = 0;
+  uint32_t tsy_looptime = 0;
 };
 TSY_Payload tsy_pkt;
 
@@ -356,6 +358,7 @@ void setup() {
 }
 
 void loop() {
+  startLoopTime = micros();
   tsy_pkt.timestamp = millis();
   
   if (millis()-last_time_lc > dt_lc) { // Check time between LC readings
@@ -475,5 +478,5 @@ void loop() {
   }
 
 
-
+  tsy_pkt.tsy_looptime = micros() - startLoopTime;
 }

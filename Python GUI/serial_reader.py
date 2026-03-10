@@ -96,9 +96,12 @@ class StreamTelem:
     packet:            bytes = field(default_factory=bytes)
     ctrl_timestamp:    int   = 0
     ctrl_RSSI:         int   = 0
+    ctrl_looptime:     int   = 0
     daq_timestamp:     int   = 0
     daq_RSSI:          int   = 0
+    daq_looptime:      int   = 0
     tsy_timestamp:     int   = 0
+    tsy_looptime:      int   = 0
     valve_states:      int   = 0
     pyro_states:       int   = 0
     arm_states:        int   = 0
@@ -127,8 +130,10 @@ class StreamTelem:
         import struct
         (self.ctrl_timestamp, 
         self.ctrl_RSSI, 
+        self.ctrl_looptime, 
         self.daq_timestamp, 
         self.daq_RSSI, 
+        self.daq_looptime, 
         self.tsy_timestamp,
         self.valve_states,
         self.pyro_states,
@@ -142,10 +147,11 @@ class StreamTelem:
         self.loadCell, 
         self.battVolts,
         self.fiveVolts,
-        self.radioVolts) = struct.unpack_from("<"
-                                        "Ib"               # ctrl: timestamp (uint32), RSSI (int8)
-                                        "Ib"               # daq: timestamp (uint32), RSSI (int8)
-                                        "IBBBffffffffff",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio
+        self.radioVolts,
+        self.tsy_looptime) = struct.unpack_from("<"
+                                        "IbI"               # ctrl: timestamp (uint32), RSSI (int8), looptime (uint32)
+                                        "IbI"               # daq: timestamp (uint32), RSSI (int8), looptime (uint32)
+                                        "IBBBffffffffffI",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio, looptime
                                         bytes(self.packet))
         
         self.fill_state    = (self.valve_states >> 0) & 1
