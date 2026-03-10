@@ -19,6 +19,15 @@ static uint8_t   telem_buf[RX_BUF_SIZE];
 static uint8_t   telem_len   = 0;
 volatile uint8_t telem_ready = 0;
 
+// State machine info
+typedef enum { WAIT_START0, WAIT_START1, READ_ID, READ_LEN, READ_PAYLOAD, READ_CRC, READ_END0, READ_END1 } ParseState;
+
+static ParseState   parse_state  = WAIT_START0;
+static uint8_t      parse_buf[258];
+static uint16_t     parse_idx    = 0;
+static uint8_t      parse_len    = 0;
+static uint8_t      parse_id     = 0;
+
 
 struct NANO_Payload // Payload to teensy
 {
@@ -64,7 +73,6 @@ void send_response(uint8_t start0, uint8_t start1, uint8_t resp_id, const void *
     rf95.send(buf, i);
     rf95.waitPacketSent();
     digitalWrite(RADIO_LED, LOW);
-    last_time_rx = millis(); // save new time of most recent transmission
 
     *len_ptr   = i;
     *ready_ptr = 1;
@@ -108,12 +116,62 @@ int readSync(HardwareSerial &ser) {
 }
 
 bool readPacket() {
+    uint8_t calc;  // ← declare here to avoid scope issues in switch
+    while (Serial.available()) {
+        uint8_t b = Serial.read();
+        switch (parse_state) {
+            case WAIT_START0:
+                if (b == TELEM_FRAME_START_0) parse_state = WAIT_START1;
+                break;
+            case WAIT_START1:
+                parse_state = (b == TELEM_FRAME_START_1) ? READ_ID : WAIT_START0;
+                break;
+            case READ_ID:
+                parse_id = b;
+                parse_buf[0] = b;
+                parse_state = READ_LEN;
+                break;
+            case READ_LEN:
+                parse_len = b;
+                parse_buf[1] = b;
+                parse_idx = 2;
+                parse_state = (parse_len > 0) ? READ_PAYLOAD : READ_CRC;
+                break;
+            case READ_PAYLOAD:
+                parse_buf[parse_idx++] = b;
+                if (parse_idx >= 2 + parse_len) parse_state = READ_CRC;
+                break;
+            case READ_CRC:
+                calc = crc8(parse_buf, 2 + parse_len);
+                if (calc == b) {
+                    parse_state = READ_END0;   // wait for 0xEF first
+                } else {
+                    parse_state = WAIT_START0;
+                }
+                break;
+            case READ_END0:
+                parse_state = (b == FRAME_END_0) ? READ_END1 : WAIT_START0;
+                break;
+            case READ_END1:
+                parse_state = WAIT_START0;
+                if (b == FRAME_END_1 && parse_len == sizeof(TSY_Payload)) {
+                    memcpy(&tsy_pkt, &parse_buf[2], sizeof(TSY_Payload));
+                    return true;
+                }
+                break;
+        }
+    }
+    return false;
+}
+
+
+/*
     if (readSync(Serial) != 1) return false;
 
     unsigned long t;
 
     t = millis();
-    while (Serial.available() < 2) { if (millis()-t > 500) return false; }
+    while (Serial.available() < 2) { if (millis()-t > 100) return false; }
     byte resp_id = Serial.read();
     byte length  = Serial.read();
 
@@ -125,13 +183,13 @@ bool readPacket() {
 
     if (length > 0) {
         t = millis();
-        while (Serial.available() < length) { if (millis()-t > 500) return false; }
+        while (Serial.available() < length) { if (millis()-t > 100) return false; }
         Serial.readBytes(&payload[payload_len], length);
         payload_len += length;
     }
 
     t = millis();
-    while (Serial.available() < 2) { if (millis()-t > 500) return false; }
+    while (Serial.available() < 2) { if (millis()-t > 100) return false; }
     byte crc_b = Serial.read();
     byte end_b = Serial.read();
 
@@ -146,4 +204,4 @@ bool readPacket() {
         return true;
     }
     return false;
-}
+    */

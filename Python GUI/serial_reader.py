@@ -97,6 +97,8 @@ class StreamTelem:
     ctrl_timestamp:    int   = 0
     ctrl_RSSI:         int   = 0
     ctrl_looptime:     int   = 0
+    ctrl_sendtime:     int   = 0
+    ctrl_waittime:     int   = 0
     daq_timestamp:     int   = 0
     daq_RSSI:          int   = 0
     daq_looptime:      int   = 0
@@ -131,6 +133,8 @@ class StreamTelem:
         (self.ctrl_timestamp, 
         self.ctrl_RSSI, 
         self.ctrl_looptime, 
+        self.ctrl_sendtime,
+        self.ctrl_waittime,
         self.daq_timestamp, 
         self.daq_RSSI, 
         self.daq_looptime, 
@@ -149,7 +153,7 @@ class StreamTelem:
         self.fiveVolts,
         self.radioVolts,
         self.tsy_looptime) = struct.unpack_from("<"
-                                        "IbI"               # ctrl: timestamp (uint32), RSSI (int8), looptime (uint32)
+                                        "IbIII"               # ctrl: timestamp (uint32), RSSI (int8), looptime (uint32)
                                         "IbI"               # daq: timestamp (uint32), RSSI (int8), looptime (uint32)
                                         "IBBBffffffffffI",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio, looptime
                                         bytes(self.packet))

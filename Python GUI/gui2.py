@@ -15,7 +15,7 @@ ROTATE_ENABLED = True
 valid_connection = False
 last_timestamp = 0
 disconnect_counter = 0
-disconnect_timeout = 100 # loops 
+disconnect_timeout = 1000 # loops 
 abort_counter = 0
 abort_counter_started = 0
 
@@ -168,6 +168,35 @@ def show_modal(message: str):
     dpg.set_value("abort_tov", f"ABORT IN {int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
     dpg.configure_item("state_modal", show=True)
     
+def updateDebugWindow():
+    dpg.set_value("ctrl_timestamp",  f"Ctrl timestamp: {sr.streamTelem.ctrl_timestamp} ms")
+    dpg.set_value("ctrl_RSSI",       f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
+    dpg.set_value("ctrl_looptime",   f"Ctrl looptime: {sr.streamTelem.ctrl_looptime} us")
+    dpg.set_value("ctrl_sendtime",   f"Ctrl sendtime: {sr.streamTelem.ctrl_sendtime} us")
+    dpg.set_value("ctrl_waittime",   f"Ctrl waittime: {sr.streamTelem.ctrl_waittime} us")
+    dpg.set_value("daq_timestamp",   f"DAQ timestamp: {sr.streamTelem.daq_timestamp} ms")
+    dpg.set_value("daq_RSSI",        f"DAQ RSSI: {sr.streamTelem.daq_RSSI} dBm")
+    dpg.set_value("daq_looptime",    f"DAQ looptime: {sr.streamTelem.daq_looptime} us")
+    dpg.set_value("tsy_timestamp",   f"Teensy timestamp: {sr.streamTelem.tsy_timestamp} ms")
+    dpg.set_value("tsy_looptime",    f"Teensy looptime: {sr.streamTelem.tsy_looptime} us")
+    dpg.set_value("valve_states",    f"Valve states: {sr.streamTelem.valve_states:08b}")
+    dpg.set_value("pyro_states",     f"Pyro states: {sr.streamTelem.pyro_states:08b}")
+    dpg.set_value("arm_state",       f"Arm state: {sr.streamTelem.arm_state}")
+    dpg.set_value("pt1",             f"PT1: {round(sr.streamTelem.pt1, 2)} PSI")
+    dpg.set_value("pt2",             f"PT2: {round(sr.streamTelem.pt2, 2)} PSI")
+    dpg.set_value("pt3",             f"PT3: {round(sr.streamTelem.pt3, 2)} PSI")
+    dpg.set_value("pt4",             f"PT4: {round(sr.streamTelem.pt4, 2)} PSI")
+    dpg.set_value("pt5",             f"PT5: {round(sr.streamTelem.pt5, 2)} PSI")
+    dpg.set_value("pt6",             f"PT6: {round(sr.streamTelem.pt6, 2)} PSI")
+    dpg.set_value("loadCell",        f"Load cell: {round(sr.streamTelem.loadCell, 3)} lbf")
+    dpg.set_value("battVolts",       f"Battery voltage: {round(sr.streamTelem.battVolts, 3)} V")
+    dpg.set_value("fiveVolts",       f"5V bus voltage: {round(sr.streamTelem.fiveVolts, 3)} V")
+    dpg.set_value("radioVolts",      f"Radio voltage: {round(sr.streamTelem.radioVolts, 3)} V")
+    dpg.set_value("batt_perc", f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
+    
+def updateLiveInfoWindow():
+    pass
+    
 dpg.create_context()
 settings.createFonts()
 dpg.bind_font(settings.default)
@@ -206,40 +235,49 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
             dpg.bind_item_font(txt_tov,settings.xl)
             
     with dpg.child_window(width=settings.INFO_WINDOW_SIZE[0], height=settings.INFO_WINDOW_SIZE[1], pos=settings.INFO_WINDOW_POS, tag="right_window_bus_info", show=True):
-        # Ctrl info
-        with dpg.group(horizontal=True):
-            dpg.add_text(" ", tag="ctrl_timestamp")
-            dpg.add_text(" ", tag="ctrl_looptime")
-        dpg.add_text(" ", tag="ctrl_RSSI")
-        
-        # DAQ info
-        with dpg.group(horizontal=True):
-            dpg.add_text(" ", tag="daq_timestamp")
-            dpg.add_text(" ", tag="daq_looptime")
-        dpg.add_text(" ", tag="daq_RSSI")
-        
-        # Teensy info
-        with dpg.group(horizontal=True):
-            dpg.add_text(" ", tag="tsy_timestamp")
-            dpg.add_text(" ", tag="tsy_looptime")
-        dpg.add_text(" ", tag="valve_states")
-        dpg.add_text(" ", tag="pyro_states")
-        dpg.add_text(" ", tag="arm_state")
-        with dpg.group(horizontal=True):
-            dpg.add_text(" ", tag="pt1")
-            dpg.add_text(" ", tag="pt2")
-            dpg.add_text(" ", tag="pt3")
-        with dpg.group(horizontal=True):
-            dpg.add_text(" ", tag="pt4")
-            dpg.add_text(" ", tag="pt5")
-            dpg.add_text(" ", tag="pt6")
-        dpg.add_text(" ", tag="loadCell")
-        with dpg.group(horizontal=True):
-            dpg.add_text(" ", tag="battVolts")
-            dpg.add_text(" ", tag="batt_perc")
-        with dpg.group(horizontal=True):
-            dpg.add_text(" ", tag="fiveVolts")
-            dpg.add_text(" ", tag="radioVolts")
+        with dpg.group(width=150):
+            with dpg.tab_bar(label="Main Tabs"):
+                with dpg.tab(label="Live Info"):
+                    dpg.add_text(" ewfefwefwef")
+                    
+                with dpg.tab(label="Debug"):
+                    # Ctrl info
+                    with dpg.group(horizontal=True):
+                        dpg.add_text(" ", tag="ctrl_timestamp")
+                        dpg.add_text(" ", tag="ctrl_looptime")
+                    with dpg.group(horizontal=True):
+                        dpg.add_text(" ", tag="ctrl_sendtime")
+                        dpg.add_text(" ", tag="ctrl_waittime")
+                    dpg.add_text(" ", tag="ctrl_RSSI")
+
+                    # DAQ info
+                    with dpg.group(horizontal=True):
+                        dpg.add_text(" ", tag="daq_timestamp")
+                        dpg.add_text(" ", tag="daq_looptime")
+                    dpg.add_text(" ", tag="daq_RSSI")
+
+                    # Teensy info
+                    with dpg.group(horizontal=True):
+                        dpg.add_text(" ", tag="tsy_timestamp")
+                        dpg.add_text(" ", tag="tsy_looptime")
+                    dpg.add_text(" ", tag="valve_states")
+                    dpg.add_text(" ", tag="pyro_states")
+                    dpg.add_text(" ", tag="arm_state")
+                    with dpg.group(horizontal=True):
+                        dpg.add_text(" ", tag="pt1")
+                        dpg.add_text(" ", tag="pt2")
+                        dpg.add_text(" ", tag="pt3")
+                    with dpg.group(horizontal=True):
+                        dpg.add_text(" ", tag="pt4")
+                        dpg.add_text(" ", tag="pt5")
+                        dpg.add_text(" ", tag="pt6")
+                    dpg.add_text(" ", tag="loadCell")
+                    with dpg.group(horizontal=True):
+                        dpg.add_text(" ", tag="battVolts")
+                        dpg.add_text(" ", tag="batt_perc")
+                    with dpg.group(horizontal=True):
+                        dpg.add_text(" ", tag="fiveVolts")
+                        dpg.add_text(" ", tag="radioVolts")
         
         
         
@@ -345,30 +383,6 @@ try:
         pt1_list.append(sr.streamTelem.pt1)
         
         
-        
-        # set_value
-        dpg.set_value("ctrl_timestamp",  f"Ctrl timestamp: {sr.streamTelem.ctrl_timestamp} ms")
-        dpg.set_value("ctrl_RSSI",       f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
-        dpg.set_value("ctrl_looptime",   f"Ctrl looptime: {sr.streamTelem.ctrl_looptime} us")
-        dpg.set_value("daq_timestamp",   f"DAQ timestamp: {sr.streamTelem.daq_timestamp} ms")
-        dpg.set_value("daq_RSSI",        f"DAQ RSSI: {sr.streamTelem.daq_RSSI} dBm")
-        dpg.set_value("daq_looptime",    f"DAQ looptime: {sr.streamTelem.daq_looptime} us")
-        dpg.set_value("tsy_timestamp",   f"Teensy timestamp: {sr.streamTelem.tsy_timestamp} ms")
-        dpg.set_value("tsy_looptime",    f"Teensy looptime: {sr.streamTelem.tsy_looptime} us")
-        dpg.set_value("valve_states",    f"Valve states: {sr.streamTelem.valve_states:08b}")
-        dpg.set_value("pyro_states",     f"Pyro states: {sr.streamTelem.pyro_states:08b}")
-        dpg.set_value("arm_state",       f"Arm state: {sr.streamTelem.arm_state}")
-        dpg.set_value("pt1",             f"PT1: {round(sr.streamTelem.pt1, 2)} PSI")
-        dpg.set_value("pt2",             f"PT2: {round(sr.streamTelem.pt2, 2)} PSI")
-        dpg.set_value("pt3",             f"PT3: {round(sr.streamTelem.pt3, 2)} PSI")
-        dpg.set_value("pt4",             f"PT4: {round(sr.streamTelem.pt4, 2)} PSI")
-        dpg.set_value("pt5",             f"PT5: {round(sr.streamTelem.pt5, 2)} PSI")
-        dpg.set_value("pt6",             f"PT6: {round(sr.streamTelem.pt6, 2)} PSI")
-        dpg.set_value("loadCell",        f"Load cell: {round(sr.streamTelem.loadCell, 3)} lbf")
-        dpg.set_value("battVolts",       f"Battery voltage: {round(sr.streamTelem.battVolts, 3)} V")
-        dpg.set_value("fiveVolts",       f"5V bus voltage: {round(sr.streamTelem.fiveVolts, 3)} V")
-        dpg.set_value("radioVolts",      f"Radio voltage: {round(sr.streamTelem.radioVolts, 3)} V")
-        dpg.set_value("batt_perc", f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
             
         
         dpg.set_value("pt1_list", [list(timestamps), list(pt1_list)]) 
@@ -381,7 +395,9 @@ try:
             start = max(latest - WINDOW_SIZE, timestamps[0])  # don't go before first timestamp
 
             dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
-        
+            
+        updateLiveInfoWindow()
+        updateDebugWindow()
         updateStatusBar()    
         update_leds()
 

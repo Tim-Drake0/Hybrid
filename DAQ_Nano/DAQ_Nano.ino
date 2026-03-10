@@ -257,6 +257,8 @@ void setup() { // SETUP ========================================================
   // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then 
   // you can set transmitter powers from 5 to 23 dBm:
   rf95.setTxPower(5, false);
+  rf95.setSpreadingFactor(7);
+  rf95.setSignalBandwidth(250000);  // 250kHz 
 
   delay(1000); // delay for begin
 }
@@ -317,27 +319,25 @@ void loop() { // LOOP ==========================================================
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buf);
 
-    if (millis()-last_time_rx > dt_rx) { 
-      if (rf95.recv(buf, &len)) {
-        switchstate.FILL = buf[0];
-        switchstate.VENT = buf[1];
-        switchstate.MOV = buf[2];
-        switchstate.SW4 = buf[3];
-        switchstate.PYRO1 = buf[4];
-        switchstate.PYRO2 = buf[5];
-        switchstate.ARM = buf[6];
-        switchstate.BU3 = buf[7];
-        switchstate.BU4 = buf[8];
+    if (rf95.recv(buf, &len)) {
+      switchstate.FILL = buf[0];
+      switchstate.VENT = buf[1];
+      switchstate.MOV = buf[2];
+      switchstate.SW4 = buf[3];
+      switchstate.PYRO1 = buf[4];
+      switchstate.PYRO2 = buf[5];
+      switchstate.ARM = buf[6];
+      switchstate.BU3 = buf[7];
+      switchstate.BU4 = buf[8];
 
-        handle_telemetry();
-      } else {
-        //Serial.println("Receive failed");
-        digitalWrite(RADIO_LED, HIGH);
-      }
-      // DECODE SWITCH STATE ====================================================================================================
-      decodestate(switchstate); // Call function to decode switchstate and issue control commands
-      
+      handle_telemetry();
+    } else {
+      //Serial.println("Receive failed");
+      digitalWrite(RADIO_LED, HIGH);
     }
+    // DECODE SWITCH STATE ====================================================================================================
+    decodestate(switchstate); // Call function to decode switchstate and issue control commands
+      
     
   }
   

@@ -63,6 +63,8 @@ struct __attribute__((packed)) CTRL_Payload {
     uint32_t    ctrl_nano_timestamp;
     int8_t      ctrl_nanoRSSI;
     uint32_t    ctrl_looptime;
+    uint32_t    ctrl_sendtime;
+    uint32_t    ctrl_waittime;
     DAQ_Payload daq;         // daq data appended
 };
 CTRL_Payload ctrl_pkt;
@@ -175,6 +177,8 @@ void setup() {
   // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then 
   // you can set transmitter powers from 5 to 23 dBm:
   rf95.setTxPower(RFM95_PWR, false);
+  rf95.setSpreadingFactor(7);
+  rf95.setSignalBandwidth(250000);  // 250kHz 
 
   //lcd.clear();
   //lcd.setCursor(0,0);
@@ -197,19 +201,21 @@ void loop() {
 
   if (millis()-last_time_tx > dt_tx) { 
     readswitches(); // record state of switches
-    rf95.send(switchstate, sizeof(switchstate));
 
+    unsigned long t1 = micros();
+    rf95.send(switchstate, sizeof(switchstate));
     CON_ERR = 0;// connection error bool to false
     rf95.waitPacketSent();
-    // Now wait for a reply
+    unsigned long t2 = micros();
 
-    
-    
-    
-    
+    handle_telemetry();
+    unsigned long t3 = micros();
+
+    last_time_tx = millis();
+
+    ctrl_pkt.ctrl_sendtime = t2-t1;
+    ctrl_pkt.ctrl_waittime = t3 - t2;
   }
-
-  handle_telemetry();
 
   ctrl_pkt.ctrl_looptime = micros() - startLoopTime;
 }
