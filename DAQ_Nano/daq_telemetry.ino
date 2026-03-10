@@ -154,15 +154,17 @@ bool readPacket() {
     byte resp_id = Serial.read();
     byte length  = Serial.read();
 
-    byte payload[256];
+    uint8_t payload[258];  // 1 (resp_id) + 1 (length) + 256 (max payload)
+    uint16_t payload_len = 0;
+
+    payload[payload_len++] = resp_id;
+    payload[payload_len++] = length;
+
     if (length > 0) {
         t = millis();
         while (Serial.available() < length) { if (millis()-t > 500) return false; }
-        Serial.readBytes(payload, length);
-    }
-
-    if (length == sizeof(TSY_Payload)) {
-    memcpy(&tsy_pkt, payload, sizeof(TSY_Payload));
+        Serial.readBytes(&payload[payload_len], length);
+        payload_len += length;
     }
 
     t = millis();
@@ -170,5 +172,15 @@ bool readPacket() {
     byte crc_b = Serial.read();
     byte end_b = Serial.read();
 
-    return true;
+    uint8_t calculated = crc8(payload, payload_len);
+
+    if(calculated == crc_b){
+        if (length == sizeof(TSY_Payload)) {
+        memcpy(&tsy_pkt, &payload[2], sizeof(TSY_Payload));
+        }
+
+
+        return true;
+    }
+    return false;
 }
