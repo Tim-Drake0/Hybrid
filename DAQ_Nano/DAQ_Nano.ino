@@ -128,7 +128,6 @@ void ABORT_DAQ(void) { // ABORT ================================================
   // Reset control to safe state
   digitalWrite(fill_out, LOW);
   digitalWrite(vent_out, HIGH);
-  //digitalWrite(vent_out, LOW);
   digitalWrite(pyro_1_fire,HIGH);
   digitalWrite(pyro_2_fire,HIGH);
   

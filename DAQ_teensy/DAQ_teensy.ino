@@ -91,16 +91,6 @@ struct __attribute__((packed)) TSY_Payload // Payload to arduino nano
 };
 TSY_Payload tsy_pkt;
 
-struct NANO_Payload // Payload from arduino nano
-{
-  uint32_t timestamp = 0; 
-  uint8_t valve_cmds = 0;
-  uint8_t pyro_cmds = 0;
-  uint8_t arm_cmd = 0;
-  int RSSI = 0;
-};
-NANO_Payload nano_pkt;
-
 // Load Cell
 HX711 lc1; // Initialize HX711 object for load cell
 float calibration_factor = -2053.61580134;// Tension load cell
