@@ -79,6 +79,7 @@ struct __attribute__((packed)) TSY_Payload // Payload to arduino nano
   uint8_t valve_states = 0;
   uint8_t pyro_states = 0;
   uint8_t arm_state = 0;
+  uint8_t sensor_states = 0;
   float pt1 = 0;
   float pt2 = 0;
   float pt3 = 0;
@@ -339,8 +340,8 @@ void setup() {
   // SD card set up
   if (!SD.begin(BUILTIN_SDCARD)) { // If SD start unsuccessful
     Serial.println("SD Card initalize.. Failed");
-    while (1) {} // Hang
   } else { // If SD start successful
+    bitWrite(tsy_pkt.sensor_states, 0, 1);
     int i = 0;
     filename = "data"+String(i)+".csv"; // Generate a unique filename
     while (SD.exists(filename.c_str())) { // Check if the filename already exists
@@ -408,10 +409,8 @@ void loop() {
       if(digitalRead(pyro_1_fire_in)){
         bitWrite(tsy_pkt.pyro_states, PY1, 1);
         digitalWrite(pyro_1_fire, LOW);
-        digitalWrite(pyro_2_fire, LOW);
       } else if (digitalRead(pyro_2_fire_in)){
         bitWrite(tsy_pkt.pyro_states, PY2, 1);
-        digitalWrite(pyro_1_fire, LOW);
         digitalWrite(pyro_2_fire, LOW);
       } else {
         bitWrite(tsy_pkt.pyro_states, PY1, 0);

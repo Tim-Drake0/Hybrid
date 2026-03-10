@@ -107,6 +107,7 @@ class StreamTelem:
     valve_states:      int   = 0
     pyro_states:       int   = 0
     arm_states:        int   = 0
+    sensor_states:     int   = 0
     pt1:               float = 0.0
     pt2:               float = 0.0
     pt3:               float = 0.0
@@ -127,6 +128,8 @@ class StreamTelem:
     c1_state:          int   = 0
     c2_state:          int   = 0
     
+    sd_state:          int   = 2
+    
     
     def readBuffer(self):
         import struct
@@ -142,6 +145,7 @@ class StreamTelem:
         self.valve_states,
         self.pyro_states,
         self.arm_states,
+        self.sensor_states,
         self.pt1,
         self.pt2,
         self.pt3,
@@ -155,17 +159,21 @@ class StreamTelem:
         self.tsy_looptime) = struct.unpack_from("<"
                                         "IbIII"               # ctrl: timestamp (uint32), RSSI (int8), looptime (uint32)
                                         "IbI"               # daq: timestamp (uint32), RSSI (int8), looptime (uint32)
-                                        "IBBBffffffffffI",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio, looptime
+                                        "IBBBBffffffffffI",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio, looptime
                                         bytes(self.packet))
         
-        self.fill_state    = (self.valve_states >> 0) & 1
-        self.vent_state    = (self.valve_states >> 1) & 1
-        self.mov_state     = (self.valve_states >> 2) & 1
+        self.fill_state     = (self.valve_states >> 0) & 1
+        self.vent_state     = (self.valve_states >> 1) & 1
+        self.mov_state      = (self.valve_states >> 2) & 1
+
         self.py1_state      = (self.pyro_states >> 0) & 1
         self.py2_state      = (self.pyro_states >> 1) & 1
+
         self.arm_state      = (self.arm_states >> 0) & 1
         self.c1_state       = (self.arm_states >> 1) & 1 
         self.c2_state       = (self.arm_states >> 2) & 1 
+        
+        self.sd_state       = (self.sensor_states >> 0) & 1
 
 
     

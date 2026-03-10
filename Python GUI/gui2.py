@@ -156,9 +156,7 @@ def update_leds():
             dpg.configure_item(f"led_{name}",     color=color, fill=color)
             dpg.configure_item(f"led_name_{name}",   color=text_color)
             dpg.configure_item(f"led_status_{name}", text=label, color=text_color)
-            
-            
-    
+      
 def show_modal(message: str):
     secs = int(time.time()-abort_counter)
     stampSecs = 60 - secs
@@ -169,33 +167,44 @@ def show_modal(message: str):
     dpg.configure_item("state_modal", show=True)
     
 def updateDebugWindow():
-    dpg.set_value("ctrl_timestamp",  f"Ctrl timestamp: {sr.streamTelem.ctrl_timestamp} ms")
-    dpg.set_value("ctrl_RSSI",       f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
-    dpg.set_value("ctrl_looptime",   f"Ctrl looptime: {sr.streamTelem.ctrl_looptime} us")
-    dpg.set_value("ctrl_sendtime",   f"Ctrl sendtime: {sr.streamTelem.ctrl_sendtime} us")
-    dpg.set_value("ctrl_waittime",   f"Ctrl waittime: {sr.streamTelem.ctrl_waittime} us")
-    dpg.set_value("daq_timestamp",   f"DAQ timestamp: {sr.streamTelem.daq_timestamp} ms")
-    dpg.set_value("daq_RSSI",        f"DAQ RSSI: {sr.streamTelem.daq_RSSI} dBm")
-    dpg.set_value("daq_looptime",    f"DAQ looptime: {sr.streamTelem.daq_looptime} us")
-    dpg.set_value("tsy_timestamp",   f"Teensy timestamp: {sr.streamTelem.tsy_timestamp} ms")
-    dpg.set_value("tsy_looptime",    f"Teensy looptime: {sr.streamTelem.tsy_looptime} us")
-    dpg.set_value("valve_states",    f"Valve states: {sr.streamTelem.valve_states:08b}")
-    dpg.set_value("pyro_states",     f"Pyro states: {sr.streamTelem.pyro_states:08b}")
-    dpg.set_value("arm_state",       f"Arm state: {sr.streamTelem.arm_state}")
-    dpg.set_value("pt1",             f"PT1: {round(sr.streamTelem.pt1, 2)} PSI")
-    dpg.set_value("pt2",             f"PT2: {round(sr.streamTelem.pt2, 2)} PSI")
-    dpg.set_value("pt3",             f"PT3: {round(sr.streamTelem.pt3, 2)} PSI")
-    dpg.set_value("pt4",             f"PT4: {round(sr.streamTelem.pt4, 2)} PSI")
-    dpg.set_value("pt5",             f"PT5: {round(sr.streamTelem.pt5, 2)} PSI")
-    dpg.set_value("pt6",             f"PT6: {round(sr.streamTelem.pt6, 2)} PSI")
-    dpg.set_value("loadCell",        f"Load cell: {round(sr.streamTelem.loadCell, 3)} lbf")
-    dpg.set_value("battVolts",       f"Battery voltage: {round(sr.streamTelem.battVolts, 3)} V")
-    dpg.set_value("fiveVolts",       f"5V bus voltage: {round(sr.streamTelem.fiveVolts, 3)} V")
-    dpg.set_value("radioVolts",      f"Radio voltage: {round(sr.streamTelem.radioVolts, 3)} V")
-    dpg.set_value("batt_perc", f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
+    dpg.set_value("ctrl_timestamp",         f"Ctrl timestamp: {sr.streamTelem.ctrl_timestamp} ms")
+    dpg.set_value("ctrl_RSSI",              f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
+    dpg.set_value("ctrl_looptime",          f"Ctrl looptime: {sr.streamTelem.ctrl_looptime} us")
+    dpg.set_value("ctrl_sendtime",          f"Ctrl sendtime: {sr.streamTelem.ctrl_sendtime} us")
+    dpg.set_value("ctrl_waittime",          f"Ctrl waittime: {sr.streamTelem.ctrl_waittime} us")
+    dpg.set_value("daq_timestamp",          f"DAQ timestamp: {sr.streamTelem.daq_timestamp} ms")
+    dpg.set_value("daq_RSSI",               f"DAQ RSSI: {sr.streamTelem.daq_RSSI} dBm")
+    dpg.set_value("daq_looptime",           f"DAQ looptime: {sr.streamTelem.daq_looptime} us")
+    dpg.set_value("tsy_timestamp",          f"Teensy timestamp: {sr.streamTelem.tsy_timestamp} ms")
+    dpg.set_value("tsy_looptime",           f"Teensy looptime: {sr.streamTelem.tsy_looptime} us")
+    dpg.set_value("valve_states",           f"Valve states: {sr.streamTelem.valve_states:08b}")
+    dpg.set_value("pyro_states",            f"Pyro states: {sr.streamTelem.pyro_states:08b}")
+    dpg.set_value("arm_state",              f"Arm state: {sr.streamTelem.arm_state}")
+    dpg.set_value("dbg_sensor_state",       f"Sensor state: {sr.streamTelem.sensor_states:08b}")
+    dpg.set_value("pt1",                    f"PT1: {round(sr.streamTelem.pt1, 2)} PSI")
+    dpg.set_value("pt2",                    f"PT2: {round(sr.streamTelem.pt2, 2)} PSI")
+    dpg.set_value("pt3",                    f"PT3: {round(sr.streamTelem.pt3, 2)} PSI")
+    dpg.set_value("pt4",                    f"PT4: {round(sr.streamTelem.pt4, 2)} PSI")
+    dpg.set_value("pt5",                    f"PT5: {round(sr.streamTelem.pt5, 2)} PSI")
+    dpg.set_value("pt6",                    f"PT6: {round(sr.streamTelem.pt6, 2)} PSI")
+    dpg.set_value("loadCell",               f"Load cell: {round(sr.streamTelem.loadCell, 3)} lbf")
+    dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.battVolts, 3)} V")
+    dpg.set_value("fiveVolts",              f"5V bus voltage: {round(sr.streamTelem.fiveVolts, 3)} V")
+    dpg.set_value("radioVolts",             f"Radio voltage: {round(sr.streamTelem.radioVolts, 3)} V")
+    dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
     
 def updateLiveInfoWindow():
-    pass
+    dpg.set_value("live_tank_pressure", f"{sr.streamTelem.pt1:.1f} psi")
+    dpg.set_value("live_bottle_pressure", f"{sr.streamTelem.pt4:.1f} psi")
+    minutes = 1
+    seconds = 0
+    dpg.set_value("live_fill_time", f"{minutes:02}:{seconds:02}")
+    dpg.set_value("live_batt_perc", f"{lipo_2s_percent(sr.streamTelem.battVolts):.1f} %")
+    
+    if sr.streamTelem.sd_state == 0:
+        dpg.set_value("sd_state", "SD CARD ERROR")
+    if sr.streamTelem.sd_state == 1:
+        dpg.set_value("sd_state", "")
     
 dpg.create_context()
 settings.createFonts()
@@ -238,7 +247,38 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
         with dpg.group(width=150):
             with dpg.tab_bar(label="Main Tabs"):
                 with dpg.tab(label="Live Info"):
-                    dpg.add_text(" ewfefwefwef")
+                    # Pressures
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Tank Pressure:", color=[180, 180, 180])
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                        dpg.add_text("--- psi", tag="live_tank_pressure")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Bottle Pressure:", color=[180, 180, 180])
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                        dpg.add_text("--- psi", tag="live_bottle_pressure")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                        
+                    dpg.add_separator()
+                    
+                    # Fill time
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Fill Time:", color=[180, 180, 180])
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                        dpg.add_text("--:--", tag="live_fill_time")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                    
+                    dpg.add_separator()
+                    
+                    # Battery
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Battery:", color=[180, 180, 180])
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                        dpg.add_text("-- %", tag="live_batt_perc")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                        
+                    dpg.add_text(" ", color=[255, 0, 0], tag="sd_state")  
+                    dpg.bind_item_font(dpg.last_item(), settings.xl)  
                     
                 with dpg.tab(label="Debug"):
                     # Ctrl info
@@ -263,6 +303,7 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                     dpg.add_text(" ", tag="valve_states")
                     dpg.add_text(" ", tag="pyro_states")
                     dpg.add_text(" ", tag="arm_state")
+                    dpg.add_text(" ", tag="dbg_sensor_state")
                     with dpg.group(horizontal=True):
                         dpg.add_text(" ", tag="pt1")
                         dpg.add_text(" ", tag="pt2")
@@ -278,10 +319,6 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                     with dpg.group(horizontal=True):
                         dpg.add_text(" ", tag="fiveVolts")
                         dpg.add_text(" ", tag="radioVolts")
-        
-        
-        
-        
         
         
     with dpg.child_window(width=settings.PLOT_WINDOW_SIZE[0], height=settings.PLOT_WINDOW_SIZE[1], pos=settings.PLOT_WINDOW_POS, tag="plot_window", show=True):

@@ -61,6 +61,7 @@ struct __attribute__((packed)) TSY_Payload // Payload from teensy
   uint8_t valve_states = 0;
   uint8_t pyro_states = 0;
   uint8_t arm_state = 0;
+  uint8_t sensor_states = 0;
   float pt1 = 0;
   float pt2 = 0;
   float pt3 = 0;
