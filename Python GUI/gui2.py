@@ -169,14 +169,8 @@ def show_modal(message: str):
     dpg.configure_item("state_modal", show=True)
     
 dpg.create_context()
-
 settings.createFonts()
 dpg.bind_font(settings.default)
-
-# Events *********************************************** move to config file
-events = {
-    "Arm Command": 0,
-}
 
 with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0], height=settings.TAB_WINDOW_DIM[1], pos=settings.TAB_WINDOW_POS, 
                 min_size=settings.WINDOW_DIM, max_size=settings.WINDOW_DIM,no_title_bar=True, no_move=True):
