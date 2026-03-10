@@ -29,7 +29,7 @@ static uint8_t crc8(const uint8_t *data, uint8_t len) {
     return crc;
 }
 
-void send_response(uint8_t start0, uint8_t start1, uint8_t resp_id, const void *payload, uint8_t payload_len) {
+void sendPacket(uint8_t start0, uint8_t start1, uint8_t resp_id, const void *payload, uint8_t payload_len) {
     uint8_t *buf;
     uint8_t *len_ptr;
     volatile uint8_t *ready_ptr;
@@ -60,7 +60,7 @@ void send_response(uint8_t start0, uint8_t start1, uint8_t resp_id, const void *
     *ready_ptr = 1;
 }
 
-void handle_telemetry() {
+void handle_serial() {
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buf);
     
@@ -73,11 +73,42 @@ void handle_telemetry() {
         // buf layout: 2 start + 1 resp_id + 1 length = 4 bytes header, then payload starts
         memcpy(&ctrl_pkt.daq, &buf[4], sizeof(DAQ_Payload));
         
-        send_response(TELEM_FRAME_START_0, TELEM_FRAME_START_1, 0x69, &ctrl_pkt, sizeof(ctrl_pkt));
+        sendPacket(TELEM_FRAME_START_0, TELEM_FRAME_START_1, 0x69, &ctrl_pkt, sizeof(ctrl_pkt));
 
 
     } else {
         CON_ERR = 1;
     }
 
+}
+
+bool handle_telemetry(const void *payload, uint8_t payload_len){
+    uint8_t *buf;
+    uint8_t *len_ptr;
+    volatile uint8_t *ready_ptr;
+    
+    buf       = telem_buf;
+    len_ptr   = &telem_len;
+    ready_ptr = &telem_ready;
+
+    uint8_t i = 0;
+    
+    buf[i++] = TELEM_FRAME_START_0;
+    buf[i++] = TELEM_FRAME_START_1;
+    buf[i++] = 0x69;
+    buf[i++] = payload_len;
+
+    if (payload_len > 0 && payload != NULL) {
+        memcpy(&buf[i], payload, payload_len);
+        i += payload_len;
+    }
+
+    buf[i++] = crc8(&buf[2], 2 + payload_len);
+    buf[i++] = FRAME_END_0;
+    buf[i++] = FRAME_END_1;
+
+    rf95.send(buf, i);
+    rf95.waitPacketSent();
+
+    return 0;
 }

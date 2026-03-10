@@ -164,7 +164,36 @@ bool readPacket() {
     return false;
 }
 
+void readRadioPacket(uint8_t *buf, uint8_t len){
+// Minimum frame size: START0 START1 ID LEN [PAYLOAD] CRC END0 END1
+    uint8_t min_frame = 2 + 1 + 1 + sizeof(Switch_Payload) + 1 + 2;
+    if (len < min_frame) return; // too short
 
+    uint8_t *p = buf;
+
+    // Check start bytes
+    if (p[0] != TELEM_FRAME_START_0 || p[1] != TELEM_FRAME_START_1) return;
+
+    uint8_t id      = p[2];
+    uint8_t pay_len = p[3];
+
+    // Validate length matches expected struct
+    if (pay_len != sizeof(Switch_Payload)) return;
+
+    // CRC check over [ID, LEN, PAYLOAD]
+    uint8_t calc = crc8(&p[2], 2 + pay_len);
+    uint8_t recv_crc = p[2 + 2 + pay_len]; // byte right after payload
+    if (calc != recv_crc) return;
+
+    // Check end bytes
+    if (p[2 + 2 + pay_len + 1] != FRAME_END_0) return;
+    if (p[2 + 2 + pay_len + 2] != FRAME_END_1) return;
+
+    // All good — decom into struct
+    memcpy(&sw_pkt, &p[4], sizeof(Switch_Payload));
+
+    last_time_rx = millis(); // reset abort timer on good packet
+}
 /*
     if (readSync(Serial) != 1) return false;
 

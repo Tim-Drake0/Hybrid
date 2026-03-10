@@ -15,15 +15,15 @@
 #define D7 1
 
 // Control switches and buttons pins
-#define SWP1 A0
-#define SWP2 A1
-#define SWP3 A2
-#define SWP4 A3
-#define BUP1 A4
-#define BUP2 A5
-#define BUP3 A6
-#define BUP4 A7
-#define DAP1 8
+#define FILL A0
+#define VENT A1
+#define MOV A2
+#define SW4 A3
+#define PY1 A4
+#define PY2 A5
+#define SW5 A6
+#define SW6 A7
+#define ARM 8
 
 float batt_volt;
 unsigned long startLoopTime = 0;
@@ -71,21 +71,18 @@ struct __attribute__((packed)) CTRL_Payload {
 CTRL_Payload ctrl_pkt;
 
 
-
-struct Switch_Payload // Payload from switches
-{
-  bool SW1 = 0; // SW1 
-  bool SW2 = 0; // SW2 
-  bool SW3 = 0; // SW3 
-  bool SW4 = 0; // SW4 
-  bool BU1 = 0; // BU1 
-  bool BU2 = 0; // BU2 
-  bool BU3 = 0; // BU3 
-  bool BU4 = 0; // BU4 
-  bool DA1 = 0; // SWD 
+struct __attribute__((packed)) Switch_Payload { // Payload from switches
+  bool fill = 0;
+  bool vent = 0;
+  bool mov = 0; 
+  bool SW4 = 0; 
+  bool py1 = 0; 
+  bool py2 = 0; 
+  bool arm = 0; 
+  bool SW5 = 0; 
+  bool SW6 = 0; 
 };
-
-uint8_t switchstate[9];
+Switch_Payload sw_pkt;
 
 #define RFM95_CS 9
 #define RFM95_RST 10
@@ -110,24 +107,23 @@ float maxThrust = 0;
 float thisThrust = 0;
 
 void readswitches(void) {
-  switchstate[0] = !digitalRead(SWP1); // get state of switch 1 for transmission
-  switchstate[1] = digitalRead(SWP2); // get state of switch 2 for transmission
-  switchstate[2] = !digitalRead(SWP3); // mov
-  switchstate[3] = !digitalRead(SWP4); // get state of switch 4 for transmission
-  switchstate[4] = !digitalRead(BUP1); // get state of button 1 for transmission
-  switchstate[5] = !digitalRead(BUP2); // get state of button 2 for transmission
-  switchstate[6] = !digitalRead(DAP1); // get state of button D for transmission
+  sw_pkt.fill = !digitalRead(FILL);
+  sw_pkt.vent =  digitalRead(VENT); 
+  sw_pkt.mov  = !digitalRead(MOV); 
+  sw_pkt.SW4  = !digitalRead(SW4); 
+  sw_pkt.py1  = !digitalRead(PY1); 
+  sw_pkt.py2  = !digitalRead(PY2); 
+  sw_pkt.arm  = !digitalRead(ARM); 
 
-
-  if (analogRead(BUP3) > 511)           // get state of button 3 for transmission (uses analog input pin)
-    switchstate[7] = 0; // high reading
+  if (analogRead(SW5) > 511)           // get state of button 3 for transmission (uses analog input pin)
+    sw_pkt.SW5 = 0; // high reading
   else
-    switchstate[7] = 1; // low reading
+    sw_pkt.SW5 = 1; // low reading
 
-  if (analogRead(BUP4) > 511)           // get state of button 4 for transmission (uses analog input pin)
-    switchstate[8] = 0; // high reading
+  if (analogRead(SW6) > 511)           // get state of button 4 for transmission (uses analog input pin)
+    sw_pkt.SW6 = 0; // high reading
   else
-    switchstate[8] = 1; // low reading
+    sw_pkt.SW6 = 1; // low reading
 }
 
 void setup() {
@@ -140,15 +136,15 @@ void setup() {
   //lcd.print("Starting Radio");
   //delay(1000);
   // Arduino setup
-  pinMode(SWP1,INPUT_PULLUP); // Switch 1 pin
-  pinMode(SWP2,INPUT_PULLUP); // Switch 2 pin
-  pinMode(SWP3,INPUT_PULLUP); // Switch 3 pin
-  pinMode(SWP4,INPUT_PULLUP); // Switch 4 pin
-  pinMode(BUP1,INPUT_PULLUP); // Button 1 pin
-  pinMode(BUP2,INPUT_PULLUP); // Button 2 pin
-  pinMode(BUP3,INPUT);        // Button 3 pin
-  pinMode(BUP4,INPUT);        // Button 4 pin
-  pinMode(DAP1,INPUT); // Data Arming Switch pin
+  pinMode(FILL,INPUT_PULLUP);
+  pinMode(VENT,INPUT_PULLUP);
+  pinMode(MOV,INPUT_PULLUP); 
+  pinMode(SW4,INPUT_PULLUP); 
+  pinMode(PY1,INPUT_PULLUP); 
+  pinMode(PY2,INPUT_PULLUP); 
+  pinMode(SW5,INPUT);        
+  pinMode(SW6,INPUT);        
+  pinMode(ARM,INPUT); 
 
   // Radio trasnceiver setup
   pinMode(RFM95_RST, OUTPUT);
@@ -202,14 +198,12 @@ void loop() {
 
   if (millis()-last_time_tx > dt_tx) { 
     readswitches(); // record state of switches
-
     unsigned long t1 = micros();
-    rf95.send(switchstate, sizeof(switchstate));
-    CON_ERR = 0;// connection error bool to false
-    rf95.waitPacketSent();
+    CON_ERR = handle_telemetry(&sw_pkt, sizeof(sw_pkt));
+    
     unsigned long t2 = micros();
 
-    handle_telemetry();
+    handle_serial();
     unsigned long t3 = micros();
 
     last_time_tx = millis();

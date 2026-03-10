@@ -94,23 +94,20 @@ struct __attribute__((packed)) CTRL_Payload {
 };
 CTRL_Payload ctrl_pkt;
 
-
-
-
-struct Switch_Payload // Payload from switchbox [9 bytes total payload size]
-{
-  bool FILL = 0; // Switch 1 state on switchbox [1 byte]
-  bool VENT = 0; // Switch 2 state on switchbox [1 byte]
-  bool MOV = 0; // Switch 3 state on switchbox [1 byte]
-  bool SW4 = 0; // Switch 4 state on switchbox [1 byte]
-  bool PYRO1 = 0; // Button 1 state on switchbox [1 byte]
-  bool PYRO2 = 0; // Button 2 state on switchbox [1 byte]
-  bool BU3 = 0; // Button 3 state on switchbox [1 byte]
-  bool BU4 = 0; // Button 4 state on switchbox [1 byte]
-  bool ARM = 0; // Switch D state on switchbox [1 byte]
+struct __attribute__((packed)) Switch_Payload { // Payload from switches
+  bool fill = 0;
+  bool vent = 0;
+  bool mov = 0; 
+  bool SW4 = 0; 
+  bool py1 = 0; 
+  bool py2 = 0; 
+  bool arm = 0; 
+  bool SW5 = 0; 
+  bool SW6 = 0; 
 };
+Switch_Payload sw_pkt;
 
-Switch_Payload switchstate; // Initialize switchbox payload struct
+
 bool testRelay = 0;
 float teensy_packet;
 unsigned long startLoopTime = 0;
@@ -123,32 +120,32 @@ bool valid_tsy_serial = 0;
 
 /// FUNCTIONS ========================================================================
 
-void decodestate(Switch_Payload switchstate) { // SWITCH DECODER ====================================================== 
-  if(switchstate.FILL) {
+void decodestate(Switch_Payload sw_pkt) { // SWITCH DECODER ====================================================== 
+  if(sw_pkt.fill) {
     digitalWrite(fill_out, HIGH);
   } else {
     digitalWrite(fill_out, LOW);
   }
 
-  if(switchstate.VENT) {
+  if(sw_pkt.vent) {
     digitalWrite(vent_out, HIGH);
   } else {
     digitalWrite(vent_out, LOW);
   }
 
-  if(switchstate.MOV) {
+  if(sw_pkt.mov) {
     digitalWrite(mov_out, HIGH);
   } else {
     digitalWrite(mov_out, LOW);
   }
 
-  if(switchstate.PYRO1) {
+  if(sw_pkt.py1) {
     digitalWrite(pyro_1_fire, HIGH);
   } else {
     digitalWrite(pyro_1_fire, LOW);
   }
 
-  if(switchstate.PYRO2) {
+  if(sw_pkt.py2) {
     //digitalWrite(LEDPIN,HIGH);
     digitalWrite(pyro_2_fire,HIGH);
   } else {
@@ -156,7 +153,7 @@ void decodestate(Switch_Payload switchstate) { // SWITCH DECODER ===============
     digitalWrite(pyro_2_fire,LOW);
   }
 
-  if (switchstate.ARM) { // if data arming switch is on, fast data rate
+  if (sw_pkt.arm) { // if data arming switch is on, fast data rate
     digitalWrite(arm_out, HIGH);
     dt_data = dt_data_fast;
     dt_lc = dt_lc_fast;
@@ -280,15 +277,15 @@ void loop() { // LOOP ==========================================================
     batt_volt = analogRead(batt_volt_mon);// * 0.01700550500; //0.016917293233
 
     // Send states to teensy
-    if(switchstate.ARM == 1) {
+    if(sw_pkt.arm == 1) {
       digitalWrite(arm_out, HIGH);
       dt_rx = dt_rx_fast;
       rf95.setTxPower(23, false);
 
-      if(switchstate.PYRO1 == 0) {
+      if(sw_pkt.py1 == 0) {
         digitalWrite(pyro_1_fire, LOW);
       } 
-      if(switchstate.PYRO2 == 0) {
+      if(sw_pkt.py2 == 0) {
         digitalWrite(pyro_2_fire, LOW);
       } 
     } else {
@@ -297,10 +294,10 @@ void loop() { // LOOP ==========================================================
       rf95.setTxPower(5, false);
     }
 
-    if(switchstate.PYRO1 == 1) {
+    if(sw_pkt.py1 == 1) {
       digitalWrite(pyro_1_fire, HIGH);
     }
-    if(switchstate.PYRO2 == 1) {
+    if(sw_pkt.py2 == 1) {
       digitalWrite(pyro_2_fire, HIGH);
     }
 
@@ -321,23 +318,14 @@ void loop() { // LOOP ==========================================================
     uint8_t len = sizeof(buf);
 
     if (rf95.recv(buf, &len)) {
-      switchstate.FILL = buf[0];
-      switchstate.VENT = buf[1];
-      switchstate.MOV = buf[2];
-      switchstate.SW4 = buf[3];
-      switchstate.PYRO1 = buf[4];
-      switchstate.PYRO2 = buf[5];
-      switchstate.ARM = buf[6];
-      switchstate.BU3 = buf[7];
-      switchstate.BU4 = buf[8];
-
+      readRadioPacket(buf, len);
       handle_telemetry();
     } else {
       //Serial.println("Receive failed");
       digitalWrite(RADIO_LED, HIGH);
     }
     // DECODE SWITCH STATE ====================================================================================================
-    decodestate(switchstate); // Call function to decode switchstate and issue control commands
+    decodestate(sw_pkt); // Call function to decode switchstate and issue control commands
       
     
   }
@@ -346,7 +334,7 @@ void loop() { // LOOP ==========================================================
   // if the last received transmission happened longer than abort time ago
   if (millis() - last_time_rx > 60000){ABORT_DAQ();}
 
-  if(switchstate.ARM){
+  if(sw_pkt.arm){
     tone(buzzerPin, 4750);
   } else {
     noTone(buzzerPin);

@@ -4,6 +4,7 @@ import serial_writer as sw
 import gui_settings as settings
 import time
 from collections import deque
+import pandas as pd
 import random
 import sys
 from pathlib import Path
@@ -18,6 +19,20 @@ disconnect_counter = 0
 disconnect_timeout = 1000 # loops 
 abort_counter = 0
 abort_counter_started = 0
+fill_started = 0
+fill_time = 0
+fill_min = 0
+fill_sec = 0
+
+# CSV for fill data
+df = pd.read_csv("data10.csv")
+df_fill = df.iloc[1030:1250]  # rows fill start: 1036 end: 1088
+csv_time = (df_fill["Time[ms]"] / 1000).tolist()
+csv_pt1  = df_fill["PT1[psi]"].tolist()
+csv_pt4  = df_fill["PT4[psi]"].tolist()
+
+csv_fill_start = 1036363 / 1000
+csv_fill_end = 1087848 / 1000
 
 class dpgVariable:
     plotBuffer = 1
@@ -29,6 +44,13 @@ lastCmdTime = 0
 # rolling buffers, pre-filled with starting timestamp
 timestamps = deque([sr.streamTelem.tsy_timestamp], maxlen=MAX_POINTS)
 pt1_list = deque([sr.streamTelem.pt1], maxlen=MAX_POINTS)
+pt4_list = deque([sr.streamTelem.pt4], maxlen=MAX_POINTS)
+fill_live_time = []
+fill_pt1_list = []
+fill_pt4_list = []
+fill_plot_started = False 
+
+active_errors = {}  # dict of {error_id: row_tag}
 
 gui_loopTime = deque([0], maxlen=MAX_POINTS)
 gui_AvgloopTimePlot = deque([0], maxlen=MAX_POINTS)
@@ -103,7 +125,6 @@ def updateStatusBar():
     if valid_connection == False and sr.streamTelem.tsy_timestamp > 0:
         show_modal(f"ABORT")
             
- 
 def lipo_2s_percent(voltage: float) -> int:
     # 2S voltage -> approximate % remaining
     curve = [
@@ -132,8 +153,7 @@ def lipo_2s_percent(voltage: float) -> int:
             return round(p_low + t * (p_high - p_low))
     
     return 0           
-        
-                  
+               
 def update_leds():
     new_states = {
         "FILL": sr.streamTelem.fill_state,
@@ -194,17 +214,68 @@ def updateDebugWindow():
     dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
     
 def updateLiveInfoWindow():
-    dpg.set_value("live_tank_pressure", f"{sr.streamTelem.pt1:.1f} psi")
-    dpg.set_value("live_bottle_pressure", f"{sr.streamTelem.pt4:.1f} psi")
-    minutes = 1
-    seconds = 0
-    dpg.set_value("live_fill_time", f"{minutes:02}:{seconds:02}")
+    global fill_started, fill_time, live_time, pt1_list, pt4_list, fill_min, fill_sec
+    dpg.set_value("live_tank_pressure", f"{sr.streamTelem.pt4:.1f} psi")
+    dpg.set_value("live_bottle_pressure", f"{sr.streamTelem.pt1:.1f} psi")
+    
+    if sr.streamTelem.fill_state == 1:
+        if not fill_started:
+            fill_time = time.time()  # (re)start timer
+            fill_started = True
+        # always update display while filling
+        elapsed = time.time() - fill_time
+        fill_min = int(elapsed / 60) % 60
+        fill_sec = int(elapsed) % 60
+
+    elif sr.streamTelem.fill_state == 0:
+        if fill_started:
+            fill_started = False  # stop timer, freeze display (fill_min/fill_sec unchanged)
+
+    
+    dpg.set_value("live_fill_time", f"{fill_min:02}:{fill_sec:02}")
     dpg.set_value("live_batt_perc", f"{lipo_2s_percent(sr.streamTelem.battVolts):.1f} %")
     
-    if sr.streamTelem.sd_state == 0:
-        dpg.set_value("sd_state", "SD CARD ERROR")
-    if sr.streamTelem.sd_state == 1:
-        dpg.set_value("sd_state", "")
+def updateFillPlot(): 
+    global fill_plot_started, fill_time, fill_live_time, fill_pt1_list, fill_pt4_list
+    
+    if sr.streamTelem.fill_state == 1:
+        if not fill_plot_started:
+            fill_time = time.time()
+            fill_plot_started = True
+            fill_live_time.clear()
+            fill_pt1_list.clear()
+            fill_pt4_list.clear()
+            dpg.set_value("pt1_curve", [[], []])
+            dpg.set_value("pt4_curve", [[], []])
+
+    
+        elapsed = (time.time() - fill_time) + csv_fill_start
+        fill_live_time.append(float(elapsed))
+        fill_pt1_list.append(float(sr.streamTelem.pt1))
+        fill_pt4_list.append(float(sr.streamTelem.pt4))
+
+        dpg.set_value("pt1_curve", [list(fill_live_time), list(fill_pt1_list)])
+        dpg.set_value("pt4_curve", [list(fill_live_time), list(fill_pt4_list)])
+        
+    elif sr.streamTelem.fill_state == 0:
+        fill_plot_started = False  # allow re-clear on next fill
+    
+def update_error_table():
+    errors = {
+        "sd_card": ("SD CARD ERROR", sr.streamTelem.sd_state == 0),
+        "low_batt": ("LOW BATTERY", sr.streamTelem.battVolts < 7.4),
+    }
+
+    for error_id, (message, is_active) in errors.items():
+        if is_active and error_id not in active_errors:
+            # add new row
+            with dpg.table_row(parent="error_table", tag=f"err_row_{error_id}"):
+                dpg.add_text(message, color=[255, 50, 50])
+            active_errors[error_id] = True
+        elif not is_active and error_id in active_errors:
+            # remove row
+            dpg.delete_item(f"err_row_{error_id}")
+            del active_errors[error_id]   
     
 dpg.create_context()
 settings.createFonts()
@@ -319,17 +390,55 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                     with dpg.group(horizontal=True):
                         dpg.add_text(" ", tag="fiveVolts")
                         dpg.add_text(" ", tag="radioVolts")
+    
+    # ERROR window
+    with dpg.child_window(width=settings.ERROR_WINDOW_SIZE[0], height=settings.ERROR_WINDOW_SIZE[1], pos=settings.ERROR_WINDOW_POS, tag="error_window", show=True):
+        dpg.add_text("Error Info")
+        with dpg.table(tag="error_table", header_row=False, borders_innerH=True, 
+               borders_outerH=True, borders_outerV=True):
+            dpg.add_table_column()
         
+            
+    with dpg.theme() as line_theme:
+        with dpg.theme_component(dpg.mvLineSeries):
+            dpg.add_theme_style(dpg.mvPlotStyleVar_LineWeight, 2, category=dpg.mvThemeCat_Plots)
+
+    
+                
+    # Past pressure plot
+    with dpg.child_window(width=settings.PRESS_PLOT_WINDOW_SIZE[0], height=settings.PRESS_PLOT_WINDOW_SIZE[1], pos=settings.PRESS_PLOT_WINDOW_POS, tag="press_plot_window", show=True):
+                       
+        with dpg.plot(label="Fill Curve", width=settings.PRESS_PLOT_WINDOW_SIZE[0]-16, height=settings.PRESS_PLOT_WINDOW_SIZE[1]-10, pos=[0,0]):
+            dpg.add_plot_legend(location=dpg.mvPlot_Location_NorthEast)
+            dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)", tag="x_axis_press_curve")
+            dpg.set_axis_limits("x_axis_press_curve", csv_time[0], csv_time[-1])
+            with dpg.plot_axis(dpg.mvYAxis, label="PSI", tag="y_axis_pressure_curve"):
+                # Static CSV reference lines
+                dpg.add_line_series(csv_time, csv_pt1, label="Bottle Ref", tag="csv_pt1_series")
+                dpg.add_line_series(csv_time, csv_pt4, label="Tank Ref", tag="csv_pt4_series")
         
+                # Live data on top
+                dpg.add_line_series([], [], label="Tank Pressure", tag="pt4_curve")
+                dpg.add_line_series([], [], label="Bottle Pressure", tag="pt1_curve")
+                
+                
+                
+            dpg.set_axis_limits("y_axis_pressure_curve", 0, 1100)    
+    dpg.bind_item_theme("pt1_curve", line_theme)
+    dpg.bind_item_theme("pt4_curve", line_theme)
+                
     with dpg.child_window(width=settings.PLOT_WINDOW_SIZE[0], height=settings.PLOT_WINDOW_SIZE[1], pos=settings.PLOT_WINDOW_POS, tag="plot_window", show=True):
                        
-        with dpg.plot(label="Pressures", width=settings.PLOT_WINDOW_SIZE[0]-16, height=400, pos=[0,45]):
+        with dpg.plot(label="Live Pressures", width=settings.PLOT_WINDOW_SIZE[0]-16, height=400, pos=[0,0]):
             dpg.add_plot_legend()
             with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
                 pass
             with dpg.plot_axis(dpg.mvYAxis, label="PSI", tag="y_axis_pressure"):
                 dpg.set_axis_limits(dpg.last_item(), -20, 20) 
-                dpg.add_line_series([], [], label="Tank Pressure", tag="pt1_list")
+                dpg.add_line_series([], [], label="Tank Pressure", tag="pt4_list")
+                dpg.add_line_series([], [], label="Bottle Pressure", tag="pt1_list")
+                
+        
                 
                 
     # Events window
@@ -396,7 +505,7 @@ dpg.setup_dearpygui()
 dpg.show_viewport()
 
 # ---------------- main loop ----------------
-WINDOW_SIZE = 10  # seconds or timestamp units to display
+WINDOW_SIZE = 80  # seconds or timestamp units to display
 lastTime = 0
 
 try:
@@ -418,12 +527,15 @@ try:
         # Append latest data
         timestamps.append(sr.streamTelem.tsy_timestamp/1000)
         pt1_list.append(sr.streamTelem.pt1)
+        pt4_list.append(sr.streamTelem.pt4)
         
         
             
         
         dpg.set_value("pt1_list", [list(timestamps), list(pt1_list)]) 
-        dpg.set_axis_limits("y_axis_pressure", min(pt1_list), max(pt1_list))
+        dpg.set_value("pt4_list", [list(timestamps), list(pt4_list)]) 
+        all_pressures = list(pt1_list) + list(pt4_list)
+        dpg.set_axis_limits("y_axis_pressure", min(all_pressures), max(all_pressures))
 
         
         # Update x-axis limits to show a moving window
@@ -432,11 +544,12 @@ try:
             start = max(latest - WINDOW_SIZE, timestamps[0])  # don't go before first timestamp
 
             dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
-            
         updateLiveInfoWindow()
         updateDebugWindow()
         updateStatusBar()    
         update_leds()
+        update_error_table()
+        updateFillPlot()
 
         # Render one frame
         dpg.render_dearpygui_frame()
