@@ -235,6 +235,9 @@ def updateLiveInfoWindow():
     dpg.set_value("live_fill_time", f"{fill_min:02}:{fill_sec:02}")
     dpg.set_value("live_batt_perc", f"{lipo_2s_percent(sr.streamTelem.battVolts):.1f} %")
     
+    dpg.set_value("live_ctrl_rssi", f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
+    dpg.set_value("live_daq_rssi",  f"DAQ RSSI:  {sr.streamTelem.daq_RSSI} dBm")
+    
 def updateFillPlot(): 
     global fill_plot_started, fill_time, fill_live_time, fill_pt1_list, fill_pt4_list
     
@@ -320,12 +323,12 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                 with dpg.tab(label="Live Info"):
                     # Pressures
                     with dpg.group(horizontal=True):
-                        dpg.add_text("Tank Pressure:", color=[180, 180, 180])
+                        dpg.add_text("Tank Pressure:")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                         dpg.add_text("--- psi", tag="live_tank_pressure")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                     with dpg.group(horizontal=True):
-                        dpg.add_text("Bottle Pressure:", color=[180, 180, 180])
+                        dpg.add_text("Bottle Pressure:")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                         dpg.add_text("--- psi", tag="live_bottle_pressure")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
@@ -334,7 +337,7 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                     
                     # Fill time
                     with dpg.group(horizontal=True):
-                        dpg.add_text("Fill Time:", color=[180, 180, 180])
+                        dpg.add_text("Fill Time:")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                         dpg.add_text("--:--", tag="live_fill_time")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
@@ -343,13 +346,16 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                     
                     # Battery
                     with dpg.group(horizontal=True):
-                        dpg.add_text("Battery:", color=[180, 180, 180])
+                        dpg.add_text("Battery:")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                         dpg.add_text("-- %", tag="live_batt_perc")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        
-                    dpg.add_text(" ", color=[255, 0, 0], tag="sd_state")  
-                    dpg.bind_item_font(dpg.last_item(), settings.xl)  
+                    
+                    # RSSI
+                    dpg.add_text(" ", tag="live_ctrl_rssi")
+                    dpg.bind_item_font(dpg.last_item(), settings.large)
+                    dpg.add_text(" ", tag="live_daq_rssi")
+                    dpg.bind_item_font(dpg.last_item(), settings.large)
                     
                 with dpg.tab(label="Debug"):
                     # Ctrl info
