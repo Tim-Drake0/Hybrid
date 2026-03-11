@@ -1,7 +1,7 @@
 import dearpygui.dearpygui as dpg
 
 WINDOW_POS = (0,0)
-WINDOW_DIM = (1920,1080)
+WINDOW_DIM = (1720,1000)
 
 TAB_WINDOW_POS = (0,0)
 TAB_WINDOW_DIM = (WINDOW_DIM[0],WINDOW_DIM[1]-TAB_WINDOW_POS[1])
