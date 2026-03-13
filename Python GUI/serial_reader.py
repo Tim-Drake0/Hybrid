@@ -8,6 +8,9 @@ import struct
 import serial_writer as sw 
 import queue
 from dataclasses import dataclass, field
+import os
+from datetime import datetime
+import csv
 
 import sys
 from pathlib import Path
@@ -32,6 +35,9 @@ FRAME_END    = (0xEF, 0xBE)
 ser = None
 telem_queue = queue.Queue()
 cmd_queue = queue.Queue()
+
+_log_file = None
+log_writer = None
 
 # ---------------- HELPERS ----------------
 def bytes2Num(packet, startByte, bytes):
@@ -89,7 +95,42 @@ def check_crc(packet: bytes) -> bool:
     received = packet[crc_index]
     
     return calculated == received
+       
+def init_log_raw():
+    global _log_file, log_writer
+    os.makedirs("data_logs", exist_ok=True)
+    filename = f"data_logs/telem_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    _log_file = open(filename, "w", newline="")
+    log_writer = csv.writer(_log_file)
+    # write header
+    log_writer.writerow([
+        "ctrl_timestamp", "daq_timestamp", "tsy_timestamp",
+        "pt1", "pt2", "pt3", "pt4", "pt5", "pt6",
+        "loadCell", "battVolts", "fiveVolts", "radioVolts",
+        "fill", "vent", "mov", "arm", "py1", "py2", "c1", "c2",
+        "ctrl_RSSI", "daq_RSSI", "tsy_looptime", "sd_state"
+    ])
+    
+    print(f"Logging to {filename}")
 
+def log_telem(t):
+    if log_writer is None:
+        return
+    log_writer.writerow([
+        t.ctrl_timestamp, t.daq_timestamp, t.tsy_timestamp,
+        t.pt1, t.pt2, t.pt3, t.pt4, t.pt5, t.pt6,
+        t.loadCell, t.battVolts, t.fiveVolts, t.radioVolts,
+        t.fill_state, t.vent_state, t.mov_state, t.arm_state,
+        t.py1_state, t.py2_state, t.c1_state, t.c2_state,
+        t.ctrl_RSSI, t.daq_RSSI, t.tsy_looptime, t.sd_state
+    ])
+        
+def close_log():
+    global _log_file
+    if _log_file:
+        _log_file.close()
+        _log_file = None
+    
 @dataclass      
 class StreamTelem:
     header:            int   = 43962
@@ -250,6 +291,7 @@ def telem_loop():
             resp_id, length, payload, crc_b = telem_queue.get()
             streamTelem.packet = payload
             streamTelem.readBuffer()
+            log_telem(streamTelem) 
         except Exception as e:
             print("Telem error:", e)
 
@@ -276,6 +318,7 @@ if activePort:
     # Start reading in background thread
     print(f"Found activity on {activePort} at {activeRate} baudrate")
     sw.init(ser) # give the writer the same serial handle
+    init_log_raw()
     threading.Thread(target=read_serial_loop, daemon=True).start()
     threading.Thread(target=telem_loop, daemon=True).start()
     threading.Thread(target=cmd_loop,   daemon=True).start()

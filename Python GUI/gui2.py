@@ -328,7 +328,6 @@ def resize_viewport():
         dpg.set_item_pos(tag, vals["pos"])
         dpg.set_item_width(tag, vals["size"][0])
         dpg.set_item_height(tag, vals["size"][1])
-       
 dpg.create_context()
 settings.createFonts()
 dpg.bind_font(settings.default)
@@ -626,3 +625,4 @@ try:
 
 finally:
     dpg.destroy_context()
+    sr.close_log()
