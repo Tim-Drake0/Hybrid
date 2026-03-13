@@ -280,15 +280,67 @@ def update_error_table():
             dpg.delete_item(f"err_row_{error_id}")
             del active_errors[error_id]   
     
+def get_layout():
+    vp_w = dpg.get_viewport_client_width()
+    vp_h = dpg.get_viewport_client_height()   
+    
+    statusbar_x, statusbar_y = 0, 0
+    statusbar_w, statusbar_h = vp_w - 25, 60
+    
+    events_w, events_h = 300, 550
+    events_x = vp_w - events_w
+    events_y = statusbar_h + 10
+
+    info_x, info_y = 0, statusbar_h + 10
+    info_w, info_h = 570, 550
+
+    error_x, error_y = 0, info_y + info_h
+    error_w = info_w
+    error_h = vp_h - info_h - statusbar_h - 10
+
+    press_x = info_w + 5
+    press_y = statusbar_h + 10
+    press_w = events_x - info_w + 5
+    press_h = 550
+
+    plot_x = press_x
+    plot_y = error_y
+    plot_w = vp_w - press_x - 5
+    plot_h = error_h
+    
+    return {
+        "status_bar":           {"pos": (statusbar_x, statusbar_y), "size": (statusbar_w, statusbar_h)}, 
+        "events_window":        {"pos": (events_x, events_y), "size": (events_w, events_h)},
+        "bus_info_window":      {"pos": (info_x,   info_y),   "size": (info_w,   info_h)},
+        "error_window":         {"pos": (error_x,  error_y),  "size": (error_w,  error_h)},
+        "press_plot_window":    {"pos": (press_x,  press_y),  "size": (press_w,  press_h)},
+        "fill_press_plot":      {"pos": (0,        0),        "size": (press_w-10,  press_h-8)},
+        "plot_window":          {"pos": (plot_x,   plot_y),   "size": (plot_w,   plot_h)},
+        "live_press_plot":      {"pos": (0,        0),        "size": (plot_w-8,   plot_h-8)},
+    }
+
+def resize_viewport():
+    dpg.set_item_width("main_window", dpg.get_viewport_client_width())
+    dpg.set_item_height("main_window", dpg.get_viewport_client_height())
+    
+    layout = get_layout()
+    for tag, vals in layout.items():
+        dpg.set_item_pos(tag, vals["pos"])
+        dpg.set_item_width(tag, vals["size"][0])
+        dpg.set_item_height(tag, vals["size"][1])
+       
 dpg.create_context()
 settings.createFonts()
 dpg.bind_font(settings.default)
 
-with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0], height=settings.TAB_WINDOW_DIM[1], pos=settings.TAB_WINDOW_POS, 
-                min_size=settings.WINDOW_DIM, max_size=settings.WINDOW_DIM,no_title_bar=True, no_move=True):
+dpg.create_viewport(title='Flight Computer Viewer', width=settings.WINDOW_DIM[0], height=settings.WINDOW_DIM[1])
+layout = get_layout()
+
+with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=settings.TAB_WINDOW_DIM[0], height=settings.TAB_WINDOW_DIM[1], pos=settings.TAB_WINDOW_POS, 
+                min_size=settings.WINDOW_DIM,no_title_bar=True, no_scrollbar=True, no_move=True, no_resize=True):
     
     # Status Bar
-    with dpg.child_window(width=settings.STATUS_BAR_SIZE[0], height=settings.STATUS_BAR_SIZE[1], no_scrollbar=True):
+    with dpg.child_window(width=layout["status_bar"]["size"][0], height=layout["status_bar"]["size"][1], pos=layout["status_bar"]["pos"], tag="status_bar", no_scrollbar=True):
         with dpg.group(horizontal=True):
             
             _draw_t = 3.0
@@ -317,7 +369,7 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
             txt_tov = dpg.add_text(" ", tag="tov")
             dpg.bind_item_font(txt_tov,settings.xl)
             
-    with dpg.child_window(width=settings.INFO_WINDOW_SIZE[0], height=settings.INFO_WINDOW_SIZE[1], pos=settings.INFO_WINDOW_POS, tag="right_window_bus_info", show=True):
+    with dpg.child_window(width=layout["bus_info_window"]["size"][0], height=layout["bus_info_window"]["size"][1], pos=layout["bus_info_window"]["pos"], tag="bus_info_window", show=True):
         with dpg.group(width=150):
             with dpg.tab_bar(label="Main Tabs"):
                 with dpg.tab(label="Live Info"):
@@ -398,7 +450,7 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                         dpg.add_text(" ", tag="radioVolts")
     
     # ERROR window
-    with dpg.child_window(width=settings.ERROR_WINDOW_SIZE[0], height=settings.ERROR_WINDOW_SIZE[1], pos=settings.ERROR_WINDOW_POS, tag="error_window", show=True):
+    with dpg.child_window(width=layout["error_window"]["size"][0], height=layout["error_window"]["size"][1], pos=layout["error_window"]["pos"], tag="error_window", show=True):
         dpg.add_text("Error Info")
         with dpg.table(tag="error_table", header_row=False, borders_innerH=True, 
                borders_outerH=True, borders_outerV=True):
@@ -412,9 +464,9 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
     
                 
     # Past pressure plot
-    with dpg.child_window(width=settings.PRESS_PLOT_WINDOW_SIZE[0], height=settings.PRESS_PLOT_WINDOW_SIZE[1], pos=settings.PRESS_PLOT_WINDOW_POS, tag="press_plot_window", show=True):
+    with dpg.child_window(width=layout["press_plot_window"]["size"][0], height=layout["press_plot_window"]["size"][1], pos=layout["press_plot_window"]["pos"], tag="press_plot_window", show=True):
                        
-        with dpg.plot(label="Fill Curve", width=settings.PRESS_PLOT_WINDOW_SIZE[0]-16, height=settings.PRESS_PLOT_WINDOW_SIZE[1]-10, pos=[0,0]):
+        with dpg.plot(label="Fill Curve", width=layout["press_plot_window"]["size"][0], height=layout["press_plot_window"]["size"][1], pos=[0,0], tag="fill_press_plot"):
             dpg.add_plot_legend(location=dpg.mvPlot_Location_NorthEast)
             dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)", tag="x_axis_press_curve")
             dpg.set_axis_limits("x_axis_press_curve", csv_time[0], csv_time[-1])
@@ -432,10 +484,11 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
             dpg.set_axis_limits("y_axis_pressure_curve", 0, 1100)    
     dpg.bind_item_theme("pt1_curve", line_theme)
     dpg.bind_item_theme("pt4_curve", line_theme)
-                
-    with dpg.child_window(width=settings.PLOT_WINDOW_SIZE[0], height=settings.PLOT_WINDOW_SIZE[1], pos=settings.PLOT_WINDOW_POS, tag="plot_window", show=True):
+    
+    # Live pressure plot window            
+    with dpg.child_window(width=layout["plot_window"]["size"][0], height=layout["plot_window"]["size"][1], pos=layout["plot_window"]["pos"], tag="plot_window", show=True):
                        
-        with dpg.plot(label="Live Pressures", width=settings.PLOT_WINDOW_SIZE[0]-16, height=settings.PLOT_WINDOW_SIZE[1]+30, pos=[0,0]):
+        with dpg.plot(label="Live Pressures", width=layout["plot_window"]["size"][0], height=layout["plot_window"]["size"][1], pos=[0,0], tag="live_press_plot"):
             dpg.add_plot_legend()
             with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
                 pass
@@ -443,12 +496,9 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                 dpg.set_axis_limits(dpg.last_item(), -20, 20) 
                 dpg.add_line_series([], [], label="Tank Pressure", tag="pt4_list")
                 dpg.add_line_series([], [], label="Bottle Pressure", tag="pt1_list")
-                
-        
-                
-                
+                          
     # Events window
-    with dpg.child_window(width=settings.EVENTS_WINDOW_SIZE[0], height=settings.EVENTS_WINDOW_SIZE[1], pos=settings.EVENTS_WINDOW_POS):
+    with dpg.child_window(width=layout["events_window"]["size"][0], height=layout["events_window"]["size"][1], pos=layout["events_window"]["pos"], tag="events_window"):
         dpg.bind_item_font(dpg.last_item(), settings.large)
 
         with dpg.drawlist(width=settings.EVENTS_WINDOW_SIZE[0]-20, height=settings.EVENTS_WINDOW_SIZE[1]-60, tag="led_drawlist"):
@@ -505,10 +555,20 @@ def on_key_released(sender, key):
         if key == dpg.mvKey_P:
             sw.send_ping()
         
+ 
+with dpg.item_handler_registry(tag="vp_handler"):
+    dpg.add_item_resize_handler(callback=resize_viewport)
+    
+dpg.set_viewport_resize_callback(resize_viewport) 
+
 # Setup viewport
-dpg.create_viewport(title='Flight Computer Viewer', width=settings.WINDOW_DIM[0], height=settings.WINDOW_DIM[1])
+
 dpg.setup_dearpygui()
 dpg.show_viewport()
+
+# Auto screen size adjust
+dpg.bind_item_handler_registry("main_window", "vp_handler")
+#dpg.start_dearpygui()
 
 # ---------------- main loop ----------------
 WINDOW_SIZE = 80  # seconds or timestamp units to display

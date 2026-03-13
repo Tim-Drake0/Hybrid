@@ -18,7 +18,7 @@ import INFO_LSM9DS1 as lsm9ds1
 import INFO_EEPROM as eeprom
 
 # ---------------- CONFIG ----------------
-SERIAL_PORT = "COM4"#["COM2","COM3","COM4","COM5","COM6","COM7","COM8"]
+SERIAL_PORT = "COM5"#["COM2","COM3","COM4","COM5","COM6","COM7","COM8"]
 BAUD_RATE = 9600
 
 STREAM_NAME = "streamSerialTelem"
