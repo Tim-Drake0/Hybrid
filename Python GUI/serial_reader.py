@@ -19,7 +19,7 @@ import INFO_EEPROM as eeprom
 
 # ---------------- CONFIG ----------------
 SERIAL_PORT = "COM5"#["COM2","COM3","COM4","COM5","COM6","COM7","COM8"]
-BAUD_RATE = 9600
+BAUD_RATE = 115200
 
 STREAM_NAME = "streamSerialTelem"
 MAX_POINTS = 500

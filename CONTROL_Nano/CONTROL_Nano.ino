@@ -127,7 +127,7 @@ void readswitches(void) {
 }
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   // LCD setup
   //lcd.begin(16,2); // LCD has 16 cols, 2 rows
   //lcd.setCursor(0,0); // Set cursor at beginning
