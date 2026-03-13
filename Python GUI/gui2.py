@@ -435,7 +435,7 @@ with dpg.window(label="Flight Computer Viewer", width=settings.TAB_WINDOW_DIM[0]
                 
     with dpg.child_window(width=settings.PLOT_WINDOW_SIZE[0], height=settings.PLOT_WINDOW_SIZE[1], pos=settings.PLOT_WINDOW_POS, tag="plot_window", show=True):
                        
-        with dpg.plot(label="Live Pressures", width=settings.PLOT_WINDOW_SIZE[0]-16, height=400, pos=[0,0]):
+        with dpg.plot(label="Live Pressures", width=settings.PLOT_WINDOW_SIZE[0]-16, height=settings.PLOT_WINDOW_SIZE[1]+30, pos=[0,0]):
             dpg.add_plot_legend()
             with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
                 pass
