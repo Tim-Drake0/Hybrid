@@ -5,8 +5,6 @@
 #include <RH_RF95.h>
 
 //Pins
-#define CP2  0
-#define CP1  1
 #define RFM95_INT 2
 #define buzzerPin 3
 #define fill_out  4
@@ -193,10 +191,7 @@ void ABORT_DAQ(void) { // ABORT ================================================
 
 void setup() { // SETUP =================================================================================================
   Serial.begin(115200);
-  // Sensor setup
-  pinMode(CP1,INPUT); // Continuity pins digital input
-  pinMode(CP2,INPUT);
-  
+  // Sensor setup  
   pinMode(PT_TANK,INPUT); // PT pins analog input 
 
   pinMode(lc_low_in,INPUT);
@@ -266,15 +261,15 @@ void loop() { // LOOP ==========================================================
 
   // Read sensor data
   if (millis()-last_time_data > dt_data) { // Check time between data readings
-    C1bool = !digitalRead(CP1); // Continuity channel 1
-    C2bool = !digitalRead(CP2); // Continuity channel 2
-    PT_tank = analogRead(PT_TANK); // PT channel 1
-    
-    lc_low = pulseIn(lc_low_in, HIGH, 10000L);
-    lc_high = pulseIn(lc_high_in, HIGH, 10000L); // Load cell
-    //Serial.print(PT_tank); Serial.print(", H:"); Serial.print(highByte(PT_tank)); Serial.print(", L:");  Serial.println(lowByte(PT_tank));
-    
-    batt_volt = analogRead(batt_volt_mon);// * 0.01700550500; //0.016917293233
+    //C1bool = !digitalRead(CP1); // Continuity channel 1
+    //C2bool = !digitalRead(CP2); // Continuity channel 2
+    //PT_tank = analogRead(PT_TANK); // PT channel 1
+    //
+    //lc_low = pulseIn(lc_low_in, HIGH, 10000L);
+    //lc_high = pulseIn(lc_high_in, HIGH, 10000L); // Load cell
+    ////Serial.print(PT_tank); Serial.print(", H:"); Serial.print(highByte(PT_tank)); Serial.print(", L:");  Serial.println(lowByte(PT_tank));
+    //
+    //batt_volt = analogRead(batt_volt_mon);// * 0.01700550500; //0.016917293233
 
     // Send states to teensy
     if(sw_pkt.arm == 1) {
