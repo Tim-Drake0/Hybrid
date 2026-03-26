@@ -2,42 +2,45 @@
 #include <Servo.h>
 #include "HX711.h"
 #include <SD.h>
+#include <Adafruit_INA219.h>
+#include "max6675.h"
 
+#define thermo1_DO  0
+#define thermo1_CS  1
 #define servo_1_out  2 // fill
 #define servo_2_out  3 // vent
 #define servo_3_out  4 // mov
 #define servo_4_out  5
 #define servo_5_out  6
-#define tsy_rx 7
-#define tsy_tx 8
+#define tsy_rx 7    // DELETE
+#define tsy_tx 8    // DELETE
 #define servo_6_out  9
 #define spare_1  10
 #define lc_out_low  11
 #define lc_out_high  12
-#define load_cell_sck  13
-#define pt_1  14
-#define pt_2  15
+#define thermo_CLK  13
 #define pt_3  16
 #define pt_4  17
-#define pyro_1_cont_in  18
-#define pyro_2_cont_in  19
+#define pyro_1_cont_in  36
+#define pyro_2_cont_in  37
 #define pt_5  20
 #define pt_6  21
 
-#define batt_volt_mon  23
-#define load_cell_dat  24
-#define spare_2  25
-#define five_volt_mon  26
-#define radio_volt_mon  27
+#define thermo2_DO  22
+#define thermo2_CS  23
+#define pt_1  24           // EDIT
+#define pt_2  25           // EDIT
+#define five_volt_mon  26    // DELETE
+#define radio_volt_mon  27    // DELETE
 #define pyro_2_fire  33
 #define pyro_1_fire  34
 
-#define pyro_2_fire_in  36
-#define pyro_1_fire_in  37
-#define mov_in  38
-#define vent_in  39
-#define fill_in  40
-#define arm_in  41
+#define pyro_2_fire_in  31    // DELETE
+#define pyro_1_fire_in  32    // DELETE
+#define mov_in  38    // DELETE
+#define vent_in  39    // DELETE
+#define fill_in  40    // DELETE
+#define arm_in  41    // DELETE
 
 
 // Frame constants
@@ -79,7 +82,7 @@ struct __attribute__((packed)) TSY_Payload // Payload to arduino nano
   uint8_t valve_states = 0;
   uint8_t pyro_states = 0;
   uint8_t arm_state = 0;
-  uint8_t sensor_states = 0;
+  uint8_t sensor_states = 0; // 0 = SD card, 1 = INA219
   float pt1 = 0;
   float pt2 = 0;
   float pt3 = 0;
@@ -88,14 +91,15 @@ struct __attribute__((packed)) TSY_Payload // Payload to arduino nano
   float pt6 = 0;
   float load_cell = 0;
   float batt_volts = 0;
-  float five_volts = 0;
-  float radio_volts = 0;
+  float batt_current = 0;
+  float tc1 = 0;
+  float tc2 = 0;
   uint32_t tsy_looptime = 0;
 };
 TSY_Payload tsy_pkt;
 
 // Load Cell
-HX711 lc1; // Initialize HX711 object for load cell
+//HX711 lc1; // Initialize HX711 object for load cell
 float calibration_factor = -2053.61580134;// Tension load cell
 //float LC_Calibration = -4100; // Load cell calibration factor (see LC_CALIBRATION.ino for getting this value)
 float LC1float = 0.0; // float value of load cell reading
@@ -104,6 +108,13 @@ float LC1float = 0.0; // float value of load cell reading
 float radio_volt;
 float five_volt;
 float batt_volt;
+
+// Current sensor
+Adafruit_INA219 ina219;
+
+// Thermocouple sensor
+MAX6675 tc1(thermo_CLK, thermo1_CS, thermo1_DO);
+MAX6675 tc2(thermo_CLK, thermo2_CS, thermo2_DO);
 
 /// CONTROL ========================================================================
 // Servos
@@ -293,10 +304,9 @@ void send2nano(uint8_t start0, uint8_t start1, uint8_t resp_id, const void *payl
 }
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial2.begin(115200); // serial data to/from arduino nano
 
-  pinMode(batt_volt_mon, INPUT);
   pinMode(five_volt_mon, INPUT);
   pinMode(radio_volt_mon, INPUT);
 
@@ -307,13 +317,13 @@ void setup() {
   pinMode(pyro_1_fire_in, INPUT);
   pinMode(pyro_2_fire_in, INPUT);
 
-  pinMode(lc_out_low, OUTPUT);
-  pinMode(lc_out_high, OUTPUT);
+  //pinMode(lc_out_low, OUTPUT);
+  //pinMode(lc_out_high, OUTPUT);
    
-  lc1.begin(load_cell_dat,load_cell_sck); // Load cell pins
-  long zero_factor = lc1.read_average(); //Get a baseline reading
-  lc1.set_scale(calibration_factor); //Adjust to this calibration factor
-  lc1.tare(); // Tare to zero load cell reading 
+  //lc1.begin(load_cell_dat,load_cell_sck); // Load cell pins
+  //long zero_factor = lc1.read_average(); //Get a baseline reading
+  //lc1.set_scale(calibration_factor); //Adjust to this calibration factor
+  //lc1.tare(); // Tare to zero load cell reading 
   
   servo1.attach(servo_1_out); // Attach servo1
   servo2.attach(servo_2_out); // Attach servo2
@@ -355,6 +365,14 @@ void setup() {
       datafile.close(); // Always close file
     }
   }  
+
+  // Start current sensor
+  if (! ina219.begin()) {
+    Serial.println("Failed to find INA219 chip");
+  } else {
+    bitWrite(tsy_pkt.sensor_states, 1, 1);
+  }
+
   delay(1000); // delay for begin  
 }
 
@@ -363,10 +381,10 @@ void loop() {
   tsy_pkt.timestamp = millis();
   
   if (millis()-last_time_lc > dt_lc) { // Check time between LC readings
-    LC1float = lc1.get_units(); // Load cell 1 
+    //LC1float = lc1.get_units(); // Load cell 1 
     tsy_pkt.load_cell = LC1float;
-    analogWrite(lc_out_low, lowByte(int8_t(LC1float)));
-    analogWrite(lc_out_high, highByte(int8_t(LC1float))); 
+    //analogWrite(lc_out_low, lowByte(int8_t(LC1float)));
+    //analogWrite(lc_out_high, highByte(int8_t(LC1float))); 
     last_time_lc = tsy_pkt.timestamp;  // Record time of load cell reading
   }  
 
@@ -391,15 +409,11 @@ void loop() {
     PT5int = analogRead(pt_5); PT5float = (PT5int*PT5coeff) + PT5gain; tsy_pkt.pt5 = PT5float;
     PT6int = analogRead(pt_6); PT6float = (PT6int*PT6coeff) + PT6gain; tsy_pkt.pt6 = PT6float;
 
-    batt_volt = analogRead(batt_volt_mon) * 0.01700550500;
-    five_volt = analogRead(five_volt_mon) * 0.00518084066471;
-    radio_volt = analogRead(radio_volt_mon) * 0.00387096774194;
+    tsy_pkt.batt_volts = ina219.getBusVoltage_V() + 0.45;
+    tsy_pkt.batt_current = ina219.getCurrent_mA() + 10;
 
-    tsy_pkt.batt_volts = batt_volt;
-    tsy_pkt.five_volts  = five_volt;
-    tsy_pkt.radio_volts = radio_volt;
-    
-
+    tsy_pkt.tc1 = tc1.readFahrenheit();
+    tsy_pkt.tc2 = tc2.readFahrenheit();
     
     // Fire pyros if armed and signal sent
     if(digitalRead(arm_in) == 1){
@@ -468,7 +482,9 @@ void loop() {
 
     Serial.print("sending packet, time: "); Serial.print(tsy_pkt.timestamp);
     Serial.print(", batt volts: "); Serial.print(tsy_pkt.batt_volts);
-    Serial.print(", 5 volts: "); Serial.print(tsy_pkt.five_volts);
+    Serial.print(", current: "); Serial.print(tsy_pkt.batt_current);
+    Serial.print(", TC1: "); Serial.print(tsy_pkt.tc1);
+    Serial.print(", TC2: "); Serial.print(tsy_pkt.tc2);
     Serial.print(", PT1: "); Serial.println(tsy_pkt.pt1);
     
     send2nano(TELEM_FRAME_START_0, TELEM_FRAME_START_1, 0x69, &tsy_pkt, sizeof(tsy_pkt));
