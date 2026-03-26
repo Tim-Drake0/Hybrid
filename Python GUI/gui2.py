@@ -209,8 +209,6 @@ def updateDebugWindow():
     dpg.set_value("pt6",                    f"PT6: {round(sr.streamTelem.pt6, 2)} PSI")
     dpg.set_value("loadCell",               f"Load cell: {round(sr.streamTelem.loadCell, 3)} lbf")
     dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.battVolts, 3)} V")
-    dpg.set_value("fiveVolts",              f"5V bus voltage: {round(sr.streamTelem.fiveVolts, 3)} V")
-    dpg.set_value("radioVolts",             f"Radio voltage: {round(sr.streamTelem.radioVolts, 3)} V")
     dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
     
 def updateLiveInfoWindow():
@@ -444,9 +442,6 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                     with dpg.group(horizontal=True):
                         dpg.add_text(" ", tag="battVolts")
                         dpg.add_text(" ", tag="batt_perc")
-                    with dpg.group(horizontal=True):
-                        dpg.add_text(" ", tag="fiveVolts")
-                        dpg.add_text(" ", tag="radioVolts")
     
     # ERROR window
     with dpg.child_window(width=layout["error_window"]["size"][0], height=layout["error_window"]["size"][1], pos=layout["error_window"]["pos"], tag="error_window", show=True):

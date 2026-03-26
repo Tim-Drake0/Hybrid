@@ -4,6 +4,7 @@
 #include <SD.h>
 #include <Adafruit_INA219.h>
 #include "max6675.h"
+#include <RH_RF95.h>
 
 #define thermo1_DO  0
 #define thermo1_CS  1
@@ -14,11 +15,11 @@
 #define servo_5_out  6
 #define tsy_rx 7    // DELETE
 #define tsy_tx 8    // DELETE
-#define servo_6_out  9
-#define spare_1  10
+#define RFM95_RST  9
+#define RFM95_CS 10
 #define lc_out_low  11
 #define lc_out_high  12
-#define thermo_CLK  13
+
 #define pt_3  16
 #define pt_4  17
 #define pyro_1_cont_in  36
@@ -32,6 +33,10 @@
 #define pt_2  25           // EDIT
 #define five_volt_mon  26    // DELETE
 #define radio_volt_mon  27    // DELETE
+
+#define RFM95_INT 28
+#define thermo_CLK  30
+
 #define pyro_2_fire  33
 #define pyro_1_fire  34
 
@@ -40,28 +45,8 @@
 #define mov_in  38    // DELETE
 #define vent_in  39    // DELETE
 #define fill_in  40    // DELETE
-#define arm_in  41    // DELETE
+#define RADIO_LED  41  
 
-
-// Frame constants
-#define TELEM_FRAME_START_0  0xAB
-#define TELEM_FRAME_START_1  0xCD
-#define CMD_FRAME_START_0    0xDE
-#define CMD_FRAME_START_1    0xAD
-#define FRAME_END_0          0xEF
-#define FRAME_END_1          0xBE
-#define FRAME_OVERHEAD       7       // 2START + 1CMD + 1LEN + 1CRC + 2END
-#define MAX_PAYLOAD_LEN      128
-
-// == Config ====================================================================
-#define RX_BUF_SIZE     (MAX_PAYLOAD_LEN + FRAME_OVERHEAD)
-#define UART_HANDLE     huart1
-#define UART_TIMEOUT_MS 20
-
-// == Telemetry TX staging ================================================================
-static uint8_t   telem_buf[RX_BUF_SIZE];
-static uint8_t   telem_len   = 0;
-volatile uint8_t telem_ready = 0;
 
 /// DATA ========================================================================
 // SD Data Logging
@@ -76,7 +61,11 @@ const int dt_serial2 = 1000/60; // transmission speed [ms]
 long int last_time_serial2 = 0;
 unsigned long startLoopTime = 0;
 
-struct __attribute__((packed)) TSY_Payload // Payload to arduino nano
+// Radio Transceiver
+#define RF95_FREQ 433.9869
+RH_RF95 rf95(RFM95_CS, RFM95_INT);
+
+struct __attribute__((packed)) DAQ_Payload // Payload to arduino nano
 {
   uint32_t timestamp = 0; 
   uint8_t valve_states = 0;
@@ -94,9 +83,23 @@ struct __attribute__((packed)) TSY_Payload // Payload to arduino nano
   float batt_current = 0;
   float tc1 = 0;
   float tc2 = 0;
+  int8_t RSSI = 0;
   uint32_t tsy_looptime = 0;
 };
-TSY_Payload tsy_pkt;
+DAQ_Payload daq_pkt;
+
+struct __attribute__((packed)) Switch_Payload { // Payload from switches
+  bool fill = 0;
+  bool vent = 0;
+  bool mov = 0; 
+  bool SW4 = 0; 
+  bool py1 = 0; 
+  bool py2 = 0; 
+  bool arm = 0; 
+  bool SW5 = 0; 
+  bool SW6 = 0; 
+};
+Switch_Payload sw_pkt;
 
 // Load Cell
 //HX711 lc1; // Initialize HX711 object for load cell
@@ -197,9 +200,9 @@ unsigned long int last_time_data = 0; // Last time data readings were taken (tra
 unsigned long int last_time_nano = 0;
 const int dt_lc_fast = 10; // Time between LC readings [ms]
 unsigned long int last_time_lc = 0; // Last time LC readings were taken (tracking for next read cycle) [ms]
-const int dt_sd_slow = 1000; // Time between slow readings [ms]
-int dt_data = dt_sd_slow; // Variable to use for dt between data readings
-int dt_lc = dt_sd_slow; // Variable to use for dt between lc readings
+
+int dt_data = 1000/10; // Variable to use for dt between data readings
+int dt_lc = 1000; // Variable to use for dt between lc readings
 
 int burn_time = 50000; // [ms] burn time
 unsigned long int burn_start = 0;
@@ -208,14 +211,14 @@ bool burn_ended = 0;
 
 void moveServo(int servo, bool state){
   if(state == 0){
-    if(servo == 1){bitWrite(tsy_pkt.valve_states, FILL, 0); servo1.write(servo1off);}
-    if(servo == 2){bitWrite(tsy_pkt.valve_states, VENT, 0); servo2.write(servo2off);}
-    if(servo == 3){bitWrite(tsy_pkt.valve_states, MOV, 0); servo3.write(servo3off);}
+    if(servo == 1){bitWrite(daq_pkt.valve_states, FILL, 0); servo1.write(servo1off);}
+    if(servo == 2){bitWrite(daq_pkt.valve_states, VENT, 0); servo2.write(servo2off);}
+    if(servo == 3){bitWrite(daq_pkt.valve_states, MOV, 0); servo3.write(servo3off);}
     //if(servo == 4){bitWrite(disWord, FILL, 0); servo4.write(servo4off);}
   }else if(state == 1){
-    if(servo == 1){bitWrite(tsy_pkt.valve_states, FILL, 1); servo1.write(servo1on);}
-    if(servo == 2){bitWrite(tsy_pkt.valve_states, VENT, 1); servo2.write(servo2on);}
-    if(servo == 3){bitWrite(tsy_pkt.valve_states, MOV, 1); servo3.write(servo3on);}
+    if(servo == 1){bitWrite(daq_pkt.valve_states, FILL, 1); servo1.write(servo1on);}
+    if(servo == 2){bitWrite(daq_pkt.valve_states, VENT, 1); servo2.write(servo2on);}
+    if(servo == 3){bitWrite(daq_pkt.valve_states, MOV, 1); servo3.write(servo3on);}
     //if(servo == 4){servo4.write(servo4on);}
   }
 }
@@ -247,60 +250,23 @@ void save_data() { // Save data to SD card
     datafile.print(",");
     datafile.print(LC1float);
     datafile.print(",");
-    datafile.print(bitRead(tsy_pkt.arm_state, C1));
+    datafile.print(bitRead(daq_pkt.arm_state, C1));
     datafile.print(",");
-    datafile.print(bitRead(tsy_pkt.arm_state, C2));
+    datafile.print(bitRead(daq_pkt.arm_state, C2));
     datafile.print(",");
-    datafile.print(bitRead(tsy_pkt.valve_states, FILL));
+    datafile.print(bitRead(daq_pkt.valve_states, FILL));
     datafile.print(",");
-    datafile.print(bitRead(tsy_pkt.valve_states, VENT));
+    datafile.print(bitRead(daq_pkt.valve_states, VENT));
     datafile.print(",");
-    datafile.print(bitRead(tsy_pkt.valve_states, MOV));
+    datafile.print(bitRead(daq_pkt.valve_states, MOV));
     datafile.print(",");
-    datafile.print(bitRead(tsy_pkt.arm_state, ARM));
+    datafile.print(bitRead(daq_pkt.arm_state, ARM));
     datafile.print(",");
-    datafile.print(bitRead(tsy_pkt.pyro_states, PY1));
+    datafile.print(bitRead(daq_pkt.pyro_states, PY1));
     datafile.print(",");
-    datafile.println(bitRead(tsy_pkt.pyro_states, PY2));
+    datafile.println(bitRead(daq_pkt.pyro_states, PY2));
     datafile.close();
   }
-}
-
-static uint8_t crc8(const uint8_t *data, uint8_t len) {
-    uint8_t crc = 0x00;
-    while (len--) crc ^= *data++;
-    return crc;
-}
-
-void send2nano(uint8_t start0, uint8_t start1, uint8_t resp_id, const void *payload, uint8_t payload_len) {
-    uint8_t *buf;
-    uint8_t *len_ptr;
-    volatile uint8_t *ready_ptr;
-    
-    buf       = telem_buf;
-    len_ptr   = &telem_len;
-    ready_ptr = &telem_ready;
-
-    uint8_t i = 0;
-    buf[i++] = start0;
-    buf[i++] = start1;
-    buf[i++] = resp_id;
-    buf[i++] = payload_len;
-
-    if (payload_len > 0 && payload != NULL) {
-        memcpy(&buf[i], payload, payload_len);
-        i += payload_len;
-    }
-
-    buf[i++] = crc8(&buf[2], 2 + payload_len);
-    buf[i++] = FRAME_END_0;
-    buf[i++] = FRAME_END_1;
-
-    Serial2.write(buf, i);
-    last_time_serial2 = millis(); // save new time of most recent transmission
-
-    *len_ptr   = i;
-    *ready_ptr = 1;
 }
 
 void setup() {
@@ -316,14 +282,6 @@ void setup() {
   pinMode(pyro_2_cont_in, INPUT_PULLDOWN);
   pinMode(pyro_1_fire_in, INPUT);
   pinMode(pyro_2_fire_in, INPUT);
-
-  //pinMode(lc_out_low, OUTPUT);
-  //pinMode(lc_out_high, OUTPUT);
-   
-  //lc1.begin(load_cell_dat,load_cell_sck); // Load cell pins
-  //long zero_factor = lc1.read_average(); //Get a baseline reading
-  //lc1.set_scale(calibration_factor); //Adjust to this calibration factor
-  //lc1.tare(); // Tare to zero load cell reading 
   
   servo1.attach(servo_1_out); // Attach servo1
   servo2.attach(servo_2_out); // Attach servo2
@@ -338,7 +296,6 @@ void setup() {
   pinMode(mov_in, INPUT);
   pinMode(fill_in, INPUT);
   pinMode(vent_in, INPUT);
-  pinMode(arm_in, INPUT);
 
   pinMode(pt_1, INPUT);
   pinMode(pt_2, INPUT);
@@ -351,7 +308,8 @@ void setup() {
   if (!SD.begin(BUILTIN_SDCARD)) { // If SD start unsuccessful
     Serial.println("SD Card initalize.. Failed");
   } else { // If SD start successful
-    bitWrite(tsy_pkt.sensor_states, 0, 1);
+  Serial.println("SD card init OK!");
+    bitWrite(daq_pkt.sensor_states, 0, 1);
     int i = 0;
     filename = "data"+String(i)+".csv"; // Generate a unique filename
     while (SD.exists(filename.c_str())) { // Check if the filename already exists
@@ -370,128 +328,154 @@ void setup() {
   if (! ina219.begin()) {
     Serial.println("Failed to find INA219 chip");
   } else {
-    bitWrite(tsy_pkt.sensor_states, 1, 1);
+    Serial.println("INA219 init OK!");
+    bitWrite(daq_pkt.sensor_states, 1, 1);
   }
+
+ // Radio transceiver set up
+  pinMode(RADIO_LED, OUTPUT);
+  digitalWrite(RADIO_LED, HIGH);
+  delay(1000);
+  digitalWrite(RADIO_LED, LOW);
+
+  pinMode(RFM95_RST, OUTPUT);
+  digitalWrite(RFM95_RST, HIGH);
+  // manual reset
+  digitalWrite(RFM95_RST, LOW);
+  delay(10);
+  digitalWrite(RFM95_RST, HIGH);
+  delay(10);
+
+  if (rf95.init()) {
+    Serial.println("LoRa radio init OK!");
+
+    // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM
+    if (rf95.setFrequency(RF95_FREQ)) {
+      Serial.print("set frequency to "); Serial.println(RF95_FREQ);
+    } else {
+      Serial.println("setFrequency failed");
+    }
+    // you can set transmitter powers from 5 to 23 dBm:
+    rf95.setTxPower(10, false);
+    rf95.setSpreadingFactor(7);
+    rf95.setSignalBandwidth(250000);  // 250kHz 
+  } else {
+    Serial.println("LoRa radio init FAILED!");
+  }
+  
+
 
   delay(1000); // delay for begin  
 }
 
 void loop() {
   startLoopTime = micros();
-  tsy_pkt.timestamp = millis();
+  daq_pkt.timestamp = millis();
   
+  // DELETE
   if (millis()-last_time_lc > dt_lc) { // Check time between LC readings
     //LC1float = lc1.get_units(); // Load cell 1 
-    tsy_pkt.load_cell = LC1float;
+    daq_pkt.load_cell = LC1float;
     //analogWrite(lc_out_low, lowByte(int8_t(LC1float)));
     //analogWrite(lc_out_high, highByte(int8_t(LC1float))); 
-    last_time_lc = tsy_pkt.timestamp;  // Record time of load cell reading
+    last_time_lc = daq_pkt.timestamp;  // Record time of load cell reading
   }  
 
   // Read sensor data
   if (millis()-last_time_data > dt_data) { // Check time between data readings
     if(analogRead(pyro_1_cont_in) > 100){
-      bitWrite(tsy_pkt.arm_state, C1, 1);
+      bitWrite(daq_pkt.arm_state, C1, 1);
     } else {
-      bitWrite(tsy_pkt.arm_state, C1, 0);
+      bitWrite(daq_pkt.arm_state, C1, 0);
     }
     
     if(analogRead(pyro_2_cont_in) > 100){
-      bitWrite(tsy_pkt.arm_state, C2, 1);
+      bitWrite(daq_pkt.arm_state, C2, 1);
     } else {
-      bitWrite(tsy_pkt.arm_state, C2, 0);
+      bitWrite(daq_pkt.arm_state, C2, 0);
     }
 
-    PT1int = analogRead(pt_1); PT1float = (PT1int*PT1coeff) + PT1gain; tsy_pkt.pt1 = PT1float;
-    PT2int = analogRead(pt_2); PT2float = (PT2int*PT2coeff) + PT2gain; tsy_pkt.pt2 = PT2float;
-    PT3int = analogRead(pt_3); PT3float = (PT3int*PT3coeff) + PT3gain; tsy_pkt.pt3 = PT3float;
-    PT4int = analogRead(pt_4); PT4float = (PT4int*PT4coeff) + PT4gain; tsy_pkt.pt4 = PT4float;
-    PT5int = analogRead(pt_5); PT5float = (PT5int*PT5coeff) + PT5gain; tsy_pkt.pt5 = PT5float;
-    PT6int = analogRead(pt_6); PT6float = (PT6int*PT6coeff) + PT6gain; tsy_pkt.pt6 = PT6float;
+    PT1int = analogRead(pt_1); PT1float = (PT1int*PT1coeff) + PT1gain; daq_pkt.pt1 = PT1float;
+    PT2int = analogRead(pt_2); PT2float = (PT2int*PT2coeff) + PT2gain; daq_pkt.pt2 = PT2float;
+    PT3int = analogRead(pt_3); PT3float = (PT3int*PT3coeff) + PT3gain; daq_pkt.pt3 = PT3float;
+    PT4int = analogRead(pt_4); PT4float = (PT4int*PT4coeff) + PT4gain; daq_pkt.pt4 = PT4float;
+    PT5int = analogRead(pt_5); PT5float = (PT5int*PT5coeff) + PT5gain; daq_pkt.pt5 = PT5float;
+    PT6int = analogRead(pt_6); PT6float = (PT6int*PT6coeff) + PT6gain; daq_pkt.pt6 = PT6float;
 
-    tsy_pkt.batt_volts = ina219.getBusVoltage_V() + 0.45;
-    tsy_pkt.batt_current = ina219.getCurrent_mA() + 10;
+    daq_pkt.batt_volts = ina219.getBusVoltage_V() + 0.45;
+    daq_pkt.batt_current = ina219.getCurrent_mA() + 10;
 
-    tsy_pkt.tc1 = tc1.readFahrenheit();
-    tsy_pkt.tc2 = tc2.readFahrenheit();
+    daq_pkt.tc1 = tc1.readFahrenheit();
+    daq_pkt.tc2 = tc2.readFahrenheit();
     
     // Fire pyros if armed and signal sent
-    if(digitalRead(arm_in) == 1){
-      bitWrite(tsy_pkt.arm_state, ARM, 1);
+    if(sw_pkt.arm == 1){
+      bitWrite(daq_pkt.arm_state, ARM, 1);
       dt_data = dt_data_fast;
       dt_lc = dt_lc_fast;
-      if(digitalRead(pyro_1_fire_in)){
-        bitWrite(tsy_pkt.pyro_states, PY1, 1);
+      if(sw_pkt.py1){
+        bitWrite(daq_pkt.pyro_states, PY1, 1);
         digitalWrite(pyro_1_fire, LOW);
-      } else if (digitalRead(pyro_2_fire_in)){
-        bitWrite(tsy_pkt.pyro_states, PY2, 1);
+      } else if (sw_pkt.py2){
+        bitWrite(daq_pkt.pyro_states, PY2, 1);
         digitalWrite(pyro_2_fire, LOW);
       } else {
-        bitWrite(tsy_pkt.pyro_states, PY1, 0);
-        bitWrite(tsy_pkt.pyro_states, PY2, 0);
+        bitWrite(daq_pkt.pyro_states, PY1, 0);
+        bitWrite(daq_pkt.pyro_states, PY2, 0);
         digitalWrite(pyro_1_fire, HIGH);
         digitalWrite(pyro_2_fire, HIGH);
       }
     } else {
-      dt_data = dt_sd_slow;
-      dt_lc = dt_sd_slow;
-      bitWrite(tsy_pkt.arm_state, ARM, 0);
-      bitWrite(tsy_pkt.pyro_states, PY1, 0);
-      bitWrite(tsy_pkt.pyro_states, PY2, 0);
+      bitWrite(daq_pkt.arm_state, ARM, 0);
+      bitWrite(daq_pkt.pyro_states, PY1, 0);
+      bitWrite(daq_pkt.pyro_states, PY2, 0);
       digitalWrite(pyro_1_fire, HIGH);
       digitalWrite(pyro_2_fire, HIGH);
     }
 
 
-    moveServo(1, digitalRead(fill_in));
-    moveServo(2, digitalRead(vent_in));
-
-
-    moveServo(3, digitalRead(mov_in));
-
-
-    // This limits the burn time to set variable 'burn_time'
-    if(digitalRead(pyro_1_fire_in) || digitalRead(pyro_2_fire_in)){ // If pyros fired, or burn started 
-      if(digitalRead(mov_in) == 1){
-        if(burn_started == 0){ // Need to get start time of burn, only when MOV is open
-          burn_start = millis();
-          burn_started = 1;
-        }
-      }
-    }
-    if(burn_started == 1){
-      if(millis() - burn_start >= burn_time){ // close mov when burn time elapsed
-        moveServo(3, 0);
-        burn_start = 0;
-        burn_started == 0;
-      }
-    }
+    moveServo(1, sw_pkt.fill);
+    moveServo(2, sw_pkt.vent);
+    moveServo(3, sw_pkt.mov);
     
-
-
-    
-
-
     last_time_nano = millis();
     last_time_data = millis(); // Record time of data reading
     save_data(); // Save data
   }
 
-  // Send packet to nano if ready
-  if (millis()-last_time_serial2 > dt_serial2) { 
+  // Debug print statements
+  bool print_debug = false;
+  if (print_debug && millis()-last_time_serial2 > 1000) { 
 
-    Serial.print("sending packet, time: "); Serial.print(tsy_pkt.timestamp);
-    Serial.print(", batt volts: "); Serial.print(tsy_pkt.batt_volts);
-    Serial.print(", current: "); Serial.print(tsy_pkt.batt_current);
-    Serial.print(", TC1: "); Serial.print(tsy_pkt.tc1);
-    Serial.print(", TC2: "); Serial.print(tsy_pkt.tc2);
-    Serial.print(", PT1: "); Serial.println(tsy_pkt.pt1);
+    Serial.print("sending packet, time: "); Serial.print(daq_pkt.timestamp);
+    Serial.print(", batt volts: "); Serial.print(daq_pkt.batt_volts);
+    Serial.print(", current: "); Serial.print(daq_pkt.batt_current);
+    Serial.print(", TC1: "); Serial.print(daq_pkt.tc1);
+    Serial.print(", TC2: "); Serial.print(daq_pkt.tc2);
+    Serial.print(", PT1: "); Serial.println(daq_pkt.pt1);
+
+    last_time_serial2 = millis();
+  }
+
+  if (rf95.available()) {
+    Serial.println("Radio available");
+
+    uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
+    uint8_t len = sizeof(buf);
+
+    if (rf95.recv(buf, &len)) {
+      readRadioPacket(buf, len);
+      handleTelemetry();
+    } else {
+      //Serial.println("Receive failed");
+      digitalWrite(RADIO_LED, LOW);
+    }
+    // DECODE SWITCH STATE ====================================================================================================
+    //decodestate(sw_pkt); // Call function to decode switchstate and issue control commands
+      
     
-    send2nano(TELEM_FRAME_START_0, TELEM_FRAME_START_1, 0x69, &tsy_pkt, sizeof(tsy_pkt));
-
-
   }
 
 
-  tsy_pkt.tsy_looptime = micros() - startLoopTime;
+  daq_pkt.tsy_looptime = micros() - startLoopTime;
 }

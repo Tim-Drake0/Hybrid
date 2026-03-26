@@ -72,16 +72,13 @@ void send_response(uint8_t start0, uint8_t start1, uint8_t resp_id, const void *
 
     rf95.send(buf, i);
     rf95.waitPacketSent();
-    digitalWrite(RADIO_LED, LOW);
+    digitalWrite(RADIO_LED, HIGH);
 
     *len_ptr   = i;
     *ready_ptr = 1;
 }
 
-void handle_telemetry() {
-    daq_pkt.daq_nano_timestamp = millis(),
-    daq_pkt.daq_nanoRSSI = rf95.lastRssi();
-    daq_pkt.tsy = tsy_pkt;  
+void handleTelemetry(){
     send_response(TELEM_FRAME_START_0, TELEM_FRAME_START_1, 0x69, &daq_pkt, sizeof(daq_pkt));
 }
 
@@ -154,8 +151,8 @@ bool readPacket() {
                 break;
             case READ_END1:
                 parse_state = WAIT_START0;
-                if (b == FRAME_END_1 && parse_len == sizeof(TSY_Payload)) {
-                    memcpy(&tsy_pkt, &parse_buf[2], sizeof(TSY_Payload));
+                if (b == FRAME_END_1 && parse_len == sizeof(DAQ_Payload)) {
+                    memcpy(&daq_pkt, &parse_buf[2], sizeof(DAQ_Payload));
                     return true;
                 }
                 break;
@@ -225,8 +222,8 @@ void readRadioPacket(uint8_t *buf, uint8_t len){
     uint8_t calculated = crc8(payload, payload_len);
 
     if(calculated == crc_b){
-        if (length == sizeof(TSY_Payload)) {
-        memcpy(&tsy_pkt, &payload[2], sizeof(TSY_Payload));
+        if (length == sizeof(DAQ_Payload)) {
+        memcpy(&daq_pkt, &payload[2], sizeof(DAQ_Payload));
         }
 
 

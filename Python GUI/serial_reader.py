@@ -157,8 +157,10 @@ class StreamTelem:
     pt6:               float = 0.0
     loadCell:          float = 0.0
     battVolts:         float = 0.0
-    fiveVolts:         float = 0.0
-    radioVolts:        float = 0.0
+    battCurrent:       float = 0.0
+    tc1:               float = 0.0
+    tc2:               float = 0.0
+    RSSI:              int = 0
     
     fill_state:        int   = 0
     vent_state:        int   = 0
@@ -179,9 +181,6 @@ class StreamTelem:
         self.ctrl_looptime, 
         self.ctrl_sendtime,
         self.ctrl_waittime,
-        self.daq_timestamp, 
-        self.daq_RSSI, 
-        self.daq_looptime, 
         self.tsy_timestamp,
         self.valve_states,
         self.pyro_states,
@@ -195,12 +194,13 @@ class StreamTelem:
         self.pt6,
         self.loadCell, 
         self.battVolts,
-        self.fiveVolts,
-        self.radioVolts,
+        self.battCurrent,
+        self.tc1,
+        self.tc2,
+        self.RSSI,
         self.tsy_looptime) = struct.unpack_from("<"
                                         "IbIII"               # ctrl: timestamp (uint32), RSSI (int8), looptime (uint32)
-                                        "IbI"               # daq: timestamp (uint32), RSSI (int8), looptime (uint32)
-                                        "IBBBBffffffffffI",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio, looptime
+                                        "IBBBBfffffffffffbI",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio, looptime
                                         bytes(self.packet))
         
         self.fill_state     = (self.valve_states >> 0) & 1
