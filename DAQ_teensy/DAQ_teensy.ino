@@ -54,7 +54,7 @@ int chipSelect = BUILTIN_SDCARD;
 //const int SDCS = BUILTIN_SDCARD; // Use built in sd card for data logging
 String filename; // Name of data file
 File datafile; // Data file instance
-String fileheader = "Time[ms],BATT[V],5V[V],RADIO[V],PT1[psi],PT2[psi],PT3[psi],PT4[psi],PT5[psi],PT6[psi],LC[lbf],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2";
+String fileheader = "Time[ms],BATT[V],BATT_CURR[mA],TC1[F],TC2[F],PT1[psi],PT2[psi],PT3[psi],PT4[psi],PT5[psi],PT6[psi],LC[lbf],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2";
 
 // Serial comms to arduino nano
 const int dt_serial2 = 1000/60; // transmission speed [ms]
@@ -118,6 +118,8 @@ Adafruit_INA219 ina219;
 // Thermocouple sensor
 MAX6675 tc1(thermo_CLK, thermo1_CS, thermo1_DO);
 MAX6675 tc2(thermo_CLK, thermo2_CS, thermo2_DO);
+const int dt_tc = 250; // 250ms minimum for MAX6675
+unsigned long int last_time_tc = 0;
 
 /// CONTROL ========================================================================
 // Servos
@@ -224,17 +226,19 @@ void moveServo(int servo, bool state){
 }
 
 void save_data() { // Save data to SD card
-// "Time[ms],BATT[V],5V[V],RADIO[V],PT1[psi],PT2[psi],PT3[psi],PT4[psi],PT5[psi],PT6[psi],LC[lbf],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2";
+// "Time[ms],BATT[V],BATT_CURR[mA],TC1[F],TC2[F],PT1[psi],PT2[psi],PT3[psi],PT4[psi],PT5[psi],PT6[psi],LC[lbf],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2";
   // Open data file and write data, close data file
   datafile = SD.open(filename.c_str(),FILE_WRITE);
   if (datafile) {
     datafile.print(millis());
     datafile.print(",");
-    datafile.print(batt_volt);
+    datafile.print(daq_pkt.batt_volts);
     datafile.print(",");
-    datafile.print(five_volt);
+    datafile.print(daq_pkt.batt_current);
     datafile.print(",");
-    datafile.print(radio_volt);
+    datafile.print(daq_pkt.tc1);
+    datafile.print(",");
+    datafile.print(daq_pkt.tc2);
     datafile.print(",");
     datafile.print(PT1float);
     datafile.print(",");
@@ -402,12 +406,10 @@ void loop() {
     PT5int = analogRead(pt_5); PT5float = (PT5int*PT5coeff) + PT5gain; daq_pkt.pt5 = PT5float;
     PT6int = analogRead(pt_6); PT6float = (PT6int*PT6coeff) + PT6gain; daq_pkt.pt6 = PT6float;
 
-    daq_pkt.batt_volts = ina219.getBusVoltage_V() + 0.45;
-    daq_pkt.batt_current = ina219.getCurrent_mA() + 10;
+    daq_pkt.batt_volts = ina219.getBusVoltage_V();
+    daq_pkt.batt_current = ina219.getCurrent_mA();
 
-    daq_pkt.tc1 = tc1.readFahrenheit();
-    daq_pkt.tc2 = tc2.readFahrenheit();
-    
+
     // Fire pyros if armed and signal sent
     if(sw_pkt.arm == 1){
       bitWrite(daq_pkt.arm_state, ARM, 1);
@@ -443,22 +445,28 @@ void loop() {
     save_data(); // Save data
   }
 
+  if (millis() - last_time_tc > dt_tc) {
+    daq_pkt.tc1 = tc1.readFahrenheit();
+    daq_pkt.tc2 = tc2.readFahrenheit();
+    last_time_tc = millis();
+  }
+    
+
   // Debug print statements
-  bool print_debug = false;
-  if (print_debug && millis()-last_time_serial2 > 1000) { 
+  bool print_debug = true;
+  if (print_debug && millis()-last_time_serial2 > 500) { 
 
     Serial.print("sending packet, time: "); Serial.print(daq_pkt.timestamp);
     Serial.print(", batt volts: "); Serial.print(daq_pkt.batt_volts);
     Serial.print(", current: "); Serial.print(daq_pkt.batt_current);
-    Serial.print(", TC1: "); Serial.print(daq_pkt.tc1);
-    Serial.print(", TC2: "); Serial.print(daq_pkt.tc2);
+    Serial.print(", TC1: "); Serial.print(daq_pkt.tc1); Serial.print(", raw TC1: "); Serial.print(tc1.readFahrenheit()); 
+    Serial.print(", TC2: "); Serial.print(daq_pkt.tc2); Serial.print(", raw TC2: "); Serial.print(tc2.readFahrenheit()); 
     Serial.print(", PT1: "); Serial.println(daq_pkt.pt1);
 
     last_time_serial2 = millis();
   }
 
   if (rf95.available()) {
-    Serial.println("Radio available");
 
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buf);
