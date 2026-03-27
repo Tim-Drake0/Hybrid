@@ -1,10 +1,13 @@
 #include <SPI.h>
+#include <Wire.h>
 #include <Servo.h>
 #include "HX711.h"
 #include <SD.h>
 #include <Adafruit_INA219.h>
 #include "max6675.h"
 #include <RH_RF95.h>
+#include <Adafruit_ADS1X15.h>
+
 
 #define thermo1_DO  0
 #define thermo1_CS  1
@@ -22,8 +25,15 @@
 
 #define pt_3  16
 #define pt_4  17
-#define pyro_1_cont_in  36
-#define pyro_2_cont_in  37
+
+#define buzzerPin 29
+
+#define pyro_1_fire  35
+#define pyro_2_fire  36
+#define arm_out 37
+#define pyro_1_cont_in  38
+#define pyro_2_cont_in  39
+
 #define pt_5  20
 #define pt_6  21
 
@@ -37,14 +47,10 @@
 #define RFM95_INT 28
 #define thermo_CLK  30
 
-#define pyro_2_fire  33
-#define pyro_1_fire  34
+
 
 #define pyro_2_fire_in  31    // DELETE
 #define pyro_1_fire_in  32    // DELETE
-#define mov_in  38    // DELETE
-#define vent_in  39    // DELETE
-#define fill_in  40    // DELETE
 #define RADIO_LED  41  
 
 
@@ -71,7 +77,7 @@ struct __attribute__((packed)) DAQ_Payload // Payload to arduino nano
   uint8_t valve_states = 0;
   uint8_t pyro_states = 0;
   uint8_t arm_state = 0;
-  uint8_t sensor_states = 0; // 0 = SD card, 1 = INA219
+  uint8_t sensor_states = 0; // 0 = SD card, 1 = INA219, 2 = ADS1115
   float pt1 = 0;
   float pt2 = 0;
   float pt3 = 0;
@@ -115,6 +121,9 @@ float batt_volt;
 // Current sensor
 Adafruit_INA219 ina219;
 
+// 16-bit 4 channel ADC 
+Adafruit_ADS1115 ads1115;
+
 // Thermocouple sensor
 MAX6675 tc1(thermo_CLK, thermo1_CS, thermo1_DO);
 MAX6675 tc2(thermo_CLK, thermo2_CS, thermo2_DO);
@@ -155,30 +164,14 @@ bool servo4_bool = 0;
 int servo4on = servoclose + servo4_trim; // Dectuated state of servo4
 int servo4off = servoopen + servo4_trim; // Actuated state of servo4
 
-int PT1int = 0; // int value of PT1 reading (fill)
-float PT1float = 0;
-float PT1coeff = 2.536967997; float PT1gain = -110.1199292;
-
-int PT2int = 0; // int value of PT2 reading (ox injector)
-float PT2float = 0;
-float PT2coeff = 2.540186886; float PT2gain = -112.1752796;
-
-int PT3int = 0; // int value of PT3 reading (combustion chamber)
-float PT3float = 0;
-float PT3coeff = 2.463810563; float PT3gain = -115.7383118;
-
-int PT4int = 0; // int value of PT4 reading (tank)
-float PT4float = 0;
-float PT4coeff = 2.524649427; float PT4gain = -106.53278;
-
-// int value of PT5 reading (extra)
-int PT5int = 0; 
-float PT5float = 0;
-float PT5coeff = 0; float PT5gain = 0;
-
-int PT6int = 0; // int value of PT6 reading (extra)
-float PT6float = 0;
-float PT6coeff = 0; float PT6gain = 0;
+//float PT1coeff = 2.536967997; float PT1gain = -110.1199292; // (phil)
+//float PT2coeff = 2.540186886; float PT2gain = -112.1752796; // (ox injector)
+//float PT3coeff = 2.463810563; float PT3gain = -115.7383118; // (combustion chamber)
+//float PT4coeff = 2.524649427; float PT4gain = -106.53278;   // (tank)
+float PT1coeff = 0.047468; float PT1gain = -126.582; // (phil)
+float PT2coeff = 0.047468; float PT2gain = -126.582; // (ox injector)
+float PT3coeff = 0.047468; float PT3gain = -126.582; // (combustion chamber)
+float PT4coeff = 0.047468; float PT4gain = -126.582; // (tank)
 
 // valve_states bit offset:
 int FILL = 0;
@@ -240,17 +233,17 @@ void save_data() { // Save data to SD card
     datafile.print(",");
     datafile.print(daq_pkt.tc2);
     datafile.print(",");
-    datafile.print(PT1float);
+    datafile.print(daq_pkt.pt1);
     datafile.print(",");
-    datafile.print(PT2float);
+    datafile.print(daq_pkt.pt2);
     datafile.print(",");
-    datafile.print(PT3float);
+    datafile.print(daq_pkt.pt3);
     datafile.print(",");
-    datafile.print(PT4float);
+    datafile.print(daq_pkt.pt4);
     datafile.print(",");
-    datafile.print(PT5float);
+    datafile.print(daq_pkt.pt5);
     datafile.print(",");
-    datafile.print(PT6float);
+    datafile.print(daq_pkt.pt6);
     datafile.print(",");
     datafile.print(LC1float);
     datafile.print(",");
@@ -277,15 +270,13 @@ void setup() {
   Serial.begin(115200);
   Serial2.begin(115200); // serial data to/from arduino nano
 
-  pinMode(five_volt_mon, INPUT);
-  pinMode(radio_volt_mon, INPUT);
-
-  pinMode(pyro_1_fire, OUTPUT); digitalWrite(pyro_1_fire, HIGH);
-  pinMode(pyro_2_fire, OUTPUT); digitalWrite(pyro_2_fire, HIGH);
+  pinMode(pyro_1_fire, OUTPUT); digitalWrite(pyro_1_fire, LOW);
+  pinMode(pyro_2_fire, OUTPUT); digitalWrite(pyro_2_fire, LOW);
   pinMode(pyro_1_cont_in, INPUT_PULLDOWN);
   pinMode(pyro_2_cont_in, INPUT_PULLDOWN);
   pinMode(pyro_1_fire_in, INPUT);
   pinMode(pyro_2_fire_in, INPUT);
+  pinMode(arm_out, OUTPUT); digitalWrite(pyro_1_fire, HIGH);
   
   servo1.attach(servo_1_out); // Attach servo1
   servo2.attach(servo_2_out); // Attach servo2
@@ -296,10 +287,6 @@ void setup() {
   servo2.write(servo2on); // Set servo2 safe state (vent)
   servo3.write(servo3off); // Set servo3 safe state (mov)
   servo4.write(servo4off); // Set servo4 safe state (extra)
-
-  pinMode(mov_in, INPUT);
-  pinMode(fill_in, INPUT);
-  pinMode(vent_in, INPUT);
 
   pinMode(pt_1, INPUT);
   pinMode(pt_2, INPUT);
@@ -336,6 +323,14 @@ void setup() {
     bitWrite(daq_pkt.sensor_states, 1, 1);
   }
 
+  // start 16-bit ADC
+  if (! ads1115.begin(0x49)) {
+    Serial.println("Failed to find ADS1115 chip");
+  } else {
+    Serial.println("ADS1115 init OK!");
+    bitWrite(daq_pkt.sensor_states, 2, 1);
+  }
+
  // Radio transceiver set up
   pinMode(RADIO_LED, OUTPUT);
   digitalWrite(RADIO_LED, HIGH);
@@ -367,8 +362,6 @@ void setup() {
     Serial.println("LoRa radio init FAILED!");
   }
   
-
-
   delay(1000); // delay for begin  
 }
 
@@ -399,40 +392,42 @@ void loop() {
       bitWrite(daq_pkt.arm_state, C2, 0);
     }
 
-    PT1int = analogRead(pt_1); PT1float = (PT1int*PT1coeff) + PT1gain; daq_pkt.pt1 = PT1float;
-    PT2int = analogRead(pt_2); PT2float = (PT2int*PT2coeff) + PT2gain; daq_pkt.pt2 = PT2float;
-    PT3int = analogRead(pt_3); PT3float = (PT3int*PT3coeff) + PT3gain; daq_pkt.pt3 = PT3float;
-    PT4int = analogRead(pt_4); PT4float = (PT4int*PT4coeff) + PT4gain; daq_pkt.pt4 = PT4float;
-    PT5int = analogRead(pt_5); PT5float = (PT5int*PT5coeff) + PT5gain; daq_pkt.pt5 = PT5float;
-    PT6int = analogRead(pt_6); PT6float = (PT6int*PT6coeff) + PT6gain; daq_pkt.pt6 = PT6float;
+    daq_pkt.pt1 = ((ads1115.readADC_SingleEnded(0)*PT1coeff) + PT1gain);
+    daq_pkt.pt2 = ((ads1115.readADC_SingleEnded(1)*PT2coeff) + PT2gain);
+    daq_pkt.pt3 = ((ads1115.readADC_SingleEnded(2)*PT3coeff) + PT3gain);
+    daq_pkt.pt4 = ((ads1115.readADC_SingleEnded(3)*PT4coeff) + PT4gain);
+    daq_pkt.pt5 = 0; // DELETE
+    daq_pkt.pt6 = 0; // DELETE
 
-    daq_pkt.batt_volts = ina219.getBusVoltage_V();
-    daq_pkt.batt_current = ina219.getCurrent_mA();
+    daq_pkt.batt_volts = ina219.getBusVoltage_V() + 0.60;
+    daq_pkt.batt_current = ina219.getCurrent_mA() + 10;
 
 
     // Fire pyros if armed and signal sent
     if(sw_pkt.arm == 1){
+      digitalWrite(arm_out, HIGH);
       bitWrite(daq_pkt.arm_state, ARM, 1);
       dt_data = dt_data_fast;
       dt_lc = dt_lc_fast;
       if(sw_pkt.py1){
         bitWrite(daq_pkt.pyro_states, PY1, 1);
-        digitalWrite(pyro_1_fire, LOW);
+        digitalWrite(pyro_1_fire, HIGH);
       } else if (sw_pkt.py2){
         bitWrite(daq_pkt.pyro_states, PY2, 1);
-        digitalWrite(pyro_2_fire, LOW);
+        digitalWrite(pyro_2_fire, HIGH);
       } else {
         bitWrite(daq_pkt.pyro_states, PY1, 0);
         bitWrite(daq_pkt.pyro_states, PY2, 0);
-        digitalWrite(pyro_1_fire, HIGH);
-        digitalWrite(pyro_2_fire, HIGH);
+        digitalWrite(pyro_1_fire, LOW);
+        digitalWrite(pyro_2_fire, LOW);
       }
     } else {
       bitWrite(daq_pkt.arm_state, ARM, 0);
       bitWrite(daq_pkt.pyro_states, PY1, 0);
       bitWrite(daq_pkt.pyro_states, PY2, 0);
-      digitalWrite(pyro_1_fire, HIGH);
-      digitalWrite(pyro_2_fire, HIGH);
+      digitalWrite(arm_out, LOW);
+      digitalWrite(pyro_1_fire, LOW);
+      digitalWrite(pyro_2_fire, LOW);
     }
 
 
@@ -459,9 +454,14 @@ void loop() {
     Serial.print("sending packet, time: "); Serial.print(daq_pkt.timestamp);
     Serial.print(", batt volts: "); Serial.print(daq_pkt.batt_volts);
     Serial.print(", current: "); Serial.print(daq_pkt.batt_current);
-    Serial.print(", TC1: "); Serial.print(daq_pkt.tc1); Serial.print(", raw TC1: "); Serial.print(tc1.readFahrenheit()); 
-    Serial.print(", TC2: "); Serial.print(daq_pkt.tc2); Serial.print(", raw TC2: "); Serial.print(tc2.readFahrenheit()); 
+    Serial.print(", TC1: "); Serial.print(daq_pkt.tc1);
+    Serial.print(", TC2: "); Serial.print(daq_pkt.tc2);
+    Serial.print(", cont1: "); Serial.print(digitalRead(pyro_1_cont_in));
+    Serial.print(", cont2: "); Serial.print(digitalRead(pyro_2_cont_in));
+
     Serial.print(", PT1: "); Serial.println(daq_pkt.pt1);
+
+
 
     last_time_serial2 = millis();
   }
@@ -482,6 +482,12 @@ void loop() {
     //decodestate(sw_pkt); // Call function to decode switchstate and issue control commands
       
     
+  }
+
+  if(sw_pkt.arm){
+    tone(buzzerPin, 2300);
+  } else {
+    noTone(buzzerPin);
   }
 
 
