@@ -8,51 +8,30 @@
 #include <RH_RF95.h>
 #include <Adafruit_ADS1X15.h>
 
+#define thermo_CLK  0
+#define thermo1_CS  1 // top tank
+#define thermo2_CS  2 // bot tank
+#define thermo_DO  3
+#define servo_1_out  4 // fill
+#define servo_2_out  5 // vent
+#define servo_3_out  6 // mov
+#define servo_4_out  7 // spare
 
-#define thermo1_DO  0
-#define thermo1_CS  1
-#define servo_1_out  2 // fill
-#define servo_2_out  3 // vent
-#define servo_3_out  4 // mov
-#define servo_4_out  5
-#define servo_5_out  6
-#define tsy_rx 7    // DELETE
-#define tsy_tx 8    // DELETE
 #define RFM95_RST  9
 #define RFM95_CS 10
-#define lc_out_low  11
-#define lc_out_high  12
 
 #define pt_3  16
 #define pt_4  17
 
-#define buzzerPin 29
+#define RFM95_INT 24
+#define RADIO_LED 25
+#define pyro_1_fire  26
+#define pyro_1_cont_in  27
+#define buzzerPin 28
 
-#define pyro_1_fire  35
-#define pyro_2_fire  36
-#define arm_out 37
-#define pyro_1_cont_in  38
-#define pyro_2_cont_in  39
-
-#define pt_5  20
-#define pt_6  21
-
-#define thermo2_DO  22
-#define thermo2_CS  23
-#define pt_1  24           // EDIT
-#define pt_2  25           // EDIT
-#define five_volt_mon  26    // DELETE
-#define radio_volt_mon  27    // DELETE
-
-#define RFM95_INT 28
-#define thermo_CLK  30
-
-
-
-#define pyro_2_fire_in  31    // DELETE
-#define pyro_1_fire_in  32    // DELETE
-#define RADIO_LED  41  
-
+#define pyro_2_cont_in  38
+#define pyro_2_fire  39
+#define arm_out 40
 
 /// DATA ========================================================================
 // SD Data Logging
@@ -125,8 +104,8 @@ Adafruit_INA219 ina219;
 Adafruit_ADS1115 ads1115;
 
 // Thermocouple sensor
-MAX6675 tc1(thermo_CLK, thermo1_CS, thermo1_DO);
-MAX6675 tc2(thermo_CLK, thermo2_CS, thermo2_DO);
+MAX6675 tc1(thermo_CLK, thermo1_CS, thermo_DO);
+MAX6675 tc2(thermo_CLK, thermo2_CS, thermo_DO);
 const int dt_tc = 250; // 250ms minimum for MAX6675
 unsigned long int last_time_tc = 0;
 
@@ -274,8 +253,6 @@ void setup() {
   pinMode(pyro_2_fire, OUTPUT); digitalWrite(pyro_2_fire, LOW);
   pinMode(pyro_1_cont_in, INPUT_PULLDOWN);
   pinMode(pyro_2_cont_in, INPUT_PULLDOWN);
-  pinMode(pyro_1_fire_in, INPUT);
-  pinMode(pyro_2_fire_in, INPUT);
   pinMode(arm_out, OUTPUT); digitalWrite(pyro_1_fire, HIGH);
   
   servo1.attach(servo_1_out); // Attach servo1
@@ -287,13 +264,6 @@ void setup() {
   servo2.write(servo2on); // Set servo2 safe state (vent)
   servo3.write(servo3off); // Set servo3 safe state (mov)
   servo4.write(servo4off); // Set servo4 safe state (extra)
-
-  pinMode(pt_1, INPUT);
-  pinMode(pt_2, INPUT);
-  pinMode(pt_3, INPUT);
-  pinMode(pt_4, INPUT);
-  pinMode(pt_5, INPUT);
-  pinMode(pt_6, INPUT);
 
   // SD card set up
   if (!SD.begin(BUILTIN_SDCARD)) { // If SD start unsuccessful
@@ -355,7 +325,7 @@ void setup() {
       Serial.println("setFrequency failed");
     }
     // you can set transmitter powers from 5 to 23 dBm:
-    rf95.setTxPower(10, false);
+    rf95.setTxPower(23, false);
     rf95.setSpreadingFactor(7);
     rf95.setSignalBandwidth(250000);  // 250kHz 
   } else {
@@ -373,8 +343,6 @@ void loop() {
   if (millis()-last_time_lc > dt_lc) { // Check time between LC readings
     //LC1float = lc1.get_units(); // Load cell 1 
     daq_pkt.load_cell = LC1float;
-    //analogWrite(lc_out_low, lowByte(int8_t(LC1float)));
-    //analogWrite(lc_out_high, highByte(int8_t(LC1float))); 
     last_time_lc = daq_pkt.timestamp;  // Record time of load cell reading
   }  
 
