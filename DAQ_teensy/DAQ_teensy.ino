@@ -1,6 +1,6 @@
 #include <SPI.h>
 #include <Wire.h>
-#include <Servo.h>
+#include <PWMServo.h>
 #include "HX711.h"
 #include <SD.h>
 #include <Adafruit_INA219.h>
@@ -124,22 +124,22 @@ int servo3_trim = 5;
 int servo4_trim = 9;
 
 
-Servo servo1; // Initialize servo1 object (fill)
+PWMServo servo1; // Initialize servo1 object (fill)
 bool servo1_bool = 0;
 int servo1on = servoclose + servo1_trim; // Dectuated state of servo1
 int servo1off = servoopen + servo1_trim; // Actuated state of servo1
 
-Servo servo2; // Initialize servo2 object (vent)
+PWMServo servo2; // Initialize servo2 object (vent)
 bool servo2_bool = 0;
 int servo2on = servoclose_mini + servo2_trim; // Actuated state of servo2
 int servo2off = servoopen_mini + servo2_trim; // Dectuated state of servo2
 
-Servo servo3; // Initialize servo3 object (mov)
+PWMServo servo3; // Initialize servo3 object (mov)
 bool servo3_bool = 0;
 int servo3on = servoclose_mini + servo3_trim; // Dectuated state of servo3
 int servo3off = servoopen_mini + servo3_trim; // Actuated state of servo3
 
-Servo servo4; // Initialize servo4 object (extra)
+PWMServo servo4; // Initialize servo4 object (extra)
 bool servo4_bool = 0;
 int servo4on = servoclose + servo4_trim; // Dectuated state of servo4
 int servo4off = servoopen + servo4_trim; // Actuated state of servo4
@@ -292,6 +292,7 @@ void setup() {
   } else {
     Serial.println("INA219 init OK!");
     bitWrite(daq_pkt.sensor_states, 1, 1);
+    ina219.setCalibration_32V_2A();
   }
 
   // start 16-bit ADC
@@ -404,10 +405,10 @@ void loop() {
       digitalWrite(pyro_2_fire, LOW);
     }
 
-
-    moveServo(1, sw_pkt.fill);
-    moveServo(2, sw_pkt.vent);
-    moveServo(3, sw_pkt.mov);
+    // Only move servos if state changes
+    if (sw_pkt.fill != bitRead(daq_pkt.valve_states, FILL)) moveServo(1, sw_pkt.fill);
+    if (sw_pkt.vent != bitRead(daq_pkt.valve_states, VENT)) moveServo(2, sw_pkt.vent);
+    if (sw_pkt.mov  != bitRead(daq_pkt.valve_states, MOV)) moveServo(3, sw_pkt.mov);
     
     last_time_nano = millis();
     last_time_data = millis(); // Record time of data reading
