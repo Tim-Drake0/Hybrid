@@ -106,7 +106,7 @@ def init_log_raw():
     log_writer.writerow([
         "ctrl_timestamp", "daq_timestamp", "tsy_timestamp",
         "pt1", "pt2", "pt3", "pt4", "pt5", "pt6",
-        "loadCell", "battVolts", "fiveVolts", "radioVolts",
+        "loadCell", "battVolts",
         "fill", "vent", "mov", "arm", "py1", "py2", "c1", "c2",
         "ctrl_RSSI", "daq_RSSI", "tsy_looptime", "sd_state"
     ])
@@ -119,10 +119,10 @@ def log_telem(t):
     log_writer.writerow([
         t.ctrl_timestamp, t.daq_timestamp, t.tsy_timestamp,
         t.pt1, t.pt2, t.pt3, t.pt4, t.pt5, t.pt6,
-        t.loadCell, t.battVolts, t.fiveVolts, t.radioVolts,
+        t.loadCell, t.battVolts,
         t.fill_state, t.vent_state, t.mov_state, t.arm_state,
         t.py1_state, t.py2_state, t.c1_state, t.c2_state,
-        t.ctrl_RSSI, t.daq_RSSI, t.tsy_looptime, t.sd_state
+        t.ctrl_RSSI, t.RSSI, t.tsy_looptime, t.sd_state
     ])
         
 def close_log():
@@ -141,7 +141,6 @@ class StreamTelem:
     ctrl_sendtime:     int   = 0
     ctrl_waittime:     int   = 0
     daq_timestamp:     int   = 0
-    daq_RSSI:          int   = 0
     daq_looptime:      int   = 0
     tsy_timestamp:     int   = 0
     tsy_looptime:      int   = 0
@@ -200,7 +199,7 @@ class StreamTelem:
         self.RSSI,
         self.tsy_looptime) = struct.unpack_from("<"
                                         "IbIII"               # ctrl: timestamp (uint32), RSSI (int8), looptime (uint32)
-                                        "IBBBBfffffffffffbI",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt, 5v, radio, looptime
+                                        "IBBBBfffffffffffbI",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt voltage, batt current, tc1, tc2, RSSI, looptime
                                         bytes(self.packet))
         
         self.fill_state     = (self.valve_states >> 0) & 1

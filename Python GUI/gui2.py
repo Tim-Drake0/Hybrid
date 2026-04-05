@@ -119,7 +119,7 @@ def updateStatusBar():
         tov_min = (stampSecs / 60) % 60
         tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
         tov_sec = stampSecs % 60
-        dpg.set_value("tov", f"{int(tov_hour):02d}:{int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
+        dpg.set_value("tov", f"Uptime:{int(tov_hour):02d}:{int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
         
     # show pop up if abort countdown started
     if valid_connection == False and sr.streamTelem.tsy_timestamp > 0:
@@ -193,7 +193,7 @@ def updateDebugWindow():
     dpg.set_value("ctrl_sendtime",          f"Ctrl sendtime: {sr.streamTelem.ctrl_sendtime} us")
     dpg.set_value("ctrl_waittime",          f"Ctrl waittime: {sr.streamTelem.ctrl_waittime} us")
     dpg.set_value("daq_timestamp",          f"DAQ timestamp: {sr.streamTelem.daq_timestamp} ms")
-    dpg.set_value("daq_RSSI",               f"DAQ RSSI: {sr.streamTelem.daq_RSSI} dBm")
+    dpg.set_value("daq_RSSI",               f"DAQ RSSI: {sr.streamTelem.RSSI} dBm")
     dpg.set_value("daq_looptime",           f"DAQ looptime: {sr.streamTelem.daq_looptime} us")
     dpg.set_value("tsy_timestamp",          f"Teensy timestamp: {sr.streamTelem.tsy_timestamp} ms")
     dpg.set_value("tsy_looptime",           f"Teensy looptime: {sr.streamTelem.tsy_looptime} us")
@@ -201,14 +201,15 @@ def updateDebugWindow():
     dpg.set_value("pyro_states",            f"Pyro states: {sr.streamTelem.pyro_states:08b}")
     dpg.set_value("arm_state",              f"Arm state: {sr.streamTelem.arm_state}")
     dpg.set_value("dbg_sensor_state",       f"Sensor state: {sr.streamTelem.sensor_states:08b}")
-    dpg.set_value("pt1",                    f"PT1: {round(sr.streamTelem.pt1, 2)} PSI")
-    dpg.set_value("pt2",                    f"PT2: {round(sr.streamTelem.pt2, 2)} PSI")
-    dpg.set_value("pt3",                    f"PT3: {round(sr.streamTelem.pt3, 2)} PSI")
-    dpg.set_value("pt4",                    f"PT4: {round(sr.streamTelem.pt4, 2)} PSI")
-    dpg.set_value("pt5",                    f"PT5: {round(sr.streamTelem.pt5, 2)} PSI")
-    dpg.set_value("pt6",                    f"PT6: {round(sr.streamTelem.pt6, 2)} PSI")
+    dpg.set_value("pt1",                    f"PT1: {round(sr.streamTelem.pt1, 4)} PSI")
+    dpg.set_value("pt2",                    f"PT2: {round(sr.streamTelem.pt2, 4)} PSI")
+    dpg.set_value("pt3",                    f"PT3: {round(sr.streamTelem.pt3, 4)} PSI")
+    dpg.set_value("pt4",                    f"PT4: {round(sr.streamTelem.pt4, 4)} PSI")
+    dpg.set_value("pt5",                    f"PT5: {round(sr.streamTelem.pt5, 4)} PSI")
+    dpg.set_value("pt6",                    f"PT6: {round(sr.streamTelem.pt6, 4)} PSI")
     dpg.set_value("loadCell",               f"Load cell: {round(sr.streamTelem.loadCell, 3)} lbf")
-    dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.battVolts, 3)} V")
+    dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.battVolts, 4)} V")
+    dpg.set_value("batt_current",           f"Battery current: {round(sr.streamTelem.battCurrent/1000, 4)} A")
     dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
     
 def updateLiveInfoWindow():
@@ -228,13 +229,20 @@ def updateLiveInfoWindow():
     elif sr.streamTelem.fill_state == 0:
         if fill_started:
             fill_started = False  # stop timer, freeze display (fill_min/fill_sec unchanged)
+            
+    dpg.set_value("live_tc1_temp", f"{sr.streamTelem.tc1:.1f} °F")
+    dpg.set_value("live_tc2_temp", f"{sr.streamTelem.tc2:.1f} °F")
 
     
     dpg.set_value("live_fill_time", f"{fill_min:02}:{fill_sec:02}")
     dpg.set_value("live_batt_perc", f"{lipo_2s_percent(sr.streamTelem.battVolts):.1f} %")
     
+    dpg.set_value("live_batt_pwr", f"{((sr.streamTelem.battVolts * sr.streamTelem.battCurrent)/1000):.1f} W")
+    
+    
+    
     dpg.set_value("live_ctrl_rssi", f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
-    dpg.set_value("live_daq_rssi",  f"DAQ RSSI:  {sr.streamTelem.daq_RSSI} dBm")
+    dpg.set_value("live_daq_rssi",  f"DAQ RSSI:  {sr.streamTelem.RSSI} dBm")
     
 def updateFillPlot(): 
     global fill_plot_started, fill_time, fill_live_time, fill_pt1_list, fill_pt4_list
@@ -301,10 +309,11 @@ def get_layout():
     press_w = events_x - info_w + 5
     press_h = 550
 
-    plot_x = press_x
-    plot_y = error_y
-    plot_w = vp_w - press_x - 5
+
+    plot_w = 600
     plot_h = error_h
+    plot_x = vp_w - plot_w
+    plot_y = error_y
     
     return {
         "status_bar":           {"pos": (statusbar_x, statusbar_y), "size": (statusbar_w, statusbar_h)}, 
@@ -326,6 +335,8 @@ def resize_viewport():
         dpg.set_item_pos(tag, vals["pos"])
         dpg.set_item_width(tag, vals["size"][0])
         dpg.set_item_height(tag, vals["size"][1])
+        
+        
 dpg.create_context()
 settings.createFonts()
 dpg.bind_font(settings.default)
@@ -366,6 +377,14 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
             txt_tov = dpg.add_text(" ", tag="tov")
             dpg.bind_item_font(txt_tov,settings.xl)
             
+            # Fill time
+            with dpg.group(horizontal=True):
+                dpg.add_text("  Fill Time:")
+                dpg.bind_item_font(dpg.last_item(), settings.xl)
+                dpg.add_text("--:--", tag="live_fill_time")
+                dpg.bind_item_font(dpg.last_item(), settings.xl)
+                    
+            
     with dpg.child_window(width=layout["bus_info_window"]["size"][0], height=layout["bus_info_window"]["size"][1], pos=layout["bus_info_window"]["pos"], tag="bus_info_window", show=True):
         with dpg.group(width=150):
             with dpg.tab_bar(label="Main Tabs"):
@@ -384,12 +403,18 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                         
                     dpg.add_separator()
                     
-                    # Fill time
+                    # Temperatures
                     with dpg.group(horizontal=True):
-                        dpg.add_text("Fill Time:")
+                        dpg.add_text("Fwd Tank Temp:")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        dpg.add_text("--:--", tag="live_fill_time")
+                        dpg.add_text("--- °F", tag="live_tc1_temp")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Aft Tank Temp:")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                        dpg.add_text("--- °F", tag="live_tc2_temp")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                        
                     
                     dpg.add_separator()
                     
@@ -399,6 +424,13 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                         dpg.add_text("-- %", tag="live_batt_perc")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
+                        
+                    # Battery power
+                    dpg.add_text(" ", tag="live_batt_pwr")
+                    dpg.bind_item_font(dpg.last_item(), settings.large)
+                    
+                    
+                    dpg.add_separator()
                     
                     # RSSI
                     dpg.add_text(" ", tag="live_ctrl_rssi")
@@ -439,9 +471,11 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                         dpg.add_text(" ", tag="pt5")
                         dpg.add_text(" ", tag="pt6")
                     dpg.add_text(" ", tag="loadCell")
+                    dpg.add_text(" ", tag="batt_perc")
                     with dpg.group(horizontal=True):
                         dpg.add_text(" ", tag="battVolts")
-                        dpg.add_text(" ", tag="batt_perc")
+                        dpg.add_text(" ", tag="batt_current")
+                        
     
     # ERROR window
     with dpg.child_window(width=layout["error_window"]["size"][0], height=layout["error_window"]["size"][1], pos=layout["error_window"]["pos"], tag="error_window", show=True):
@@ -479,17 +513,24 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
     dpg.bind_item_theme("pt1_curve", line_theme)
     dpg.bind_item_theme("pt4_curve", line_theme)
     
-    # Live pressure plot window            
+    # Live temp vs pressure plot window
     with dpg.child_window(width=layout["plot_window"]["size"][0], height=layout["plot_window"]["size"][1], pos=layout["plot_window"]["pos"], tag="plot_window", show=True):
-                       
-        with dpg.plot(label="Live Pressures", width=layout["plot_window"]["size"][0], height=layout["plot_window"]["size"][1], pos=[0,0], tag="live_press_plot"):
-            dpg.add_plot_legend()
-            with dpg.plot_axis(dpg.mvXAxis, label="Timestamp", tag="x_axis_busIMUaccel"):
-                pass
-            with dpg.plot_axis(dpg.mvYAxis, label="PSI", tag="y_axis_pressure"):
-                dpg.set_axis_limits(dpg.last_item(), -20, 20) 
-                dpg.add_line_series([], [], label="Tank Pressure", tag="pt4_list")
-                dpg.add_line_series([], [], label="Bottle Pressure", tag="pt1_list")
+
+        with dpg.plot(label="Live Temp vs Pressure", width=layout["plot_window"]["size"][0], height=layout["plot_window"]["size"][1], pos=[0,0], tag="live_press_plot"):
+
+            with dpg.plot_axis(dpg.mvYAxis, label="Pressure (PSI)", tag="y_axis_pressure"):
+                dpg.set_axis_limits(dpg.last_item(), 00, 1000)
+                
+                dpg.add_line_series(
+                    settings.SAT_TEMPS,
+                    settings.SAT_PRESSURES,
+                    label="Saturation Curve (L+V)",
+                    tag="sat_curve"
+                )
+
+            with dpg.plot_axis(dpg.mvXAxis, label="Temperature (°F)", tag="x_axis_temp"):
+                dpg.set_axis_limits(dpg.last_item(), 0, 100)
+                dpg.add_scatter_series([], [], label="Tank Pressure", tag="pt4_scatter")
                           
     # Events window
     with dpg.child_window(width=layout["events_window"]["size"][0], height=layout["events_window"]["size"][1], pos=layout["events_window"]["pos"], tag="events_window"):
@@ -592,18 +633,20 @@ try:
         
             
         
-        dpg.set_value("pt1_list", [list(timestamps), list(pt1_list)]) 
-        dpg.set_value("pt4_list", [list(timestamps), list(pt4_list)]) 
-        all_pressures = list(pt1_list) + list(pt4_list)
-        dpg.set_axis_limits("y_axis_pressure", min(all_pressures), max(all_pressures))
+        #dpg.set_value("pt1_list", [list(timestamps), list(pt1_list)]) 
+        #dpg.set_value("pt4_list", [list(timestamps), list(pt4_list)]) 
+        #all_pressures = list(pt1_list) + list(pt4_list)
+        #dpg.set_axis_limits("y_axis_pressure", min(all_pressures), max(all_pressures))
 
         
         # Update x-axis limits to show a moving window
         if timestamps:
             latest = timestamps[-1]
             start = max(latest - WINDOW_SIZE, timestamps[0])  # don't go before first timestamp
-
-            dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
+            dpg.set_value("pt4_scatter", [[sr.streamTelem.tc1], [sr.streamTelem.pt4]])
+            
+            #dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
+            
         updateLiveInfoWindow()
         updateDebugWindow()
         updateStatusBar()    
