@@ -2,6 +2,7 @@ import dearpygui.dearpygui as dpg
 import serial_reader as sr
 import serial_writer as sw
 import gui_settings as settings
+import dynamic_charts as dc
 import time
 from collections import deque
 import pandas as pd
@@ -23,6 +24,7 @@ fill_started = 0
 fill_time = 0
 fill_min = 0
 fill_sec = 0
+batt_rem_time = 0
 
 # CSV for fill data
 df = pd.read_csv("data10.csv")
@@ -59,6 +61,18 @@ guiLoopTime = 0
 frameTime = 0
 
 fc_state = 0 # this will eventually come from the flight computer. temporary
+is_dark_theme = True  # start in dark mode (DPG default)
+
+def toggle_theme():
+    global is_dark_theme
+    is_dark_theme = not is_dark_theme
+    if is_dark_theme:
+        dpg.bind_theme(dark_theme)
+        dpg.configure_item("theme_button", label="Light")
+    else:
+        dpg.bind_theme(light_theme)
+        dpg.configure_item("theme_button", label="Dark")
+    dc.set_dark_mode(is_dark_theme)
 
 def _config(sender, keyword, user_data):
     widget_type = dpg.get_item_type(sender)
@@ -218,7 +232,7 @@ def updateDebugWindow():
     dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
     
 def updateLiveInfoWindow():
-    global fill_started, fill_time, live_time, pt1_list, pt4_list, fill_min, fill_sec
+    global fill_started, fill_time, live_time, pt1_list, pt4_list, fill_min, fill_sec, batt_rem_time
     dpg.set_value("live_tank_pressure", f"{sr.streamTelem.pt4:.1f} psi")
     dpg.set_value("live_bottle_pressure", f"{sr.streamTelem.pt1:.1f} psi")
     
@@ -240,40 +254,21 @@ def updateLiveInfoWindow():
 
     
     dpg.set_value("live_fill_time", f"{fill_min:02}:{fill_sec:02}")
-    dpg.set_value("live_batt_perc", f"{lipo_2s_percent(sr.streamTelem.battVolts):.1f} %")
+    
+    batt_perc = lipo_2s_percent(sr.streamTelem.battVolts)
+    dpg.set_value("live_batt_perc", f"{batt_perc:.1f} %")
     
     dpg.set_value("live_batt_pwr", f"{((sr.streamTelem.battVolts * sr.streamTelem.battCurrent)/1000):.1f} W")
     
+    if sr.streamTelem.battCurrent != 0 and time.time() - batt_rem_time > 10:
+        time_left = (2200 * (batt_perc/100)) / sr.streamTelem.battCurrent
+        dpg.set_value("live_batt_time", f"Hours remaining on charge: {time_left:.1f}")
+        batt_rem_time = time.time()
     
-    
+
     dpg.set_value("live_ctrl_rssi", f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
     dpg.set_value("live_daq_rssi",  f"DAQ RSSI:  {sr.streamTelem.RSSI} dBm")
-    
-def updateFillPlot(): 
-    global fill_plot_started, fill_time, fill_live_time, fill_pt1_list, fill_pt4_list
-    
-    if sr.streamTelem.fill_state == 1:
-        if not fill_plot_started:
-            fill_time = time.time()
-            fill_plot_started = True
-            fill_live_time.clear()
-            fill_pt1_list.clear()
-            fill_pt4_list.clear()
-            dpg.set_value("pt1_curve", [[], []])
-            dpg.set_value("pt4_curve", [[], []])
 
-    
-        elapsed = (time.time() - fill_time) + csv_fill_start
-        fill_live_time.append(float(elapsed))
-        fill_pt1_list.append(float(sr.streamTelem.pt1))
-        fill_pt4_list.append(float(sr.streamTelem.pt4))
-
-        dpg.set_value("pt1_curve", [list(fill_live_time), list(fill_pt1_list)])
-        dpg.set_value("pt4_curve", [list(fill_live_time), list(fill_pt4_list)])
-        
-    elif sr.streamTelem.fill_state == 0:
-        fill_plot_started = False  # allow re-clear on next fill
-    
 def update_error_table():
     errors = {
         "sd_card": ("SD CARD ERROR", sr.streamTelem.sd_state == 0),
@@ -297,14 +292,14 @@ def get_layout():
     
     statusbar_x, statusbar_y = 0, 0
     statusbar_w, statusbar_h = vp_w, 60
-    
-    events_w, events_h = 300, 550
-    events_x = vp_w - events_w
-    events_y = statusbar_h + 10
 
     info_x, info_y = 0, statusbar_h + 10
-    info_w, info_h = 570, 550
+    info_w, info_h = 570, 460
 
+    events_w, events_h = 300, info_h
+    events_x = vp_w - events_w
+    events_y = statusbar_h + 10
+    
     error_x, error_y = 0, info_y + info_h
     error_w = info_w
     error_h = vp_h - info_h - statusbar_h - 10
@@ -312,27 +307,30 @@ def get_layout():
     press_x = info_w + 5
     press_y = statusbar_h + 10
     press_w = events_x - info_w + 5
-    press_h = 550
+    press_h = info_h
 
 
-    plot_w = 600
+    plot_w = vp_w - press_x
     plot_h = error_h
-    plot_x = vp_w - plot_w
+    plot_x = press_x
     plot_y = error_y
     
-    rec_button_w, rec_button_h = 80,statusbar_h
-    rec_button_x, rec_button_y = vp_w-rec_button_w, statusbar_y
-    
+    rec_button_w, rec_button_h = 80, statusbar_h
+    rec_button_x, rec_button_y = vp_w - rec_button_w, statusbar_y
+
+    theme_button_w, theme_button_h = 80, statusbar_h
+    theme_button_x, theme_button_y = vp_w - rec_button_w - theme_button_w, statusbar_y
+
     return {
-        "status_bar":           {"pos": (statusbar_x,       statusbar_y),       "size": (statusbar_w,       statusbar_h)}, 
-        "events_window":        {"pos": (events_x,          events_y),          "size": (events_w,          events_h)},
-        "bus_info_window":      {"pos": (info_x,            info_y),            "size": (info_w,            info_h)},
-        "error_window":         {"pos": (error_x,           error_y),           "size": (error_w,           error_h)},
-        "press_plot_window":    {"pos": (press_x,           press_y),           "size": (press_w,           press_h)},
-        "fill_press_plot":      {"pos": (0,                 0),                 "size": (press_w-10,        press_h-8)},
-        "plot_window":          {"pos": (plot_x,            plot_y),            "size": (plot_w,            plot_h)},
-        "live_press_plot":      {"pos": (0,                 0),                 "size": (plot_w-8,          plot_h-8)},
-        "rec_button":           {"pos": (rec_button_x,      rec_button_y),      "size": (rec_button_w,      rec_button_h)},
+        "status_bar":               {"pos": (statusbar_x,       statusbar_y),       "size": (statusbar_w,       statusbar_h)}, 
+        "events_window":            {"pos": (events_x,          events_y),          "size": (events_w,          events_h)},
+        "bus_info_window":          {"pos": (info_x,            info_y),            "size": (info_w,            info_h)},
+        "error_window":             {"pos": (error_x,           error_y),           "size": (error_w,           error_h)},
+        "press_temp_plot_window":   {"pos": (press_x,           press_y),           "size": (press_w,           press_h)},
+        "press_temp_plot":          {"pos": (0,                 0),                 "size": (press_w-10,        press_h-8)},
+        "dynamic_plots_window":     {"pos": (plot_x,            plot_y),            "size": (plot_w,            plot_h)},
+        "rec_button":               {"pos": (rec_button_x,      rec_button_y),      "size": (rec_button_w,      rec_button_h)},
+        "theme_button":             {"pos": (theme_button_x,    theme_button_y),    "size": (theme_button_w,    theme_button_h)},
     }
 
 def resize_viewport():
@@ -350,6 +348,53 @@ dpg.create_context()
 settings.createFonts()
 dpg.bind_font(settings.default)
 
+# ── Dark theme (DPG default colours) ──────────────────────────────────────────
+with dpg.theme() as dark_theme:
+    with dpg.theme_component(dpg.mvAll):
+        dpg.add_theme_color(dpg.mvThemeCol_WindowBg,        (15,  15,  15,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_ChildBg,         (20,  20,  20,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_Text,            (255, 255, 255, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_Button,          (55,  55,  55,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered,   (75,  75,  75,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,    (95,  95,  95,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBg,         (30,  30,  30,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_TitleBg,         (10,  10,  10,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive,   (20,  20,  20,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_Tab,             (30,  30,  30,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_TabHovered,      (55,  55,  55,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_TabActive,       (50,  50,  50,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_Header,          (45,  45,  45,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered,   (65,  65,  65,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_ScrollbarBg,     (10,  10,  10,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrab,   (60,  60,  60,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_Border,          (60,  60,  60,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_Separator,       (60,  60,  60,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_PopupBg,         (20,  20,  20,  255))
+
+# ── Light theme ────────────────────────────────────────────────────────────────
+with dpg.theme() as light_theme:
+    with dpg.theme_component(dpg.mvAll):
+        dpg.add_theme_color(dpg.mvThemeCol_WindowBg,        (235, 235, 235, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_ChildBg,         (220, 220, 220, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_Text,            (10,  10,  10,  255))
+        dpg.add_theme_color(dpg.mvThemeCol_Button,          (180, 180, 180, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered,   (160, 160, 160, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,    (140, 140, 140, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBg,         (200, 200, 200, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_TitleBg,         (190, 190, 190, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive,   (170, 170, 170, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_Tab,             (190, 190, 190, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_TabHovered,      (160, 160, 160, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_TabActive,       (170, 170, 170, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_Header,          (180, 180, 180, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered,   (160, 160, 160, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_ScrollbarBg,     (210, 210, 210, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrab,   (150, 150, 150, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_Border,          (160, 160, 160, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_Separator,       (160, 160, 160, 255))
+        dpg.add_theme_color(dpg.mvThemeCol_PopupBg,         (225, 225, 225, 255))
+
+dpg.bind_theme(dark_theme)  # apply dark theme on startup
 dpg.create_viewport(title='Flight Computer Viewer', width=settings.WINDOW_DIM[0], height=settings.WINDOW_DIM[1])
 layout = get_layout()
 
@@ -393,6 +438,9 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                 dpg.add_text("--:--", tag="live_fill_time")
                 dpg.bind_item_font(dpg.last_item(), settings.xl)
                 
+            # Theme toggle button
+            dpg.add_button(label="Light", tag="theme_button", callback=toggle_theme)
+
             # Button to start or stop recording                    
             dpg.add_button(label="Record", tag="rec_button", callback=sr.init_log_raw)
                     
@@ -436,6 +484,10 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                         dpg.add_text("-- %", tag="live_batt_perc")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
+                    
+                    # Battery time remaining
+                    dpg.add_text(" ", tag="live_batt_time")
+                    dpg.bind_item_font(dpg.last_item(), settings.large)
                         
                     # Battery power
                     dpg.add_text(" ", tag="live_batt_pwr")
@@ -503,32 +555,10 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
 
     
                 
-    # Past pressure plot
-    with dpg.child_window(width=layout["press_plot_window"]["size"][0], height=layout["press_plot_window"]["size"][1], pos=layout["press_plot_window"]["pos"], tag="press_plot_window", show=True):
-                       
-        with dpg.plot(label="Fill Curve", width=layout["press_plot_window"]["size"][0], height=layout["press_plot_window"]["size"][1], pos=[0,0], tag="fill_press_plot"):
-            dpg.add_plot_legend(location=dpg.mvPlot_Location_NorthEast)
-            dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)", tag="x_axis_press_curve")
-            dpg.set_axis_limits("x_axis_press_curve", csv_time[0], csv_time[-1])
-            with dpg.plot_axis(dpg.mvYAxis, label="PSI", tag="y_axis_pressure_curve"):
-                # Static CSV reference lines
-                dpg.add_line_series(csv_time, csv_pt1, label="Bottle Ref", tag="csv_pt1_series")
-                dpg.add_line_series(csv_time, csv_pt4, label="Tank Ref", tag="csv_pt4_series")
-        
-                # Live data on top
-                dpg.add_line_series([], [], label="Tank Pressure", tag="pt4_curve")
-                dpg.add_line_series([], [], label="Bottle Pressure", tag="pt1_curve")
-                
-                
-                
-            dpg.set_axis_limits("y_axis_pressure_curve", 0, 1100)    
-    dpg.bind_item_theme("pt1_curve", line_theme)
-    dpg.bind_item_theme("pt4_curve", line_theme)
-    
     # Live temp vs pressure plot window
-    with dpg.child_window(width=layout["plot_window"]["size"][0], height=layout["plot_window"]["size"][1], pos=layout["plot_window"]["pos"], tag="plot_window", show=True):
+    with dpg.child_window(width=layout["press_temp_plot_window"]["size"][0], height=layout["press_temp_plot_window"]["size"][1], pos=layout["press_temp_plot_window"]["pos"], tag="press_temp_plot_window", show=True):
 
-        with dpg.plot(label="Live Temp vs Pressure", width=layout["plot_window"]["size"][0], height=layout["plot_window"]["size"][1], pos=[0,0], tag="live_press_plot"):
+        with dpg.plot(label="Live Temp vs Pressure", width=layout["press_temp_plot_window"]["size"][0], height=layout["press_temp_plot_window"]["size"][1], pos=[0,0], tag="press_temp_plot"):
 
             with dpg.plot_axis(dpg.mvYAxis, label="Pressure (PSI)", tag="y_axis_pressure"):
                 dpg.set_axis_limits(dpg.last_item(), 00, 1000)
@@ -539,13 +569,25 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                     label="Saturation Curve (L+V)",
                     tag="sat_curve"
                 )
+                
+                # Apply a theme to increase line thickness
+                with dpg.theme() as line_theme:
+                    with dpg.theme_component(dpg.mvLineSeries):
+                        dpg.add_theme_style(dpg.mvPlotStyleVar_LineWeight, 3.0, category=dpg.mvThemeCat_Plots)
+
+                dpg.bind_item_theme("sat_curve", line_theme)
 
             with dpg.plot_axis(dpg.mvXAxis, label="Temperature (°F)", tag="x_axis_temp"):
                 dpg.set_axis_limits(dpg.last_item(), 0, 100)
                 dpg.add_scatter_series([], [], label="Tank Pressure", tag="pt4_scatter")
+
+    
+    # Live plots
+    with dpg.child_window(width=layout["dynamic_plots_window"]["size"][0], height=layout["dynamic_plots_window"]["size"][1], pos=layout["dynamic_plots_window"]["pos"], tag="dynamic_plots_window", show=True):
+        dc.build_panel("dynamic_plots_window", sr.streamTelem)
                           
     # Events window
-    with dpg.child_window(width=layout["events_window"]["size"][0], height=layout["events_window"]["size"][1], pos=layout["events_window"]["pos"], tag="events_window"):
+    with dpg.child_window(width=layout["events_window"]["size"][0], height=layout["events_window"]["size"][1], pos=layout["events_window"]["pos"], tag="events_window", no_scrollbar=True):
         dpg.bind_item_font(dpg.last_item(), settings.large)
 
         with dpg.drawlist(width=settings.EVENTS_WINDOW_SIZE[0]-20, height=settings.EVENTS_WINDOW_SIZE[1]-60, tag="led_drawlist"):
@@ -664,7 +706,7 @@ try:
         updateStatusBar()    
         update_leds()
         update_error_table()
-        updateFillPlot()
+        dc.update(sr.streamTelem, sr.streamTelem.tsy_timestamp / 1000)
 
         # Render one frame
         dpg.render_dearpygui_frame()
