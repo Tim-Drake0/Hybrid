@@ -49,6 +49,7 @@ unsigned long startLoopTime = 0;
 // Radio Transceiver
 #define RF95_FREQ 433.9869
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
+bool send_pending = false;
 
 struct __attribute__((packed)) DAQ_Payload // Payload to arduino nano
 {
@@ -200,7 +201,7 @@ void moveServo(int servo, bool state){
 void save_data() { // Save data to SD card
 // "Time[ms],BATT[V],BATT_CURR[mA],TC1[F],TC2[F],PT1[psi],PT2[psi],PT3[psi],PT4[psi],PT5[psi],PT6[psi],LC[lbf],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2";
   // Open data file and write data, close data file
-  datafile = SD.open(filename.c_str(),FILE_WRITE);
+  //datafile = SD.open(filename.c_str(),FILE_WRITE);
   if (datafile) {
     datafile.print(millis());
     datafile.print(",");
@@ -241,7 +242,7 @@ void save_data() { // Save data to SD card
     datafile.print(bitRead(daq_pkt.pyro_states, PY1));
     datafile.print(",");
     datafile.println(bitRead(daq_pkt.pyro_states, PY2));
-    datafile.close();
+    datafile.flush();
   }
 }
 
@@ -281,7 +282,7 @@ void setup() {
     datafile = SD.open(filename.c_str(),FILE_WRITE); // Open data file
     if (datafile) { // If datafile open
       datafile.println(fileheader); // Write file header
-      datafile.close(); // Always close file
+      datafile.close();
     }
   }  
 
@@ -333,6 +334,9 @@ void setup() {
   }
   
   delay(1000); // delay for begin  
+
+  datafile = SD.open(filename.c_str(), FILE_WRITE);
+  if (!datafile) Serial.println("Failed to reopen datafile!");
 }
 
 void loop() {
@@ -436,21 +440,21 @@ void loop() {
   }
 
   if (rf95.available()) {
-    daq_pkt.RSSI = rf95.lastRssi();
-    uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
-    uint8_t len = sizeof(buf);
+      daq_pkt.RSSI = rf95.lastRssi();
+      uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
+      uint8_t len = sizeof(buf);
 
-    if (rf95.recv(buf, &len)) {
-      readRadioPacket(buf, len);
+      if (rf95.recv(buf, &len)) {
+          readRadioPacket(buf, len);
+          send_pending = true;
+      } else {
+          digitalWrite(RADIO_LED, LOW);
+      }
+  }
+
+  if (send_pending && !rf95.isChannelActive()) {
       handleTelemetry();
-    } else {
-      //Serial.println("Receive failed");
-      digitalWrite(RADIO_LED, LOW);
-    }
-    // DECODE SWITCH STATE ====================================================================================================
-    //decodestate(sw_pkt); // Call function to decode switchstate and issue control commands
-      
-    
+      send_pending = false;
   }
 
   if(sw_pkt.arm){
