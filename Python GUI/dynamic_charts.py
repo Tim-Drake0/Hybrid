@@ -41,6 +41,7 @@ _window_slider_tag  = ""
 _numeric_fields:   list[str] = []
 _latest_time       = 0.0
 _latest_telem      = None
+_last_timestamp    = 0.0   # used to detect power-cycle resets
 
 # Global history — keeps a rolling buffer of ALL telem values so new
 # charts can backfill immediately instead of starting empty.
@@ -373,11 +374,33 @@ def set_telem_fields(telem_obj):
         dpg.configure_item(_dropdown_tag, items=_numeric_fields)
 
 
+def _clear_all_buffers():
+    """Wipe all series data and history — called on DAQ power-cycle detection."""
+    global _last_timestamp
+    _last_timestamp = 0.0
+    _history_x.clear()
+    for buf in _history_vals.values():
+        buf.clear()
+    for chart in _charts:
+        chart["t_start"] = _latest_time
+        for s in chart["series"]:
+            s["x"].clear()
+            s["y"].clear()
+            if dpg.does_item_exist(s["series_tag"]):
+                dpg.set_value(s["series_tag"], [[], []])
+
+
 def update(telem_obj, timestamp):
     global _latest_time, _latest_telem
+    global _last_timestamp
     _latest_time  = timestamp
     _latest_telem = telem_obj
     _poll_drag()
+
+    # Detect DAQ power-cycle: timestamp jumped backwards or reset near zero
+    if _last_timestamp > 0 and (timestamp < _last_timestamp - 1.0 or (timestamp < 5.0 and _last_timestamp > 10.0)):
+        _clear_all_buffers()
+    _last_timestamp = timestamp
 
     # Always record history regardless of whether charts exist
     _history_x.append(timestamp)
