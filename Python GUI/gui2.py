@@ -124,6 +124,11 @@ def updateStatusBar():
     # show pop up if abort countdown started
     if valid_connection == False and sr.streamTelem.tsy_timestamp > 0:
         show_modal(f"ABORT")
+        
+    if sr.logging_enabled:
+        dpg.configure_item("rec_button", label="Stop Rec")
+    else:
+        dpg.configure_item("rec_button", label="Record")
             
 def lipo_2s_percent(voltage: float) -> int:
     # 2S voltage -> approximate % remaining
@@ -291,7 +296,7 @@ def get_layout():
     vp_h = dpg.get_viewport_client_height()   
     
     statusbar_x, statusbar_y = 0, 0
-    statusbar_w, statusbar_h = vp_w - 25, 60
+    statusbar_w, statusbar_h = vp_w, 60
     
     events_w, events_h = 300, 550
     events_x = vp_w - events_w
@@ -315,15 +320,19 @@ def get_layout():
     plot_x = vp_w - plot_w
     plot_y = error_y
     
+    rec_button_w, rec_button_h = 80,statusbar_h
+    rec_button_x, rec_button_y = vp_w-rec_button_w, statusbar_y
+    
     return {
-        "status_bar":           {"pos": (statusbar_x, statusbar_y), "size": (statusbar_w, statusbar_h)}, 
-        "events_window":        {"pos": (events_x, events_y), "size": (events_w, events_h)},
-        "bus_info_window":      {"pos": (info_x,   info_y),   "size": (info_w,   info_h)},
-        "error_window":         {"pos": (error_x,  error_y),  "size": (error_w,  error_h)},
-        "press_plot_window":    {"pos": (press_x,  press_y),  "size": (press_w,  press_h)},
-        "fill_press_plot":      {"pos": (0,        0),        "size": (press_w-10,  press_h-8)},
-        "plot_window":          {"pos": (plot_x,   plot_y),   "size": (plot_w,   plot_h)},
-        "live_press_plot":      {"pos": (0,        0),        "size": (plot_w-8,   plot_h-8)},
+        "status_bar":           {"pos": (statusbar_x,       statusbar_y),       "size": (statusbar_w,       statusbar_h)}, 
+        "events_window":        {"pos": (events_x,          events_y),          "size": (events_w,          events_h)},
+        "bus_info_window":      {"pos": (info_x,            info_y),            "size": (info_w,            info_h)},
+        "error_window":         {"pos": (error_x,           error_y),           "size": (error_w,           error_h)},
+        "press_plot_window":    {"pos": (press_x,           press_y),           "size": (press_w,           press_h)},
+        "fill_press_plot":      {"pos": (0,                 0),                 "size": (press_w-10,        press_h-8)},
+        "plot_window":          {"pos": (plot_x,            plot_y),            "size": (plot_w,            plot_h)},
+        "live_press_plot":      {"pos": (0,                 0),                 "size": (plot_w-8,          plot_h-8)},
+        "rec_button":           {"pos": (rec_button_x,      rec_button_y),      "size": (rec_button_w,      rec_button_h)},
     }
 
 def resize_viewport():
@@ -374,7 +383,7 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                 dpg.draw_text([box2_x + 15, draw_y // 2 - 15], "SAFE", color=[0, 0, 0], size=30, tag="arm_status_text")
 
             # TOV
-            txt_tov = dpg.add_text(" ", tag="tov")
+            txt_tov = dpg.add_text("Uptime: 00:00:00", tag="tov")
             dpg.bind_item_font(txt_tov,settings.xl)
             
             # Fill time
@@ -383,6 +392,9 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                 dpg.bind_item_font(dpg.last_item(), settings.xl)
                 dpg.add_text("--:--", tag="live_fill_time")
                 dpg.bind_item_font(dpg.last_item(), settings.xl)
+                
+            # Button to start or stop recording                    
+            dpg.add_button(label="Record", tag="rec_button", callback=sr.init_log_raw)
                     
             
     with dpg.child_window(width=layout["bus_info_window"]["size"][0], height=layout["bus_info_window"]["size"][1], pos=layout["bus_info_window"]["pos"], tag="bus_info_window", show=True):

@@ -38,6 +38,7 @@ cmd_queue = queue.Queue()
 
 _log_file = None
 log_writer = None
+logging_enabled = False
 
 # ---------------- HELPERS ----------------
 def bytes2Num(packet, startByte, bytes):
@@ -97,7 +98,12 @@ def check_crc(packet: bytes) -> bool:
     return calculated == received
        
 def init_log_raw():
-    global _log_file, log_writer
+    global _log_file, log_writer, logging_enabled
+    
+    if logging_enabled:
+        close_log()
+        return
+    
     os.makedirs("data_logs", exist_ok=True)
     filename = f"data_logs/telem_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     _log_file = open(filename, "w", newline="")
@@ -111,7 +117,8 @@ def init_log_raw():
         "ctrl_RSSI", "daq_RSSI", "tsy_looptime", "sd_state"
     ])
     
-    print(f"Logging to {filename}")
+    print(f"Recording data to {filename}")
+    logging_enabled = True
 
 def log_telem(t):
     if log_writer is None:
@@ -126,10 +133,13 @@ def log_telem(t):
     ])
         
 def close_log():
-    global _log_file
+    global _log_file, logging_enabled
     if _log_file:
         _log_file.close()
         _log_file = None
+        
+    logging_enabled = False
+    print("Stopped recording data.")
     
 @dataclass      
 class StreamTelem:
@@ -290,7 +300,9 @@ def telem_loop():
             resp_id, length, payload, crc_b = telem_queue.get()
             streamTelem.packet = payload
             streamTelem.readBuffer()
-            log_telem(streamTelem) 
+            if logging_enabled:
+                log_telem(streamTelem) 
+                
         except Exception as e:
             print("Telem error:", e)
 
@@ -317,7 +329,7 @@ if activePort:
     # Start reading in background thread
     print(f"Found activity on {activePort} at {activeRate} baudrate")
     sw.init(ser) # give the writer the same serial handle
-    init_log_raw()
+    #init_log_raw()
     threading.Thread(target=read_serial_loop, daemon=True).start()
     threading.Thread(target=telem_loop, daemon=True).start()
     threading.Thread(target=cmd_loop,   daemon=True).start()
