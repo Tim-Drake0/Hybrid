@@ -147,10 +147,10 @@ int servo4off = servoopen + servo4_trim; // Actuated state of servo4
 //float PT2coeff = 2.540186886; float PT2gain = -112.1752796; // (ox injector)
 //float PT3coeff = 2.463810563; float PT3gain = -115.7383118; // (combustion chamber)
 //float PT4coeff = 2.524649427; float PT4gain = -106.53278;   // (tank)
-float PT1coeff = 0.047468; float PT1gain = -126.582; // (phil)
-float PT2coeff = 0.047468; float PT2gain = -126.582; // (ox injector)
-float PT3coeff = 0.047468; float PT3gain = -126.582; // (combustion chamber)
-float PT4coeff = 0.047468; float PT4gain = -126.582; // (tank)
+float PT1coeff = 0.00052044609; float PT1gain = 0; // (phil)
+float PT2coeff = 0.00052044609; float PT2gain = 0; // (ox injector)
+float PT3coeff = 0.00052044609; float PT3gain = 0; // (combustion chamber)
+float PT4coeff = 0.00052044609; float PT4gain = 0; // (tank)
 
 // valve_states bit offset:
 int FILL = 0;
@@ -348,13 +348,15 @@ void loop() {
 
   // Read sensor data
   if (millis()-last_time_data > dt_data) { // Check time between data readings
-    if(analogRead(pyro_1_cont_in) > 100){
+
+    // Check continuity
+    if(analogRead(pyro_1_cont_in) > 500){
       bitWrite(daq_pkt.arm_state, C1, 1);
     } else {
       bitWrite(daq_pkt.arm_state, C1, 0);
     }
     
-    if(analogRead(pyro_2_cont_in) > 100){
+    if(analogRead(pyro_2_cont_in) > 500){
       bitWrite(daq_pkt.arm_state, C2, 1);
     } else {
       bitWrite(daq_pkt.arm_state, C2, 0);
@@ -367,8 +369,8 @@ void loop() {
     daq_pkt.pt5 = 0; // DELETE
     daq_pkt.pt6 = 0; // DELETE
 
-    daq_pkt.batt_volts = ina219.getBusVoltage_V() + 0.60;
-    daq_pkt.batt_current = ina219.getCurrent_mA() + 10;
+    daq_pkt.batt_volts = ina219.getBusVoltage_V() + 0.145;
+    daq_pkt.batt_current = ina219.getCurrent_mA() + 48;
 
 
     // Fire pyros if armed and signal sent
@@ -424,9 +426,8 @@ void loop() {
     Serial.print(", current: "); Serial.print(daq_pkt.batt_current);
     Serial.print(", TC1: "); Serial.print(daq_pkt.tc1);
     Serial.print(", TC2: "); Serial.print(daq_pkt.tc2);
-    Serial.print(", cont1: "); Serial.print(digitalRead(pyro_1_cont_in));
-    Serial.print(", cont2: "); Serial.print(digitalRead(pyro_2_cont_in));
-
+    Serial.print(", cont1: "); Serial.print(analogRead(pyro_1_cont_in));
+    Serial.print(", cont2: "); Serial.print(analogRead(pyro_2_cont_in));
     Serial.print(", PT1: "); Serial.println(daq_pkt.pt1);
 
 
@@ -435,7 +436,7 @@ void loop() {
   }
 
   if (rf95.available()) {
-
+    daq_pkt.RSSI = rf95.lastRssi();
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
     uint8_t len = sizeof(buf);
 
