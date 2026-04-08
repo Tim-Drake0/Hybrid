@@ -106,6 +106,7 @@ struct EEPROM
   float servo4_open   = 0;
   float servo4_close  = 1;
   int SD_sample_rate = 100;
+  int print_debug = 0;
 };
 EEPROM eeprom;
 
@@ -232,7 +233,7 @@ void setup() {
   servo2.write(eeprom.servo2_open); // Set servo2 safe state (vent)
   servo3.write(eeprom.servo3_close); // Set servo3 safe state (mov)
   servo4.write(eeprom.servo4_close); // Set servo4 safe state (spare)
-  
+
   // Start current sensor
   if (! ina219.begin()) {
     Serial.println("Failed to find INA219 chip");
@@ -360,8 +361,7 @@ void loop() {
     
 
   // Debug print statements
-  bool print_debug = true;
-  if (print_debug && millis()-last_time_serial2 > 500) { 
+  if (eeprom.print_debug && millis()-last_time_serial2 > 500) { 
 
     Serial.print("sending packet, time: "); Serial.print(daq_pkt.timestamp);
     Serial.print(", batt volts: "); Serial.print(daq_pkt.batt_volts);

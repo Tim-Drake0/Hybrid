@@ -92,10 +92,11 @@ void load_config() {
         else if (strcmp(key, "Servo4_open")    == 0) eeprom.servo4_open   = atof(value);
         else if (strcmp(key, "Servo4_close")   == 0) eeprom.servo4_close  = atof(value);
         else if (strcmp(key, "SD Sample Rate") == 0) eeprom.SD_sample_rate = atoi(value);
+        else if (strcmp(key, "print_debug")    == 0) eeprom.print_debug = atoi(value);
     }
 
     f.close();
-    
+
     Serial.println("=== Config Loaded ===");
     Serial.print("PT1_Cal0: ");       Serial.println(eeprom.pt1_c0, 6);
     Serial.print("PT1_Cal1: ");       Serial.println(eeprom.pt1_c1, 6);
@@ -114,6 +115,7 @@ void load_config() {
     Serial.print("Servo4_open: ");    Serial.println(eeprom.servo4_open,  2);
     Serial.print("Servo4_close: ");   Serial.println(eeprom.servo4_close, 2);
     Serial.print("SD_sample_rate: "); Serial.println(eeprom.SD_sample_rate);
+    Serial.print("print_debug: "); Serial.println(eeprom.print_debug);
     Serial.println("=====================");
 }
 

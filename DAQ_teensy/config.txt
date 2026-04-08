@@ -38,4 +38,4 @@ Servo4_close = 0
 
 SD Sample Rate = 100 # Hz
 abort_time = 60 # sec STILL NEED TO ADD ABORT!!!!!
-
+print_debug = 0
