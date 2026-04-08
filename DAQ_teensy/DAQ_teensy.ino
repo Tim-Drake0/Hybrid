@@ -87,15 +87,29 @@ struct __attribute__((packed)) Switch_Payload { // Payload from switches
 };
 Switch_Payload sw_pkt;
 
-// Load Cell
-//HX711 lc1; // Initialize HX711 object for load cell
-float calibration_factor = -2053.61580134;// Tension load cell
-//float LC_Calibration = -4100; // Load cell calibration factor (see LC_CALIBRATION.ino for getting this value)
-float LC1float = 0.0; // float value of load cell reading
+struct EEPROM
+{
+  float pt1_c0 = 0;
+  float pt1_c1 = 1;
+  float pt2_c0 = 0;
+  float pt2_c1 = 1;
+  float pt3_c0 = 0;
+  float pt3_c1 = 1;
+  float pt4_c0 = 0;
+  float pt4_c1 = 1;
+  float servo1_open   = 0;
+  float servo1_close  = 1;
+  float servo2_open   = 0;
+  float servo2_close  = 1;
+  float servo3_open   = 0;
+  float servo3_close  = 1;
+  float servo4_open   = 0;
+  float servo4_close  = 1;
+  int SD_sample_rate = 100;
+};
+EEPROM eeprom;
 
 // Voltage Monitors
-float radio_volt;
-float five_volt;
 float batt_volt;
 
 // Current sensor
@@ -112,46 +126,10 @@ unsigned long int last_time_tc = 0;
 
 /// CONTROL ========================================================================
 // Servos
-int servoopen = 67; // Servo open state (angle) [degrees]
-int servoclose = 0; // Servo close state (angle) [degrees]
-
-int servoopen_mini = 90; // Servo open state (angle) [degrees]
-int servoclose_mini = 0; // Servo close state (angle) [degrees]
-
-int servo1_trim = 5;
-int servo2_trim = 10;
-int servo3_trim = 5;
-int servo4_trim = 9;
-
-
 PWMServo servo1; // Initialize servo1 object (fill)
-bool servo1_bool = 0;
-int servo1on = servoclose + servo1_trim; // Dectuated state of servo1
-int servo1off = servoopen + servo1_trim; // Actuated state of servo1
-
 PWMServo servo2; // Initialize servo2 object (vent)
-bool servo2_bool = 0;
-int servo2on = servoclose_mini + servo2_trim; // Actuated state of servo2
-int servo2off = servoopen_mini + servo2_trim; // Dectuated state of servo2
-
 PWMServo servo3; // Initialize servo3 object (mov)
-bool servo3_bool = 0;
-int servo3on = servoclose_mini + servo3_trim; // Dectuated state of servo3
-int servo3off = servoopen_mini + servo3_trim; // Actuated state of servo3
-
 PWMServo servo4; // Initialize servo4 object (extra)
-bool servo4_bool = 0;
-int servo4on = servoclose + servo4_trim; // Dectuated state of servo4
-int servo4off = servoopen + servo4_trim; // Actuated state of servo4
-
-//float PT1coeff = 2.536967997; float PT1gain = -110.1199292; // (phil)
-//float PT2coeff = 2.540186886; float PT2gain = -112.1752796; // (ox injector)
-//float PT3coeff = 2.463810563; float PT3gain = -115.7383118; // (combustion chamber)
-//float PT4coeff = 2.524649427; float PT4gain = -106.53278;   // (tank)
-float PT1coeff = 0.00052044609; float PT1gain = 0; // (phil)
-float PT2coeff = 0.00052044609; float PT2gain = 0; // (ox injector)
-float PT3coeff = 0.00052044609; float PT3gain = 0; // (combustion chamber)
-float PT4coeff = 0.00052044609; float PT4gain = 0; // (tank)
 
 // valve_states bit offset:
 int FILL = 0;
@@ -168,32 +146,19 @@ int C1 = 1;
 int C2 = 2;
 
 // Loop timekeeping 
-const int dt_abort = 120*1000; // Time to abort if no signal received [ms] (120 seconds)
-unsigned long int last_time_rx = 0; // Last receive time (tracking rx for abort) [ms]
-const int dt_data_fast = 10; // Time between data readings [ms]
 unsigned long int last_time_data = 0; // Last time data readings were taken (tracking for next read cycle) [ms]
-unsigned long int last_time_nano = 0;
-const int dt_lc_fast = 10; // Time between LC readings [ms]
-unsigned long int last_time_lc = 0; // Last time LC readings were taken (tracking for next read cycle) [ms]
-
-int dt_data = 1000/10; // Variable to use for dt between data readings
-int dt_lc = 1000; // Variable to use for dt between lc readings
-
-int burn_time = 50000; // [ms] burn time
-unsigned long int burn_start = 0;
-bool burn_started = 0;
-bool burn_ended = 0;
+unsigned long int last_time_rx = 0; // Last receive time (tracking rx for abort) [ms]
 
 void moveServo(int servo, bool state){
   if(state == 0){
-    if(servo == 1){bitWrite(daq_pkt.valve_states, FILL, 0); servo1.write(servo1off);}
-    if(servo == 2){bitWrite(daq_pkt.valve_states, VENT, 0); servo2.write(servo2off);}
-    if(servo == 3){bitWrite(daq_pkt.valve_states, MOV, 0); servo3.write(servo3off);}
+    if(servo == 1){bitWrite(daq_pkt.valve_states, FILL, 0); servo1.write(eeprom.servo1_close);}
+    if(servo == 2){bitWrite(daq_pkt.valve_states, VENT, 0); servo2.write(eeprom.servo2_open);}
+    if(servo == 3){bitWrite(daq_pkt.valve_states, MOV, 0); servo3.write(eeprom.servo3_close);}
     //if(servo == 4){bitWrite(disWord, FILL, 0); servo4.write(servo4off);}
   }else if(state == 1){
-    if(servo == 1){bitWrite(daq_pkt.valve_states, FILL, 1); servo1.write(servo1on);}
-    if(servo == 2){bitWrite(daq_pkt.valve_states, VENT, 1); servo2.write(servo2on);}
-    if(servo == 3){bitWrite(daq_pkt.valve_states, MOV, 1); servo3.write(servo3on);}
+    if(servo == 1){bitWrite(daq_pkt.valve_states, FILL, 1); servo1.write(eeprom.servo1_open);}
+    if(servo == 2){bitWrite(daq_pkt.valve_states, VENT, 1); servo2.write(eeprom.servo2_close);}
+    if(servo == 3){bitWrite(daq_pkt.valve_states, MOV, 1); servo3.write(eeprom.servo3_open);}
     //if(servo == 4){servo4.write(servo4on);}
   }
 }
@@ -225,7 +190,7 @@ void save_data() { // Save data to SD card
     datafile.print(",");
     datafile.print(daq_pkt.pt6);
     datafile.print(",");
-    datafile.print(LC1float);
+    datafile.print(daq_pkt.load_cell);
     datafile.print(",");
     datafile.print(bitRead(daq_pkt.arm_state, C1));
     datafile.print(",");
@@ -254,20 +219,20 @@ void setup() {
   pinMode(pyro_2_fire, OUTPUT); digitalWrite(pyro_2_fire, LOW);
   pinMode(pyro_1_cont_in, INPUT_PULLDOWN);
   pinMode(pyro_2_cont_in, INPUT_PULLDOWN);
-  pinMode(arm_out, OUTPUT); digitalWrite(pyro_1_fire, HIGH);
+  pinMode(arm_out, OUTPUT); digitalWrite(arm_out, HIGH);
   
   servo1.attach(servo_1_out); // Attach servo1
   servo2.attach(servo_2_out); // Attach servo2
   servo3.attach(servo_3_out); // Attach servo3
   servo4.attach(servo_4_out); // Attach servo4
 
-  servo1.write(servo1off); // Set servo1 safe state (fill)
-  servo2.write(servo2on); // Set servo2 safe state (vent)
-  servo3.write(servo3off); // Set servo3 safe state (mov)
-  servo4.write(servo4off); // Set servo4 safe state (extra)
-
   beginSD();
 
+  servo1.write(eeprom.servo1_close); // Set servo1 safe state (fill)
+  servo2.write(eeprom.servo2_open); // Set servo2 safe state (vent)
+  servo3.write(eeprom.servo3_close); // Set servo3 safe state (mov)
+  servo4.write(eeprom.servo4_close); // Set servo4 safe state (spare)
+  
   // Start current sensor
   if (! ina219.begin()) {
     Serial.println("Failed to find INA219 chip");
@@ -326,15 +291,8 @@ void loop() {
   startLoopTime = micros();
   daq_pkt.timestamp = millis();
   
-  // DELETE
-  if (millis()-last_time_lc > dt_lc) { // Check time between LC readings
-    //LC1float = lc1.get_units(); // Load cell 1 
-    daq_pkt.load_cell = LC1float;
-    last_time_lc = daq_pkt.timestamp;  // Record time of load cell reading
-  }  
-
   // Read sensor data
-  if (millis()-last_time_data > dt_data) { // Check time between data readings
+  if (millis()-last_time_data > 1000/eeprom.SD_sample_rate) { // Check time between data readings
 
     // Check continuity
     if(analogRead(pyro_1_cont_in) > 500){
@@ -349,10 +307,10 @@ void loop() {
       bitWrite(daq_pkt.arm_state, C2, 0);
     }
 
-    daq_pkt.pt1 = ((ads1115.readADC_SingleEnded(0)*PT1coeff) + PT1gain);
-    daq_pkt.pt2 = ((ads1115.readADC_SingleEnded(1)*PT2coeff) + PT2gain);
-    daq_pkt.pt3 = ((ads1115.readADC_SingleEnded(2)*PT3coeff) + PT3gain);
-    daq_pkt.pt4 = ((ads1115.readADC_SingleEnded(3)*PT4coeff) + PT4gain);
+    daq_pkt.pt1 = ((ads1115.readADC_SingleEnded(0)*eeprom.pt1_c1) + eeprom.pt1_c0);
+    daq_pkt.pt2 = ((ads1115.readADC_SingleEnded(1)*eeprom.pt2_c1) + eeprom.pt2_c0);
+    daq_pkt.pt3 = ((ads1115.readADC_SingleEnded(2)*eeprom.pt3_c1) + eeprom.pt3_c0);
+    daq_pkt.pt4 = ((ads1115.readADC_SingleEnded(3)*eeprom.pt4_c1) + eeprom.pt4_c0);
     daq_pkt.pt5 = 0; // DELETE
     daq_pkt.pt6 = 0; // DELETE
 
@@ -364,8 +322,6 @@ void loop() {
     if(sw_pkt.arm == 1){
       digitalWrite(arm_out, HIGH);
       bitWrite(daq_pkt.arm_state, ARM, 1);
-      dt_data = dt_data_fast;
-      dt_lc = dt_lc_fast;
       if(sw_pkt.py1){
         bitWrite(daq_pkt.pyro_states, PY1, 1);
         digitalWrite(pyro_1_fire, HIGH);
@@ -392,7 +348,6 @@ void loop() {
     if (sw_pkt.vent != bitRead(daq_pkt.valve_states, VENT)) moveServo(2, sw_pkt.vent);
     if (sw_pkt.mov  != bitRead(daq_pkt.valve_states, MOV)) moveServo(3, sw_pkt.mov);
     
-    last_time_nano = millis();
     last_time_data = millis(); // Record time of data reading
     save_data(); // Save data
   }
