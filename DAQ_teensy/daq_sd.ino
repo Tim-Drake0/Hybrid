@@ -8,11 +8,11 @@ char flightDir[16];
 
 
 
-void beginSD(void){
+int beginSD(void){
     // SD card set up
     if (!SD.begin(BUILTIN_SDCARD)) { // If SD start unsuccessful
         Serial.println("SD Card initalize.. Failed");
-        return;
+        return 0;
     }
 
     // If SD start successful
@@ -32,7 +32,7 @@ void beginSD(void){
         datafile.close();
     }
 
-    load_config();
+    return load_config();
 }
 
 int findNextFlightDir(void)
@@ -46,12 +46,12 @@ int findNextFlightDir(void)
     return 0;  /* all 999 slots taken */
 }
 
-void load_config() {
+int load_config() {
 
     File f = SD.open("config.txt", FILE_READ);
     if (!f) {
         Serial.println("ERROR: No config.txt found, using defaults");
-        return;
+        return 0;
     }
 
     char line[64];
@@ -75,24 +75,25 @@ void load_config() {
         int klen = strlen(key);
         while (klen > 0 && key[klen-1] == ' ') key[--klen] = '\0';
 
-        if      (strcmp(key, "PT1_Cal0")       == 0) eeprom.pt1_c0        = atof(value);
-        else if (strcmp(key, "PT1_Cal1")       == 0) eeprom.pt1_c1        = atof(value);
-        else if (strcmp(key, "PT2_Cal0")       == 0) eeprom.pt2_c0        = atof(value);
-        else if (strcmp(key, "PT2_Cal1")       == 0) eeprom.pt2_c1        = atof(value);
-        else if (strcmp(key, "PT3_Cal0")       == 0) eeprom.pt3_c0        = atof(value);
-        else if (strcmp(key, "PT3_Cal1")       == 0) eeprom.pt3_c1        = atof(value);
-        else if (strcmp(key, "PT4_Cal0")       == 0) eeprom.pt4_c0        = atof(value);
-        else if (strcmp(key, "PT4_Cal1")       == 0) eeprom.pt4_c1        = atof(value);
-        else if (strcmp(key, "Servo1_open")    == 0) eeprom.servo1_open   = atof(value);
-        else if (strcmp(key, "Servo1_close")   == 0) eeprom.servo1_close  = atof(value);
-        else if (strcmp(key, "Servo2_open")    == 0) eeprom.servo2_open   = atof(value);
-        else if (strcmp(key, "Servo2_close")   == 0) eeprom.servo2_close  = atof(value);
-        else if (strcmp(key, "Servo3_open")    == 0) eeprom.servo3_open   = atof(value);
-        else if (strcmp(key, "Servo3_close")   == 0) eeprom.servo3_close  = atof(value);
-        else if (strcmp(key, "Servo4_open")    == 0) eeprom.servo4_open   = atof(value);
-        else if (strcmp(key, "Servo4_close")   == 0) eeprom.servo4_close  = atof(value);
-        else if (strcmp(key, "SD Sample Rate") == 0) eeprom.SD_sample_rate = atoi(value);
-        else if (strcmp(key, "print_debug")    == 0) eeprom.print_debug = atoi(value);
+        if      (strcmp(key, "PT1_Cal0")       == 0) eeprom.pt1_c0          = atof(value);
+        else if (strcmp(key, "PT1_Cal1")       == 0) eeprom.pt1_c1          = atof(value);
+        else if (strcmp(key, "PT2_Cal0")       == 0) eeprom.pt2_c0          = atof(value);
+        else if (strcmp(key, "PT2_Cal1")       == 0) eeprom.pt2_c1          = atof(value);
+        else if (strcmp(key, "PT3_Cal0")       == 0) eeprom.pt3_c0          = atof(value);
+        else if (strcmp(key, "PT3_Cal1")       == 0) eeprom.pt3_c1          = atof(value);
+        else if (strcmp(key, "PT4_Cal0")       == 0) eeprom.pt4_c0          = atof(value);
+        else if (strcmp(key, "PT4_Cal1")       == 0) eeprom.pt4_c1          = atof(value);
+        else if (strcmp(key, "Servo1_open")    == 0) eeprom.servo1_open     = atof(value);
+        else if (strcmp(key, "Servo1_close")   == 0) eeprom.servo1_close    = atof(value);
+        else if (strcmp(key, "Servo2_open")    == 0) eeprom.servo2_open     = atof(value);
+        else if (strcmp(key, "Servo2_close")   == 0) eeprom.servo2_close    = atof(value);
+        else if (strcmp(key, "Servo3_open")    == 0) eeprom.servo3_open     = atof(value);
+        else if (strcmp(key, "Servo3_close")   == 0) eeprom.servo3_close    = atof(value);
+        else if (strcmp(key, "Servo4_open")    == 0) eeprom.servo4_open     = atof(value);
+        else if (strcmp(key, "Servo4_close")   == 0) eeprom.servo4_close    = atof(value);
+        else if (strcmp(key, "SD Sample Rate") == 0) eeprom.SD_sample_rate  = atoi(value);
+        else if (strcmp(key, "print_debug")    == 0) eeprom.print_debug     = atoi(value);
+        else if (strcmp(key, "abort_time")     == 0) eeprom.abort_time      = atoi(value);
     }
 
     f.close();
@@ -115,7 +116,11 @@ void load_config() {
     Serial.print("Servo4_open: ");    Serial.println(eeprom.servo4_open,  2);
     Serial.print("Servo4_close: ");   Serial.println(eeprom.servo4_close, 2);
     Serial.print("SD_sample_rate: "); Serial.println(eeprom.SD_sample_rate);
-    Serial.print("print_debug: "); Serial.println(eeprom.print_debug);
+    Serial.print("print_debug: ");    Serial.println(eeprom.print_debug);
+    Serial.print("abort_time: ");     Serial.println(eeprom.abort_time);
+
     Serial.println("=====================");
+
+    return 1;
 }
 
