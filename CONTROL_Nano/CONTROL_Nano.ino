@@ -34,14 +34,11 @@ struct __attribute__((packed)) DAQ_Payload // Payload to arduino nano
   uint8_t valve_states = 0;
   uint8_t pyro_states = 0;
   uint8_t arm_state = 0;
-  uint8_t sensor_states = 0; // 0 = SD card, 1 = INA219
+  uint8_t sensor_states = 0; // 0 = SD card, 1 = INA219, 2 = ADS1115
   float pt1 = 0;
   float pt2 = 0;
   float pt3 = 0;
   float pt4 = 0;
-  float pt5 = 0;
-  float pt6 = 0;
-  float load_cell = 0;
   float batt_volts = 0;
   float batt_current = 0;
   float tc1 = 0;
@@ -80,7 +77,6 @@ Switch_Payload sw_pkt;
 #define RFM95_RST 10
 #define RFM95_INT 2
 #define RF95_FREQ 433.9869
-int RFM95_PWR = 23;
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
 
 
@@ -88,7 +84,7 @@ bool CON_ERR = 0; // Track if there was successful transmission
 bool RECV_ERR = 0;
 
 // Loop parameters
-const int dt_tx = 1000/30; // Loop transmission speed [ms]
+const int dt_tx = 1000/20; // Loop transmission speed [ms]
 const int dt_lcd = 100; // Loop lcd print speed [ms] 
 long int last_time_tx = 0; // Last transmission completion time tracking [ms]
 long int last_time_lcd = 0; // Last lcd time tracking [ms]
@@ -165,9 +161,9 @@ void setup() {
   // The default transmitter power is 13dBm, using PA_BOOST.
   // If you are using RFM95/96/97/98 modules which uses the PA_BOOST transmitter pin, then 
   // you can set transmitter powers from 5 to 23 dBm:
-  rf95.setTxPower(RFM95_PWR, false);
-  rf95.setSpreadingFactor(7);
-  rf95.setSignalBandwidth(250000);  // 250kHz 
+  rf95.setTxPower(23, false);
+  rf95.setSpreadingFactor(9);
+  rf95.setSignalBandwidth(250000);
 
   //lcd.clear();
   //lcd.setCursor(0,0);

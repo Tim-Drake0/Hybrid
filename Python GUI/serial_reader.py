@@ -111,8 +111,7 @@ def init_log_raw():
     # write header
     log_writer.writerow([
         "ctrl_timestamp", "daq_timestamp", "tsy_timestamp",
-        "pt1", "pt2", "pt3", "pt4", "pt5", "pt6",
-        "loadCell", "battVolts",
+        "pt1", "pt2", "pt3", "pt4", "battVolts",
         "fill", "vent", "mov", "arm", "py1", "py2", "c1", "c2",
         "ctrl_RSSI", "daq_RSSI", "tsy_looptime", "sd_state"
     ])
@@ -125,8 +124,7 @@ def log_telem(t):
         return
     log_writer.writerow([
         t.ctrl_timestamp, t.daq_timestamp, t.tsy_timestamp,
-        t.pt1, t.pt2, t.pt3, t.pt4, t.pt5, t.pt6,
-        t.loadCell, t.battVolts,
+        t.pt1, t.pt2, t.pt3, t.pt4, t.battVolts,
         t.fill_state, t.vent_state, t.mov_state, t.arm_state,
         t.py1_state, t.py2_state, t.c1_state, t.c2_state,
         t.ctrl_RSSI, t.RSSI, t.tsy_looptime, t.sd_state
@@ -162,9 +160,6 @@ class StreamTelem:
     pt2:               float = 0.0
     pt3:               float = 0.0
     pt4:               float = 0.0
-    pt5:               float = 0.0
-    pt6:               float = 0.0
-    loadCell:          float = 0.0
     battVolts:         float = 0.0
     battCurrent:       float = 0.0
     tc1:               float = 0.0
@@ -180,7 +175,9 @@ class StreamTelem:
     c1_state:          int   = 0
     c2_state:          int   = 0
     
-    sd_state:          int   = 2
+    sd_state:          int   = 0
+    ina219_state:      int   = 0
+    ads1115_state:     int   = 0
     
     
     def readBuffer(self):
@@ -199,9 +196,6 @@ class StreamTelem:
         self.pt2,
         self.pt3,
         self.pt4,
-        self.pt5,
-        self.pt6,
-        self.loadCell, 
         self.battVolts,
         self.battCurrent,
         self.tc1,
@@ -209,7 +203,7 @@ class StreamTelem:
         self.RSSI,
         self.tsy_looptime) = struct.unpack_from("<"
                                         "IbIII"               # ctrl: timestamp (uint32), RSSI (int8), looptime (uint32)
-                                        "IBBBBfffffffffffbI",  # tsy: timestamp, valve/pyro/arm states, pt1-6, lc, batt voltage, batt current, tc1, tc2, RSSI, looptime
+                                        "IBBBBffffffffbI",  # tsy: timestamp, valve/pyro/arm states, pt1-4, batt voltage, batt current, tc1, tc2, RSSI, looptime
                                         bytes(self.packet))
         
         self.fill_state     = (self.valve_states >> 0) & 1
@@ -224,6 +218,8 @@ class StreamTelem:
         self.c2_state       = (self.arm_states >> 2) & 1 
         
         self.sd_state       = (self.sensor_states >> 0) & 1
+        self.ina219_state   = (self.sensor_states >> 1) & 1
+        self.ads1115_state  = (self.sensor_states >> 2) & 1
 
 
     
@@ -260,7 +256,7 @@ def read_serial_loop():
             length  = header[1]
             payload = ser.read(length) if length > 0 else b""
             crc_b   = ser.read(1)
-            end_b   = ser.read(1)
+            end_b   = ser.read(2)
             
             # check crc
             calculated = crc8(bytes([resp_id, length]) + payload)
@@ -270,15 +266,14 @@ def read_serial_loop():
             
             if len(payload) != length:
                 print(f"[TELEM] Dropped packet. Incorrect length {len(payload)}, {length}")
-
-            if not end_b:
-                print("[ROUTER] No frame end, re-syncing...")
-                ser.read(4)
                 continue
-            
-            if end_b[0] != FRAME_END[0]:
+
+            if not end_b or len(end_b) < 2:
+                print("[ROUTER] No frame end, re-syncing...")
+                continue
+
+            if end_b[0] != FRAME_END[0] or end_b[1] != FRAME_END[1]:
                 print(f"[ROUTER] Bad frame end: {end_b.hex()}, re-syncing...")
-                ser.read(4)
                 continue
             
             packet = (resp_id, length, payload, crc_b)
@@ -304,7 +299,7 @@ def telem_loop():
                 log_telem(streamTelem) 
                 
         except Exception as e:
-            print("Telem error:", e)
+            import traceback; traceback.print_exc()
 
 def cmd_loop():
     """Parses command responses from the queue."""

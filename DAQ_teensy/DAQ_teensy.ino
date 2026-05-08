@@ -39,7 +39,7 @@ int chipSelect = BUILTIN_SDCARD;
 //const int SDCS = BUILTIN_SDCARD; // Use built in sd card for data logging
 String filename; // Name of data file
 File datafile; // Data file instance
-String fileheader = "Time[ms],BATT[V],BATT_CURR[mA],TC1[F],TC2[F],PT1[psi],PT2[psi],PT3[psi],PT4[psi],PT5[psi],PT6[psi],LC[lbf],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2";
+String fileheader = "Time[ms],BATT[V],BATT_CURR[mA],TC1[F],TC2[F],PT1[psi],PT2[psi],PT3[psi],PT4[psi],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2";
 
 // Serial comms to arduino nano
 const int dt_serial2 = 1000/60; // transmission speed [ms]
@@ -62,9 +62,6 @@ struct __attribute__((packed)) DAQ_Payload // Payload to arduino nano
   float pt2 = 0;
   float pt3 = 0;
   float pt4 = 0;
-  float pt5 = 0;
-  float pt6 = 0;
-  float load_cell = 0;
   float batt_volts = 0;
   float batt_current = 0;
   float tc1 = 0;
@@ -165,7 +162,7 @@ void moveServo(int servo, bool state){
 }
 
 void save_data() { // Save data to SD card
-// "Time[ms],BATT[V],BATT_CURR[mA],TC1[F],TC2[F],PT1[psi],PT2[psi],PT3[psi],PT4[psi],PT5[psi],PT6[psi],LC[lbf],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2";
+// "Time[ms],BATT[V],BATT_CURR[mA],TC1[F],TC2[F],PT1[psi],PT2[psi],PT3[psi],PT4[psi],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2";
   // Open data file and write data, close data file
   //datafile = SD.open(filename.c_str(),FILE_WRITE);
   if (datafile) {
@@ -186,12 +183,6 @@ void save_data() { // Save data to SD card
     datafile.print(daq_pkt.pt3);
     datafile.print(",");
     datafile.print(daq_pkt.pt4);
-    datafile.print(",");
-    datafile.print(daq_pkt.pt5);
-    datafile.print(",");
-    datafile.print(daq_pkt.pt6);
-    datafile.print(",");
-    datafile.print(daq_pkt.load_cell);
     datafile.print(",");
     datafile.print(bitRead(daq_pkt.arm_state, C1));
     datafile.print(",");
@@ -276,8 +267,8 @@ void setup() {
     }
     // you can set transmitter powers from 5 to 23 dBm:
     rf95.setTxPower(23, false);
-    rf95.setSpreadingFactor(7);
-    rf95.setSignalBandwidth(250000);  // 250kHz 
+    rf95.setSpreadingFactor(9);
+    rf95.setSignalBandwidth(250000);
   } else {
     Serial.println("LoRa radio init FAILED!");
   }
@@ -285,7 +276,11 @@ void setup() {
   delay(1000); // delay for begin  
 
   datafile = SD.open(filename.c_str(), FILE_WRITE);
-  if (!datafile) Serial.println("Failed to reopen datafile!");
+  if (datafile){
+    bitWrite(daq_pkt.sensor_states, 0, 1);
+  } else { 
+    Serial.println("Failed to reopen datafile!");
+  }
 }
 
 void loop() {
@@ -312,8 +307,6 @@ void loop() {
     daq_pkt.pt2 = ((ads1115.readADC_SingleEnded(1)*eeprom.pt2_c1) + eeprom.pt2_c0);
     daq_pkt.pt3 = ((ads1115.readADC_SingleEnded(2)*eeprom.pt3_c1) + eeprom.pt3_c0);
     daq_pkt.pt4 = ((ads1115.readADC_SingleEnded(3)*eeprom.pt4_c1) + eeprom.pt4_c0);
-    daq_pkt.pt5 = 0; // DELETE
-    daq_pkt.pt6 = 0; // DELETE
 
     daq_pkt.batt_volts = ina219.getBusVoltage_V() + 0.145;
     daq_pkt.batt_current = ina219.getCurrent_mA() + 48;

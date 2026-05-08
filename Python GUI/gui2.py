@@ -16,8 +16,9 @@ ROTATE_ENABLED = True
 
 valid_connection = False
 last_timestamp = 0
-disconnect_counter = 0
-disconnect_timeout = 1000 # loops 
+last_packet_time = time.time()
+disconnect_timeout = 3 # seconds 
+last_appended_timestamp = 0
 abort_counter = 0
 abort_counter_started = 0
 fill_started = 0
@@ -224,9 +225,6 @@ def updateDebugWindow():
     dpg.set_value("pt2",                    f"PT2: {round(sr.streamTelem.pt2, 4)} PSI")
     dpg.set_value("pt3",                    f"PT3: {round(sr.streamTelem.pt3, 4)} PSI")
     dpg.set_value("pt4",                    f"PT4: {round(sr.streamTelem.pt4, 4)} PSI")
-    dpg.set_value("pt5",                    f"PT5: {round(sr.streamTelem.pt5, 4)} PSI")
-    dpg.set_value("pt6",                    f"PT6: {round(sr.streamTelem.pt6, 4)} PSI")
-    dpg.set_value("loadCell",               f"Load cell: {round(sr.streamTelem.loadCell, 3)} lbf")
     dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.battVolts, 4)} V")
     dpg.set_value("batt_current",           f"Battery current: {round(sr.streamTelem.battCurrent/1000, 4)} A")
     dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
@@ -298,7 +296,7 @@ def get_layout():
     statusbar_w, statusbar_h = vp_w, 60
 
     info_x, info_y = 0, statusbar_h + 10
-    info_w, info_h = 570, 460
+    info_w, info_h = 570, 550
 
     events_w, events_h = 300, info_h
     events_x = vp_w - events_w
@@ -501,14 +499,14 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                     dpg.add_text(" ", tag="live_batt_pwr")
                     dpg.bind_item_font(dpg.last_item(), settings.large)
                     
-                    
+                      
                     dpg.add_separator()
-                    
                     # RSSI
-                    dpg.add_text(" ", tag="live_ctrl_rssi")
-                    dpg.bind_item_font(dpg.last_item(), settings.large)
-                    dpg.add_text(" ", tag="live_daq_rssi")
-                    dpg.bind_item_font(dpg.last_item(), settings.large)
+                    with dpg.group(horizontal=True):
+                        dpg.add_text(" ", tag="live_ctrl_rssi")
+                        dpg.bind_item_font(dpg.last_item(), settings.large)
+                        dpg.add_text(" ", tag="live_daq_rssi")
+                        dpg.bind_item_font(dpg.last_item(), settings.large)
                     
                 with dpg.tab(label="Debug"):
                     # Ctrl info
@@ -540,9 +538,6 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                         dpg.add_text(" ", tag="pt3")
                     with dpg.group(horizontal=True):
                         dpg.add_text(" ", tag="pt4")
-                        dpg.add_text(" ", tag="pt5")
-                        dpg.add_text(" ", tag="pt6")
-                    dpg.add_text(" ", tag="loadCell")
                     dpg.add_text(" ", tag="batt_perc")
                     with dpg.group(horizontal=True):
                         dpg.add_text(" ", tag="battVolts")
@@ -677,21 +672,23 @@ try:
             
     while dpg.is_dearpygui_running():
         if sr.streamTelem.tsy_timestamp == last_timestamp:
-            if disconnect_counter > disconnect_timeout:  
-                valid_connection = False
-            disconnect_counter += 1
-        else:
-            disconnect_counter = 0    
+            last_timestamp = sr.streamTelem.tsy_timestamp
+            last_packet_time = time.time()
             valid_connection = True
+        else:
+            if time.time() - last_packet_time > disconnect_timeout:
+                valid_connection = False
         
         last_timestamp = sr.streamTelem.tsy_timestamp
         
         frameTime = time.time()
         # Append latest data
-        timestamps.append(sr.streamTelem.tsy_timestamp/1000)
-        pt1_list.append(sr.streamTelem.pt1)
-        pt4_list.append(sr.streamTelem.pt4)
-        
+        if sr.streamTelem.tsy_timestamp != last_appended_timestamp:
+            last_appended_timestamp = sr.streamTelem.tsy_timestamp
+            timestamps.append(sr.streamTelem.tsy_timestamp/1000)
+            pt1_list.append(sr.streamTelem.pt1)
+            pt4_list.append(sr.streamTelem.pt4)
+                
         
             
         
