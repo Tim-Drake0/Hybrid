@@ -104,6 +104,7 @@ struct EEPROM
   float servo4_close  = 1;
   int SD_sample_rate = 100;
   int print_debug = 0;
+  int abort_time = 60; // default to 60 second abort time
 };
 EEPROM eeprom;
 
@@ -203,9 +204,40 @@ void save_data() { // Save data to SD card
   }
 }
 
+void ABORT_DAQ(void) { // ABORT ====================================================== 
+  
+  // Reset control to safe state
+  moveServo(1, 0); // set fill to closed
+  moveServo(2, 0); // set vent to open
+  moveServo(3, 0); // set mov to closed
+
+  digitalWrite(pyro_1_fire, LOW);
+  digitalWrite(pyro_2_fire, LOW);
+
+  // Wait for switchstate transmission, do not break until switch payload received
+  while (true)
+  {
+    tone(buzzerPin, 4750);
+    delay(1000);
+    noTone(buzzerPin);
+    delay(1000);
+    if (rf95.available()) // if transmission is available again
+    {
+      last_time_rx = millis(); // reset  time of most recent transmission
+      return; // exit abort
+    }
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   Serial2.begin(115200); // serial data to/from arduino nano
+
+  if (beginSD()){
+    bitWrite(daq_pkt.sensor_states, 0, 1);
+  } else { 
+    Serial.println("Failed to reopen datafile!");
+  }
 
   pinMode(pyro_1_fire, OUTPUT); digitalWrite(pyro_1_fire, LOW);
   pinMode(pyro_2_fire, OUTPUT); digitalWrite(pyro_2_fire, LOW);
@@ -276,11 +308,6 @@ void setup() {
   delay(1000); // delay for begin  
 
   datafile = SD.open(filename.c_str(), FILE_WRITE);
-  if (datafile){
-    bitWrite(daq_pkt.sensor_states, 0, 1);
-  } else { 
-    Serial.println("Failed to reopen datafile!");
-  }
 }
 
 void loop() {
@@ -394,6 +421,9 @@ void loop() {
     noTone(buzzerPin);
   }
 
+  // AUTO ABORT
+  // if the last received transmission happened longer than abort time ago
+  if (millis() - last_time_rx > eeprom.abort_time * 1000){ABORT_DAQ();}
 
   daq_pkt.tsy_looptime = micros() - startLoopTime;
 }
