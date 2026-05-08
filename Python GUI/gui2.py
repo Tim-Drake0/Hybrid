@@ -74,6 +74,7 @@ def toggle_theme():
         dpg.bind_theme(light_theme)
         dpg.configure_item("theme_button", label="Dark")
     dc.set_dark_mode(is_dark_theme)
+    redraw_static_widget_elements()
 
 def _config(sender, keyword, user_data):
     widget_type = dpg.get_item_type(sender)
@@ -174,6 +175,97 @@ def lipo_2s_percent(voltage: float) -> int:
     
     return 0           
                
+def rssi_to_bars(rssi: int) -> int:
+    """Convert RSSI dBm to 0-5 bars."""
+    if rssi >= -60:  return 5
+    if rssi >= -70:  return 4
+    if rssi >= -85:  return 3
+    if rssi >= -100: return 2
+    if rssi >= -110: return 1
+    return 0
+
+def rssi_bar_color(bars: int):
+    if bars >= 4: return [0, 220, 0]
+    if bars >= 3: return [180, 220, 0]
+    if bars >= 2: return [255, 160, 0]
+    return [220, 40, 40]
+
+def _inactive_bar_color():
+    return [60, 60, 60] if is_dark_theme else [190, 190, 190]
+
+def _text_color():
+    return [200, 200, 200] if is_dark_theme else [30, 30, 30]
+
+def _outline_color():
+    return [180, 180, 180] if is_dark_theme else [80, 80, 80]
+
+def _batt_bg_color():
+    return [30, 30, 30] if is_dark_theme else [220, 220, 220]
+
+def redraw_static_widget_elements():
+    """Redraw theme-dependent static elements (outline, background) on theme toggle."""
+    BATT_W     = 52
+    BATT_H     = 30
+    BATT_TIP_W = 6
+    BATT_TIP_H = 12
+    BATT_Y     = (60 - BATT_H) // 2
+    BATT_TIP_Y = BATT_Y + (BATT_H - BATT_TIP_H) // 2
+
+    dpg.delete_item("batt_outline")
+    dpg.draw_rectangle([0, BATT_Y], [BATT_W, BATT_Y + BATT_H],
+                       color=_outline_color(), fill=_batt_bg_color(), rounding=2, thickness=2,
+                       tag="batt_outline", parent="batt_drawlist")
+    dpg.delete_item("batt_tip")
+    dpg.draw_rectangle([BATT_W, BATT_TIP_Y], [BATT_W + BATT_TIP_W, BATT_TIP_Y + BATT_TIP_H],
+                       color=_outline_color(), fill=_outline_color(), rounding=1,
+                       tag="batt_tip", parent="batt_drawlist")
+    dpg.configure_item("rssi_ctrl_label", color=_text_color())
+
+def update_rssi_widget():
+    ctrl_rssi = sr.streamTelem.ctrl_RSSI
+    ctrl_bars = rssi_to_bars(ctrl_rssi)
+
+    NUM_BARS    = 5
+    BAR_W       = 11
+    BAR_SPACING = 3
+    BAR_MAX_H   = 28
+    BASE_Y      = 46
+
+    for i in range(NUM_BARS):
+        bar_h     = int(BAR_MAX_H * (i + 1) / NUM_BARS)
+        bar_y_top = BASE_Y - bar_h
+        bx        = i * (BAR_W + BAR_SPACING)
+        color     = rssi_bar_color(ctrl_bars) if i < ctrl_bars else _inactive_bar_color()
+        dpg.delete_item(f"rssi_ctrl_bar_{i}")
+        dpg.draw_rectangle([bx, bar_y_top], [bx + BAR_W, BASE_Y],
+                           color=color, fill=color, rounding=2,
+                           tag=f"rssi_ctrl_bar_{i}", parent="rssi_drawlist")
+
+    dpg.configure_item("rssi_ctrl_label", text=f"{ctrl_rssi}dBm")
+
+def update_battery_widget():
+    perc = lipo_2s_percent(sr.streamTelem.battVolts)
+
+    BATT_W    = 52
+    BATT_H    = 30
+    BATT_PAD  = 4
+    BATT_Y    = (60 - BATT_H) // 2
+    MAX_FILL  = BATT_W - BATT_PAD * 2
+
+    fill_w = max(1, int(MAX_FILL * perc / 100))
+
+    if perc > 50:   fill_color = [0, 200, 0]
+    elif perc > 20: fill_color = [255, 160, 0]
+    else:           fill_color = [220, 40, 40]
+
+    dpg.delete_item("batt_fill")
+    dpg.draw_rectangle([BATT_PAD, BATT_Y + BATT_PAD],
+                       [BATT_PAD + fill_w, BATT_Y + BATT_H - BATT_PAD],
+                       color=fill_color, fill=fill_color, rounding=1,
+                       tag="batt_fill", parent="batt_drawlist")
+
+    dpg.set_value("batt_perc_label", f"{perc}%")
+
 def update_leds():
     new_states = {
         "FILL": sr.streamTelem.fill_state,
@@ -440,6 +532,59 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                 dpg.add_text("--:--", tag="live_fill_time")
                 dpg.bind_item_font(dpg.last_item(), settings.xl)
                 
+            # Signal strength widget (ctrl RSSI only)
+            NUM_BARS     = 5
+            BAR_W        = 11
+            BAR_SPACING  = 3
+            BAR_MAX_H    = 28
+            GROUP_W      = NUM_BARS * (BAR_W + BAR_SPACING)
+            BASE_Y       = 46
+            DBM_SIZE     = 18
+            DBM_X        = GROUP_W + 6
+            TEXT_Y       = BASE_Y - DBM_SIZE + 2
+            TOTAL_W      = DBM_X + 80
+
+            with dpg.drawlist(width=TOTAL_W, height=settings.STATUS_BAR_SIZE[1], tag="rssi_drawlist"):
+                dpg.draw_text([DBM_X, TEXT_Y], "0dBm", color=[200,200,200], size=DBM_SIZE, tag="rssi_ctrl_label")
+                for i in range(NUM_BARS):
+                    bar_h     = int(BAR_MAX_H * (i + 1) / NUM_BARS)
+                    bar_y_top = BASE_Y - bar_h
+                    bx        = i * (BAR_W + BAR_SPACING)
+                    dpg.draw_rectangle([bx, bar_y_top], [bx + BAR_W, BASE_Y],
+                                       color=[60,60,60], fill=[60,60,60], rounding=2,
+                                       tag=f"rssi_ctrl_bar_{i}")
+
+            # Battery icon + percentage
+            BATT_W       = 52
+            BATT_H       = 30
+            BATT_TIP_W   = 6
+            BATT_TIP_H   = 12
+            BATT_PAD     = 4
+            BATT_Y       = (settings.STATUS_BAR_SIZE[1] - BATT_H) // 2
+            BATT_TIP_Y   = BATT_Y + (BATT_H - BATT_TIP_H) // 2
+            PERC_X       = BATT_W + BATT_TIP_W + 8
+            PERC_SIZE    = 26
+            PERC_Y       = BATT_Y + (BATT_H - PERC_SIZE) // 2 + 2
+            BATT_TOTAL_W = PERC_X
+
+            with dpg.drawlist(width=BATT_TOTAL_W, height=settings.STATUS_BAR_SIZE[1], tag="batt_drawlist"):
+                # battery body outline
+                dpg.draw_rectangle([0, BATT_Y], [BATT_W, BATT_Y + BATT_H],
+                                   color=[180,180,180], fill=[30,30,30], rounding=2, thickness=2,
+                                   tag="batt_outline")
+                # battery tip
+                dpg.draw_rectangle([BATT_W, BATT_TIP_Y], [BATT_W + BATT_TIP_W, BATT_TIP_Y + BATT_TIP_H],
+                                   color=[180,180,180], fill=[180,180,180], rounding=1,
+                                   tag="batt_tip")
+                # fill bar (dynamic)
+                dpg.draw_rectangle([BATT_PAD, BATT_Y + BATT_PAD],
+                                   [BATT_PAD + 1, BATT_Y + BATT_H - BATT_PAD],
+                                   color=[60,60,60], fill=[60,60,60], rounding=1, tag="batt_fill")
+                
+            # percentage text
+            dpg.add_text("0%", tag="batt_perc_label")
+            dpg.bind_item_font(dpg.last_item(), settings.xl)
+
             # Theme toggle button
             dpg.add_button(label="Light", tag="theme_button", callback=toggle_theme)
 
@@ -562,15 +707,15 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
     with dpg.child_window(width=layout["press_temp_plot_window"]["size"][0], height=layout["press_temp_plot_window"]["size"][1], pos=layout["press_temp_plot_window"]["pos"], tag="press_temp_plot_window", show=True):
 
         with dpg.plot(label="Live Temp vs Pressure", width=layout["press_temp_plot_window"]["size"][0], height=layout["press_temp_plot_window"]["size"][1], pos=[0,0], tag="press_temp_plot"):
-
+            dpg.add_plot_legend(outside=False, location=dpg.mvPlot_Location_NorthWest)
             with dpg.plot_axis(dpg.mvYAxis, label="Pressure (PSI)", tag="y_axis_pressure"):
                 dpg.set_axis_limits(dpg.last_item(), 00, 1000)
                 
                 dpg.add_line_series(
                     settings.SAT_TEMPS,
                     settings.SAT_PRESSURES,
-                    label="Saturation Curve (L+V)",
-                    tag="sat_curve"
+                    label="##Saturation Curve (L+V)",
+                    tag="sat_curve",
                 )
                 
                 # Apply a theme to increase line thickness
@@ -582,7 +727,8 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
 
             with dpg.plot_axis(dpg.mvXAxis, label="Temperature (°F)", tag="x_axis_temp"):
                 dpg.set_axis_limits(dpg.last_item(), 0, 100)
-                dpg.add_scatter_series([], [], label="Tank Pressure", tag="pt4_scatter")
+                dpg.add_scatter_series([], [], label="Fwd Tank (TC1)", tag="tc1_scatter")
+                dpg.add_scatter_series([], [], label="Aft Tank (TC2)", tag="tc2_scatter")
 
     
     # Live plots
@@ -702,7 +848,8 @@ try:
         if timestamps:
             latest = timestamps[-1]
             start = max(latest - WINDOW_SIZE, timestamps[0])  # don't go before first timestamp
-            dpg.set_value("pt4_scatter", [[sr.streamTelem.tc1], [sr.streamTelem.pt4]])
+            dpg.set_value("tc1_scatter", [[sr.streamTelem.tc1], [sr.streamTelem.pt4]])
+            dpg.set_value("tc2_scatter", [[sr.streamTelem.tc2], [sr.streamTelem.pt4]])
             
             #dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
             
@@ -710,6 +857,8 @@ try:
         updateDebugWindow()
         updateStatusBar()    
         update_leds()
+        update_rssi_widget()
+        update_battery_widget()
         update_error_table()
         dc.update(sr.streamTelem, sr.streamTelem.tsy_timestamp / 1000)
 

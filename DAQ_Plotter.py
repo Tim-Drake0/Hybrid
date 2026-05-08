@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# "Time[ms],BATT[V],5V[V],RADIO[V],PT1[psi],PT2[psi],PT3[psi],PT4[psi],PT5[psi],PT6[psi],LC[lbf],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2"
+# "Time[ms],BATT[V],5V[V],RADIO[V],PT1[psi],PT2[psi],PT3[psi],PT4[psi],C1,C2,FILL,VENT,MOV,ARM,PY1,PY2"
 
 
 # Read the CSV file into a DataFrame
@@ -41,9 +41,6 @@ print(getFillindex(df1))
 print(getFillindex(df2))
 print(getFillindex(df3))
     
-#print(df['Time[ms]'][armBegin_index])
-#print(df['Time[ms]'][armEnd_index])
-
 # Voltage Plot
 """
 fig, voltages = plt.subplots(figsize = (20,5)) #figsize = (40,10)

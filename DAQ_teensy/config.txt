@@ -37,5 +37,5 @@ Servo4_close = 0
 # Other Settings -----------------
 
 SD Sample Rate = 100 # Hz
-abort_time = 60 # sec STILL NEED TO ADD ABORT!!!!!
+abort_time = 10 # sec
 print_debug = 0

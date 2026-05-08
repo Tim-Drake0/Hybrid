@@ -242,6 +242,7 @@ def find_serial():
     return None, None, None
 
 def read_serial_loop():
+    global ser
     while True:
         try:
             pkt_type = read_sync(ser)
@@ -282,8 +283,25 @@ def read_serial_loop():
                 telem_queue.put(packet)
             elif pkt_type == 'CMD':
                 cmd_queue.put(packet)
-            
-                
+               
+        except (serial.SerialException, PermissionError, OSError) as e:
+            print(f"Serial disconnected: {e}")
+            # close the dead handle
+            try:
+                ser.close()
+            except:
+                pass
+            ser = None
+            # wait and try to reconnect
+            while ser is None:
+                time.sleep(2)
+                print("Attempting reconnect...")
+                new_ser, port, rate = find_serial()
+                if new_ser:
+                    ser = new_ser
+                    sw.init(ser)
+                    print(f"Reconnected on {port}") 
+                                   
         except Exception as e:
             print("Serial read error:", e)
             time.sleep(0.01)
