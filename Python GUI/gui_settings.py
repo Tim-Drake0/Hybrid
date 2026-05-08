@@ -76,6 +76,8 @@ SAT_PRESSURES = [
     971.72,983.49,995.41,1007.5,1019.7,1032.1,1044.8
 ]
 
+batt_size_mah = 850
+
 def show_right_window(tag):
     for window in RIGHT_WINDOWS:
         dpg.hide_item(window)

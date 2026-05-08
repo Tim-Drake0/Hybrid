@@ -235,6 +235,7 @@ def updateLiveInfoWindow():
     global fill_started, fill_time, live_time, pt1_list, pt4_list, fill_min, fill_sec, batt_rem_time
     dpg.set_value("live_tank_pressure", f"{sr.streamTelem.pt4:.1f} psi")
     dpg.set_value("live_bottle_pressure", f"{sr.streamTelem.pt1:.1f} psi")
+    dpg.set_value("live_chamber_pressure", f"{sr.streamTelem.pt3:.1f} psi")
     
     if sr.streamTelem.fill_state == 1:
         if not fill_started:
@@ -261,8 +262,11 @@ def updateLiveInfoWindow():
     dpg.set_value("live_batt_pwr", f"{((sr.streamTelem.battVolts * sr.streamTelem.battCurrent)/1000):.1f} W")
     
     if sr.streamTelem.battCurrent != 0 and time.time() - batt_rem_time > 10:
-        time_left = (2200 * (batt_perc/100)) / sr.streamTelem.battCurrent
-        dpg.set_value("live_batt_time", f"Hours remaining on charge: {time_left:.1f}")
+        time_left = (settings.batt_size_mah * (batt_perc/100)) / sr.streamTelem.battCurrent
+        if time_left < 1: # convert to minutes
+            dpg.set_value("live_batt_time", f"Time remaining on charge: {time_left * 60:.1f} minutes")
+        else:
+            dpg.set_value("live_batt_time", f"Time remaining on charge: {time_left:.1f} hours")
         batt_rem_time = time.time()
     
 
@@ -460,19 +464,23 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                         dpg.add_text("--- psi", tag="live_bottle_pressure")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Chamber Pressure:")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                        dpg.add_text("--- psi", tag="live_chamber_pressure")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)                        
                     dpg.add_separator()
                     
                     # Temperatures
                     with dpg.group(horizontal=True):
                         dpg.add_text("Fwd Tank Temp:")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        dpg.add_text("--- °F", tag="live_tc1_temp")
+                        dpg.add_text("--- °F", tag="live_tc2_temp")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                     with dpg.group(horizontal=True):
                         dpg.add_text("Aft Tank Temp:")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        dpg.add_text("--- °F", tag="live_tc2_temp")
+                        dpg.add_text("--- °F", tag="live_tc1_temp")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                         
                     
