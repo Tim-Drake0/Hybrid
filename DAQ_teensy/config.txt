@@ -1,20 +1,20 @@
 # Pressure Transducer Calibration -----------------
 
 [PT1] (PHIL)
-PT1_Cal0 = 0.0
-PT1_Cal1 = 0.00052044609
+PT1_Cal0 = 0.00000000
+PT1_Cal1 = 0.00052045
 
 [PT2] (SPARE)
-PT2_Cal0 = 0.0
-PT2_Cal1 = 0.00052044609
+PT2_Cal0 = 0.00000000
+PT2_Cal1 = 0.00052045
 
 [PT3] (CHMBR)
-PT3_Cal0 = 0.0
-PT3_Cal1 = 0.00052044609
+PT3_Cal0 = 0.00000000
+PT3_Cal1 = 0.00052045
 
 [PT4] (TANK)
-PT4_Cal0 = 0.0
-PT4_Cal1 = 0.00052044609
+PT4_Cal0 = 0.00000000
+PT4_Cal1 = 0.00052045
 
 # Servo Calibration -----------------
 
@@ -23,8 +23,8 @@ Servo1_open  = 5
 Servo1_close = 72
 
 [Servo 2] (VENT)
-Servo2_open  = 100
-Servo2_close = 10
+Servo2_open  = 70
+Servo2_close = 100
 
 [Servo 3] (MOV)
 Servo3_open  = 5
@@ -36,6 +36,6 @@ Servo4_close = 0
 
 # Other Settings -----------------
 
-SD Sample Rate = 100 # Hz
-abort_time = 10 # sec
+SD Sample Rate = 100
+abort_time = 60
 print_debug = 0

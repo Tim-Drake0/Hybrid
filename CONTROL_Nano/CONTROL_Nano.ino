@@ -96,7 +96,7 @@ float thisThrust = 0;
 
 void readswitches(void) {
   sw_pkt.fill = !digitalRead(FILL);
-  sw_pkt.vent =  digitalRead(VENT); 
+  sw_pkt.vent = !digitalRead(VENT); 
   sw_pkt.mov  = !digitalRead(MOV); 
   sw_pkt.SW4  = !digitalRead(SW4); 
   sw_pkt.py1  = !digitalRead(PY1); 

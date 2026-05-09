@@ -269,7 +269,7 @@ def update_battery_widget():
 def update_leds():
     new_states = {
         "FILL": sr.streamTelem.fill_state,
-        "VENT": sr.streamTelem.vent_state,
+        "VENT": not sr.streamTelem.vent_state,
         "MOV":  sr.streamTelem.mov_state,
         "ARM":  sr.streamTelem.arm_state,
         "PY1":  sr.streamTelem.py1_state,

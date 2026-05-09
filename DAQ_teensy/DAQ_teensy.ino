@@ -231,6 +231,7 @@ void ABORT_DAQ(void) { // ABORT ================================================
 
 void setup() {
   Serial.begin(115200);
+  Serial.setTimeout(100); // short timeout so readStringUntil doesn't block the loop
   Serial2.begin(115200); // serial data to/from arduino nano
 
   if (beginSD()){
@@ -315,7 +316,7 @@ void loop() {
   daq_pkt.timestamp = millis();
   
   // Read sensor data
-  if (millis()-last_time_data > 1000/eeprom.SD_sample_rate) { // Check time between data readings
+  if (millis()-last_time_data > (uint32_t)(1000/eeprom.SD_sample_rate)) {
 
     // Check continuity
     if(analogRead(pyro_1_cont_in) > 500){
@@ -423,7 +424,9 @@ void loop() {
 
   // AUTO ABORT
   // if the last received transmission happened longer than abort time ago
-  if (millis() - last_time_rx > eeprom.abort_time * 1000){ABORT_DAQ();}
+  if (millis() - last_time_rx > (uint32_t)(eeprom.abort_time * 1000)){ABORT_DAQ();}
+
+  handleSerial();
 
   daq_pkt.tsy_looptime = micros() - startLoopTime;
 }

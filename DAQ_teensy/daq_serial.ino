@@ -129,7 +129,6 @@ void handleSerial() {
     }
     if (cmd.length() == 2 && (cmd[0]=='s'||cmd[0]=='S') && cmd[1]>='1' && cmd[1]<='4') {
       calServo = cmd[1] - '0';
-      editOpen = true; // default to editing open position first
       serialMode = MODE_SERVO_ADJUST;
       Serial.print(F("Selected S")); Serial.println(calServo);
       printAdjustPrompt();

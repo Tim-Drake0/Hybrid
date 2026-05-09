@@ -124,3 +124,57 @@ int load_config() {
     return 1;
 }
 
+int save_config() {
+    File f = SD.open("config.txt", FILE_WRITE);
+    if (!f) {
+        Serial.println("ERROR: Could not open config.txt for writing");
+        return 0;
+    }
+    f.seek(0); // overwrite from beginning
+
+    f.println("# Pressure Transducer Calibration -----------------");
+    f.println("");
+    f.println("[PT1] (PHIL)");
+    f.print("PT1_Cal0 = "); f.println(eeprom.pt1_c0, 8);
+    f.print("PT1_Cal1 = "); f.println(eeprom.pt1_c1, 8);
+    f.println("");
+    f.println("[PT2] (SPARE)");
+    f.print("PT2_Cal0 = "); f.println(eeprom.pt2_c0, 8);
+    f.print("PT2_Cal1 = "); f.println(eeprom.pt2_c1, 8);
+    f.println("");
+    f.println("[PT3] (CHMBR)");
+    f.print("PT3_Cal0 = "); f.println(eeprom.pt3_c0, 8);
+    f.print("PT3_Cal1 = "); f.println(eeprom.pt3_c1, 8);
+    f.println("");
+    f.println("[PT4] (TANK)");
+    f.print("PT4_Cal0 = "); f.println(eeprom.pt4_c0, 8);
+    f.print("PT4_Cal1 = "); f.println(eeprom.pt4_c1, 8);
+    f.println("");
+    f.println("# Servo Calibration -----------------");
+    f.println("");
+    f.println("[Servo 1] (PHIL)");
+    f.print("Servo1_open  = "); f.println((int)eeprom.servo1_open);
+    f.print("Servo1_close = "); f.println((int)eeprom.servo1_close);
+    f.println("");
+    f.println("[Servo 2] (VENT)");
+    f.print("Servo2_open  = "); f.println((int)eeprom.servo2_open);
+    f.print("Servo2_close = "); f.println((int)eeprom.servo2_close);
+    f.println("");
+    f.println("[Servo 3] (MOV)");
+    f.print("Servo3_open  = "); f.println((int)eeprom.servo3_open);
+    f.print("Servo3_close = "); f.println((int)eeprom.servo3_close);
+    f.println("");
+    f.println("[Servo 4] (SPARE)");
+    f.print("Servo4_open  = "); f.println((int)eeprom.servo4_open);
+    f.print("Servo4_close = "); f.println((int)eeprom.servo4_close);
+    f.println("");
+    f.println("# Other Settings -----------------");
+    f.println("");
+    f.print("SD Sample Rate = "); f.println(eeprom.SD_sample_rate);
+    f.print("abort_time = ");     f.println(eeprom.abort_time);
+    f.print("print_debug = ");    f.println(eeprom.print_debug);
+
+    f.close();
+    return 1;
+}
+
