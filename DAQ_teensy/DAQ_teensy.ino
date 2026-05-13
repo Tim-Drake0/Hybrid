@@ -148,6 +148,12 @@ int C2 = 2;
 unsigned long int last_time_data = 0; // Last time data readings were taken (tracking for next read cycle) [ms]
 unsigned long int last_time_rx = 0; // Last receive time (tracking rx for abort) [ms]
 
+unsigned long int start_continuity = 0;
+unsigned long int last_time_beep = 0;
+unsigned long int beep_dtH = 300; //ms, time between continuity beeps
+unsigned long int beep_dtL = 150; //ms, time between continuity beeps
+int last_beep_window = -1;
+
 void moveServo(int servo, bool state){
   if(state == 0){
     if(servo == 1){bitWrite(daq_pkt.valve_states, FILL, 0); servo1.write(eeprom.servo1_close);}
@@ -226,6 +232,32 @@ void ABORT_DAQ(void) { // ABORT ================================================
       last_time_rx = millis(); // reset  time of most recent transmission
       return; // exit abort
     }
+  }
+}
+
+void handleBeeps(){
+  unsigned long int timeNow = millis();
+  unsigned long int dt = timeNow - last_time_beep;
+
+  int window;
+  if     (dt < beep_dtH)                              window = 0;
+  else if(dt < beep_dtH + beep_dtL)                   window = 1;
+  else if(dt < beep_dtH + beep_dtL + beep_dtH)        window = 2;
+  else if(dt < beep_dtH + beep_dtL + beep_dtH + 1000) window = 3;
+  else {
+    last_time_beep = timeNow;
+    last_beep_window = -1;
+    window = 0;
+  }
+
+  if(window == last_beep_window) return;
+  last_beep_window = window;
+
+  switch(window){
+    case 0: tone(buzzerPin, bitRead(daq_pkt.arm_state, C1) ? 4900 : 1500); break;
+    case 1: noTone(buzzerPin); break;
+    case 2: tone(buzzerPin, bitRead(daq_pkt.arm_state, C2) ? 4900 : 1500); break;
+    case 3: noTone(buzzerPin); break;
   }
 }
 
@@ -309,6 +341,51 @@ void setup() {
   delay(1000); // delay for begin  
 
   datafile = SD.open(filename.c_str(), FILE_WRITE);
+
+
+  // beep continuity for first 5 seconds
+  int i = 0;
+  while(i < 3){
+    tone(buzzerPin, 4900);
+    delay(100);
+    noTone(buzzerPin);
+    delay(100);
+    i += 1;
+  }
+  delay(2000);
+
+  // enable arm temporarily to test continuity
+  digitalWrite(arm_out, HIGH);
+  start_continuity = millis();
+  while(millis() - start_continuity < 10000){
+    // Check continuity
+    if(analogRead(pyro_1_cont_in) > 500){
+      bitWrite(daq_pkt.arm_state, C1, 1);
+    } else {
+      bitWrite(daq_pkt.arm_state, C1, 0);
+    }
+    
+    if(analogRead(pyro_2_cont_in) > 500){
+      bitWrite(daq_pkt.arm_state, C2, 1);
+    } else {
+      bitWrite(daq_pkt.arm_state, C2, 0);
+    }
+
+    handleBeeps();
+
+  }
+  
+  delay(2000);
+
+  i = 0;
+  while(i < 3){
+    tone(buzzerPin, 4900);
+    delay(100);
+    noTone(buzzerPin);
+    delay(100);
+    i += 1;
+  }
+  delay(2000);
 }
 
 void loop() {
@@ -389,8 +466,10 @@ void loop() {
     Serial.print(", current: "); Serial.print(daq_pkt.batt_current);
     Serial.print(", TC1: "); Serial.print(daq_pkt.tc1);
     Serial.print(", TC2: "); Serial.print(daq_pkt.tc2);
-    Serial.print(", cont1: "); Serial.print(analogRead(pyro_1_cont_in));
-    Serial.print(", cont2: "); Serial.print(analogRead(pyro_2_cont_in));
+    Serial.print(", valve states: "); Serial.print(daq_pkt.valve_states);
+    Serial.print(", pyro states: "); Serial.print(daq_pkt.pyro_states);
+    Serial.print(", arm state: "); Serial.print(daq_pkt.arm_state);
+    Serial.print(", sensor states: "); Serial.print(daq_pkt.sensor_states);
     Serial.print(", PT1: "); Serial.println(daq_pkt.pt1);
 
 
@@ -416,17 +495,12 @@ void loop() {
       send_pending = false;
   }
 
-  if(sw_pkt.arm){
-    tone(buzzerPin, 2300);
-  } else {
-    noTone(buzzerPin);
-  }
-
   // AUTO ABORT
   // if the last received transmission happened longer than abort time ago
   if (millis() - last_time_rx > (uint32_t)(eeprom.abort_time * 1000)){ABORT_DAQ();}
 
   handleSerial();
+  handleBeeps();
 
   daq_pkt.tsy_looptime = micros() - startLoopTime;
 }
