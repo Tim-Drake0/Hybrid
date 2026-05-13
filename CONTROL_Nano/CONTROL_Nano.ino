@@ -130,9 +130,9 @@ void setup() {
   pinMode(SW4,INPUT_PULLUP); 
   pinMode(PY1,INPUT_PULLUP); 
   pinMode(PY2,INPUT_PULLUP); 
-  pinMode(SW5,INPUT);        
-  pinMode(SW6,INPUT);        
-  pinMode(ARM,INPUT); 
+  pinMode(SW5,INPUT_PULLUP);        
+  pinMode(SW6,INPUT_PULLUP);        
+  pinMode(ARM,INPUT_PULLUP); 
 
   // Radio trasnceiver setup
   pinMode(RFM95_RST, OUTPUT);
