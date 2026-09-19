@@ -803,6 +803,7 @@ dpg.set_viewport_resize_callback(resize_viewport)
 
 dpg.setup_dearpygui()
 dpg.show_viewport()
+dpg.toggle_viewport_fullscreen()
 
 # Auto screen size adjust
 dpg.bind_item_handler_registry("main_window", "vp_handler")
