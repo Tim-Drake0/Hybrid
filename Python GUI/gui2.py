@@ -9,6 +9,7 @@ import pandas as pd
 import random
 import sys
 from pathlib import Path
+
 sensor_path = Path(__file__).parent / "Sensor Info"
 sys.path.append(str(sensor_path))
 
@@ -64,6 +65,28 @@ frameTime = 0
 fc_state = 0 # this will eventually come from the flight computer. temporary
 is_dark_theme = True  # start in dark mode (DPG default)
 
+_cpu_temp_cache     = 0.0
+_cpu_temp_last_read = 0.0
+
+def get_cpu_temp():
+    """Ground-station (Raspberry Pi) CPU temp in °C. Returns 0.0 if unavailable
+    (e.g. running on a non-Pi dev machine) so callers can always treat this as
+    a float — never a string — for plotting/formatting. Throttled to
+    settings.CPU_TEMP_POLL_INTERVAL_S since it's polled every frame."""
+    global _cpu_temp_cache, _cpu_temp_last_read
+    now = time.time()
+    if now - _cpu_temp_last_read < settings.CPU_TEMP_POLL_INTERVAL_S:
+        return _cpu_temp_cache
+    _cpu_temp_last_read = now
+    try:
+        with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+            temp_raw = f.read()
+        # Convert milli-degrees to Celsius and round it
+        _cpu_temp_cache = round(float(temp_raw) / 1000.0, 1)
+    except (FileNotFoundError, ValueError, OSError):
+        _cpu_temp_cache = 0.0
+    return _cpu_temp_cache
+    
 def toggle_theme():
     global is_dark_theme
     is_dark_theme = not is_dark_theme
@@ -320,6 +343,7 @@ def updateDebugWindow():
     dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.battVolts, 4)} V")
     dpg.set_value("batt_current",           f"Battery current: {round(sr.streamTelem.battCurrent/1000, 4)} A")
     dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
+    dpg.set_value("cpu_temp",               f"Ground Station CPU Temp: {sr.streamTelem.cpuTemp_c}°C")
     
 def updateLiveInfoWindow():
     global fill_started, fill_time, live_time, pt1_list, pt4_list, fill_min, fill_sec, batt_rem_time
@@ -367,6 +391,7 @@ def update_error_table():
     errors = {
         "sd_card": ("SD CARD ERROR", sr.streamTelem.sd_state == 0),
         "low_batt": ("LOW BATTERY", sr.streamTelem.battVolts < 7.4),
+        "high_cpu_temp": (f"GROUND STATION CPU TEMP HIGH)", sr.streamTelem.cpuTemp_c >= settings.CPU_TEMP_WARN_C),
     }
 
     for error_id, (message, is_active) in errors.items():
@@ -688,6 +713,8 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                         dpg.add_text(" ", tag="battVolts")
                         dpg.add_text(" ", tag="batt_current")
                         
+                    dpg.add_text(" ", tag="cpu_temp")
+                        
     
     # ERROR window
     with dpg.child_window(width=layout["error_window"]["size"][0], height=layout["error_window"]["size"][1], pos=layout["error_window"]["pos"], tag="error_window", show=True):
@@ -792,8 +819,10 @@ def on_key_released(sender, key):
         lastCmdTime = now
         if key == dpg.mvKey_P:
             sw.send_ping()
-        
- 
+
+    if key == dpg.mvKey_Escape:
+        dpg.stop_dearpygui()
+
 with dpg.item_handler_registry(tag="vp_handler"):
     dpg.add_item_resize_handler(callback=resize_viewport)
     
@@ -854,6 +883,10 @@ try:
             
             #dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
             
+        # Pi's own CPU temp — local reading, independent of any radio link,
+        # so it's always live for the debug text and the strip charts.
+        sr.streamTelem.cpuTemp_c = get_cpu_temp()
+
         updateLiveInfoWindow()
         updateDebugWindow()
         updateStatusBar()    
@@ -861,7 +894,10 @@ try:
         update_rssi_widget()
         update_battery_widget()
         update_error_table()
-        dc.update(sr.streamTelem, sr.streamTelem.tsy_timestamp / 1000)
+        # Wall-clock time drives the strip charts so they keep scrolling in
+        # real time even with no radio connected (telem timestamp would
+        # otherwise freeze).
+        dc.update(sr.streamTelem, frameTime)
 
         # Render one frame
         dpg.render_dearpygui_frame()

@@ -78,6 +78,16 @@ SAT_PRESSURES = [
 
 batt_size_mah = 850
 
+# How often to read the ground-station Pi's own CPU temp sensor, in seconds.
+# Lower = faster updates on the debug text / dynamic_charts plot, at the cost
+# of more sysfs reads per second.
+CPU_TEMP_POLL_INTERVAL_S = 2
+
+# Ground-station Pi CPU temp (°C) at/above which a warning row is shown in
+# the error table. Pi 5 starts thermal-throttling around 80-85°C, so this
+# gives a heads-up before that happens.
+CPU_TEMP_WARN_C = 75.0
+
 def show_right_window(tag):
     for window in RIGHT_WINDOWS:
         dpg.hide_item(window)

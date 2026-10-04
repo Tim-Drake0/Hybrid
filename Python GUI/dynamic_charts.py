@@ -12,10 +12,13 @@ USAGE
         with dpg.child_window(..., tag="dynamic_plots_window", ...):
             dc.build_panel("dynamic_plots_window", sr.streamTelem)
 
-3.  In the main loop call:
-        dc.update(sr.streamTelem, sr.streamTelem.tsy_timestamp / 1000)
+3.  In the main loop call (every frame, using wall-clock time so the
+    strip charts keep scrolling in real time even with no radio/telem
+    connected):
+        dc.update(sr.streamTelem, time.time())
 """
 
+import time
 import dearpygui.dearpygui as dpg
 from collections import deque
 import dataclasses
@@ -41,7 +44,8 @@ _window_slider_tag  = ""
 _numeric_fields:   list[str] = []
 _latest_time       = 0.0
 _latest_telem      = None
-_last_timestamp    = 0.0   # used to detect power-cycle resets
+_last_raw_timestamp = 0.0   # telem_obj.tsy_timestamp (ms), used to detect power-cycle resets
+_t0                 = None  # first timestamp seen this session (see update())
 
 # Global history — keeps a rolling buffer of ALL telem values so new
 # charts can backfill immediately instead of starting empty.
@@ -333,7 +337,7 @@ def build_panel(parent_tag, telem_obj=None):
         "pt1","pt2","pt3","pt4","pt5","pt6",
         "loadCell","battVolts","battCurrent","tc1","tc2","RSSI",
         "fill_state","vent_state","mov_state","py1_state","py2_state",
-        "arm_state","c1_state","c2_state","sd_state",
+        "arm_state","c1_state","c2_state","sd_state","cpuTemp_c",
     ]
 
     with dpg.group(horizontal=True, parent=parent_tag):
@@ -354,7 +358,7 @@ def build_panel(parent_tag, telem_obj=None):
         dpg.add_spacer(width=16)
         dpg.add_text("T:", color=(160, 160, 160))
         _window_slider_tag = dpg.add_slider_int(
-            min_value=5, max_value=300,
+            min_value=5, max_value=1000,
             default_value=WINDOW_SECS,
             width=120, callback=_on_window_slider, format="%ds",
         )
@@ -362,7 +366,7 @@ def build_panel(parent_tag, telem_obj=None):
     # Pre-create history deques for every numeric field
     for f in _numeric_fields:
         if f not in _history_vals:
-            _history_vals[f] = deque(maxlen=300 * 100)
+            _history_vals[f] = deque(maxlen=1000 * 100)
 
     dpg.add_separator(parent=parent_tag)
 
@@ -376,8 +380,8 @@ def set_telem_fields(telem_obj):
 
 def _clear_all_buffers():
     """Wipe all series data and history — called on DAQ power-cycle detection."""
-    global _last_timestamp
-    _last_timestamp = 0.0
+    global _last_raw_timestamp
+    _last_raw_timestamp = 0.0
     _history_x.clear()
     for buf in _history_vals.values():
         buf.clear()
@@ -390,17 +394,41 @@ def _clear_all_buffers():
                 dpg.set_value(s["series_tag"], [[], []])
 
 
-def update(telem_obj, timestamp):
+def update(telem_obj, timestamp=None):
+    """
+    telem_obj : latest telemetry dataclass instance (may be stale/unchanged
+                if nothing new has arrived over the radio).
+    timestamp : wall-clock time (e.g. time.time()) driving the x-axis. This
+                is intentionally NOT the telemetry's own timestamp field, so
+                the charts keep scrolling in real time even when there's no
+                radio connection and telem_obj stops changing. Defaults to
+                time.time() if omitted.
+
+                Normalized against the first timestamp seen (_t0) before use:
+                DearPyGui/ImPlot store series data as 32-bit floats, and a raw
+                Unix epoch value (~1.7e9) doesn't have enough precision left
+                over to resolve a 30s window — the line would never visibly
+                move even though the data is correct. Subtracting _t0 keeps
+                plotted x-values small (seconds since GUI start) so motion is
+                actually visible.
+    """
     global _latest_time, _latest_telem
-    global _last_timestamp
+    global _last_raw_timestamp, _t0
+    if timestamp is None:
+        timestamp = time.time()
+    if _t0 is None:
+        _t0 = timestamp
+    timestamp = timestamp - _t0
     _latest_time  = timestamp
     _latest_telem = telem_obj
     _poll_drag()
 
-    # Detect DAQ power-cycle: timestamp jumped backwards or reset near zero
-    if _last_timestamp > 0 and (timestamp < _last_timestamp - 1.0 or (timestamp < 5.0 and _last_timestamp > 10.0)):
+    # Detect DAQ power-cycle from the telemetry's own timestamp field
+    # (independent of the wall-clock time driving the x-axis).
+    raw_ts = float(getattr(telem_obj, "tsy_timestamp", 0.0)) / 1000.0
+    if _last_raw_timestamp > 0 and (raw_ts < _last_raw_timestamp - 1.0 or (raw_ts < 5.0 and _last_raw_timestamp > 10.0)):
         _clear_all_buffers()
-    _last_timestamp = timestamp
+    _last_raw_timestamp = raw_ts
 
     # Always record history regardless of whether charts exist
     _history_x.append(timestamp)

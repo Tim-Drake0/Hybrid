@@ -179,6 +179,8 @@ class StreamTelem:
     ina219_state:      int   = 0
     ads1115_state:     int   = 0
     
+    cpuTemp_c:         float = 0.0
+    
     
     def readBuffer(self):
         import struct
