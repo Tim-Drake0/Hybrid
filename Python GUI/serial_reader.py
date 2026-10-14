@@ -141,6 +141,35 @@ def close_log():
     logging_enabled = False
     print("Stopped recording data.")
     
+def lipo_2s_percent(voltage: float) -> int:
+    # 2S voltage -> approximate % remaining
+    curve = [
+        (8.40, 100),
+        (8.16, 90),
+        (8.00, 80),
+        (7.84, 70),
+        (7.60, 60),
+        (7.44, 50),
+        (7.36, 40),
+        (7.20, 30),
+        (7.04, 20),
+        (6.90, 20),
+        (6.80, 0),
+    ]
+    
+    if voltage >= curve[0][0]:  return 100
+    if voltage <= curve[-1][0]: return 0
+    
+    for i in range(len(curve) - 1):
+        v_high, p_high = curve[i]
+        v_low,  p_low  = curve[i + 1]
+        if v_low <= voltage <= v_high:
+            # linear interpolation between points
+            t = (voltage - v_low) / (v_high - v_low)
+            return round(p_low + t * (p_high - p_low))
+    
+    return 0 
+    
 @dataclass      
 class StreamTelem:
     header:            int   = 43962
@@ -208,6 +237,62 @@ class StreamTelem:
     stationADCRadioVolts:   float = 0.0 # Station ADC radio voltage [V]
     stationInaBattPower:    float = 0.0 # Station INA battery power [W]
     stationInaBattVolts:    float = 0.0 # Station INA battery voltage [V]
+
+    # BQ25887 2S charger (see Station_Sensors.BQ25887.poll)
+    chgrConnected_b:        int   = 0     # 1 = last poll of the charger succeeded
+    chgrReapplyCount:       int   = 0     # times settings were re-written after the chip reset them
+    chgrPartNum:            int   = 0     # 5 = BQ25887
+    chgrDevRev:             int   = 0
+    chgrChargeStat:         int   = 0     # 0 none, 1 trickle, 2 pre, 3 fast CC, 4 taper CV, 5 top-off, 6 done
+    chgrChargeStatStr:      str   = ""
+    chgrCharging_b:         int   = 0     # 1 = in any active charge phase
+    chgrPowerGood_b:        int   = 0
+    chgrVbusStat:           int   = 0     # input source type, see chgrVbusStatStr
+    chgrVbusStatStr:        str   = ""
+    chgrIcoStat:            int   = 0     # 0 disabled, 1 optimizing, 2 max current found
+    chgrIcoStatStr:         str   = ""
+    chgrIcoIlim_ma:         int   = 0     # input current limit chosen by ICO [mA]
+    chgrIindpm_b:           int   = 0     # 1 = input current limit is throttling charge
+    chgrVindpm_b:           int   = 0     # 1 = input voltage limit is throttling charge
+    chgrThermalReg_b:       int   = 0     # 1 = die thermal regulation active
+    chgrWatchdogExpired_b:  int   = 0
+    chgrTsStat:             int   = 0     # thermistor zone, see chgrTsStatStr
+    chgrTsStatStr:          str   = ""
+    chgrVbusOvp_b:          int   = 0     # fault: input over-voltage
+    chgrThermalShutdown_b:  int   = 0     # fault: die thermal shutdown
+    chgrSafetyTimerExpired_b: int = 0     # fault: charge safety timer expired
+    chgrFlagIindpm_b:       int   = 0     # chgrFlag*: event happened since the previous poll
+    chgrFlagVindpm_b:       int   = 0
+    chgrFlagThermalReg_b:   int   = 0
+    chgrFlagWatchdog_b:     int   = 0
+    chgrFlagChargeStat_b:   int   = 0
+    chgrFlagPowerGood_b:    int   = 0
+    chgrFlagVbusStat_b:     int   = 0
+    chgrFlagTsStat_b:       int   = 0
+    chgrFlagIco_b:          int   = 0
+    chgrFlagVbusOvp_b:      int   = 0
+    chgrFlagThermalShutdown_b: int = 0
+    chgrFlagSafetyTimer_b:  int   = 0
+    chgrIbus_a:             float = 0.0   # USB input current [A]
+    chgrIchg_a:             float = 0.0   # battery charge current [A]
+    chgrVbus_v:             float = 0.0   # USB input voltage [V]
+    chgrVbat_v:             float = 0.0   # pack voltage [V]
+    chgrVcellTop_v:         float = 0.0   # top cell voltage [V]
+    chgrVcellBot_v:         float = 0.0   # bottom cell voltage [V]
+    chgrTs_pct:             float = 0.0   # thermistor as % of REGN
+    chgrTdie_c:             float = 0.0   # charger die temperature [C]
+    chgrCbActive_b:         int   = 0     # cell balancing active
+    chgrCbTopCv_b:          int   = 0     # top cell balancing FET in CV mode
+    chgrCbBotCv_b:          int   = 0     # bottom cell balancing FET in CV mode
+    chgrCbTopOv_b:          int   = 0     # top cell over-voltage
+    chgrCbBotOv_b:          int   = 0     # bottom cell over-voltage
+    chgrCbOverCurrent_b:    int   = 0     # cell balancing over-current protection active
+    chgrFlagCb_b:           int   = 0
+    chgrFlagCbTopCv_b:      int   = 0
+    chgrFlagCbBotCv_b:      int   = 0
+    chgrFlagCbTopOv_b:      int   = 0
+    chgrFlagCbBotOv_b:      int   = 0
+    chgrFlagCbOverCurrent_b: int  = 0
 
     # GPS (MAX-M10S, via NMEA GGA/RMC)
     gpsFixValid_b:      int   = 0     # True once a GGA/RMC sentence reports a valid fix
@@ -384,6 +469,7 @@ def cmd_loop():
 
 def sensor_loop():
     lastTimeINA = 0
+    lastTimeChgr = 0
     lastSOC = 100 # update to read from memory or text file
     while True:
         try:
@@ -394,7 +480,7 @@ def sensor_loop():
                 streamTelem.stationTemp_c = snsrs.bme280.temperature
                 streamTelem.stationBaroAlt_m = snsrs.bme280.altitude
 
-                streamTelem.stationChargeVolts = snsrs.vusb_mon_v.voltage * 1.67727393264
+                streamTelem.stationADCChargeVolts = snsrs.vusb_mon_v.voltage * 1.67727393264
                 streamTelem.stationADCBattVolts = snsrs.batt_mon_v.voltage * 2.97230769231
                 streamTelem.stationADCRadioVolts = snsrs.radio_mon_v.voltage * 2.97230769231
 
@@ -405,12 +491,25 @@ def sensor_loop():
                 streamTelem.stationInaBattPower = snsrs.ina.power() / 1000
                 streamTelem.stationInaBattVolts = snsrs.ina.voltage()
 
-                streamTelem.stationInaBattSOC = lastSOC - (streamTelem.stationInaBattSOC*((startSensorLoopTime - lastTimeINA)/3600)/(settings.batt_size_mah/1000))
+                #streamTelem.stationInaBattSOC = lastSOC - (streamTelem.stationInaBattSOC*((startSensorLoopTime - lastTimeINA)/3600)/(settings.batt_size_mah/1000))
+                streamTelem.stationInaBattSOC = lipo_2s_percent(streamTelem.stationADCBattVolts)
                 
                 lastTimeINA = time.time()
 
         except Exception as e:
             print("Sensor error:", e)
+
+        # Separate try so a missing/failing charger doesn't stop the other sensors.
+        if snsrs.charger and time.time() - lastTimeChgr > settings.BQ25887_POLL_INTERVAL_S:
+            lastTimeChgr = time.time()
+            try:
+                for name, value in snsrs.charger.poll().items():
+                    setattr(streamTelem, name, value)
+                streamTelem.stationCharging_b = streamTelem.chgrCharging_b
+            except Exception as e:
+                streamTelem.chgrConnected_b = 0
+                snsrs.charger.applied = False  # re-write settings once it answers again
+                print("Charger error:", e)
 
 
 def gps_loop():

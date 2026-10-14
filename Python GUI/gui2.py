@@ -62,6 +62,24 @@ _last_gps_point = None
 _current_gps_map = None  # name of the map currently shown behind the track
 fill_plot_started = False 
 
+# Pressure strip chart (Tank=PT4, Bottle=PT1, Chamber=PT3). X is Pi wall-clock
+# seconds since GUI start so the chart keeps scrolling with no radio connected.
+PRESS_WINDOW_S    = 30            # visible time span while live
+PRESS_HISTORY_PTS = 20 * 60 * 30  # ~30 min of history at 20 Hz telem
+press_t0       = time.time()
+press_t        = deque(maxlen=PRESS_HISTORY_PTS)
+press_tank     = deque(maxlen=PRESS_HISTORY_PTS)
+press_bottle   = deque(maxlen=PRESS_HISTORY_PTS)
+press_chamber  = deque(maxlen=PRESS_HISTORY_PTS)
+press_paused   = False
+_press_dirty   = False  # new sample since the series were last pushed
+
+# Lat/lon readout overlaid on the top-right corner of the map.
+GPS_COORD_W, GPS_COORD_H = 310, 100
+
+# Frames left before releasing the GPS map's axis lock (see frame_gps_map()).
+_gps_map_limit_frames = 0
+
 active_errors = {}  # dict of {error_id: row_tag}
 
 # Status bar boxes: a shared height so every box lines up.
@@ -108,7 +126,6 @@ def toggle_theme():
         dpg.bind_theme(light_theme)
         dpg.configure_item("theme_button", label="Dark")
     dc.set_dark_mode(is_dark_theme)
-    redraw_static_widget_elements()
 
 def _config(sender, keyword, user_data):
     widget_type = dpg.get_item_type(sender)
@@ -279,36 +296,7 @@ def updateStatusBar():
     dpg.configure_item("live_fill_time", pos=[0, draw_y // 2 - 22])
     
     dpg.configure_item("gps_signal_rect", color=gps_color, fill=gps_color)
-    dpg.configure_item("gps_signal_text", text=gps_label, pos=gps_pos)
-            
-def lipo_2s_percent(voltage: float) -> int:
-    # 2S voltage -> approximate % remaining
-    curve = [
-        (8.40, 100),
-        (8.16, 90),
-        (8.00, 80),
-        (7.84, 70),
-        (7.60, 60),
-        (7.44, 50),
-        (7.36, 40),
-        (7.20, 30),
-        (7.04, 20),
-        (6.90, 20),
-        (6.80, 0),
-    ]
-    
-    if voltage >= curve[0][0]:  return 100
-    if voltage <= curve[-1][0]: return 0
-    
-    for i in range(len(curve) - 1):
-        v_high, p_high = curve[i]
-        v_low,  p_low  = curve[i + 1]
-        if v_low <= voltage <= v_high:
-            # linear interpolation between points
-            t = (voltage - v_low) / (v_high - v_low)
-            return round(p_low + t * (p_high - p_low))
-    
-    return 0           
+    dpg.configure_item("gps_signal_text", text=gps_label, pos=gps_pos)          
                
 def rssi_to_bars(rssi: int) -> int:
     """Convert RSSI dBm to 0-5 bars."""
@@ -395,6 +383,7 @@ def updateDebugWindow():
     dpg.set_value("station_batt_current",   f"Ground Station Batt Current: {sr.streamTelem.stationInaBattCurrent:0.3f}A")
     dpg.set_value("station_batt_pwr",       f"Ground Station Batt Power: {sr.streamTelem.stationInaBattPower:0.3f}W")
     dpg.set_value("station_ina_volts",      f"Ground Station INA Volts: {sr.streamTelem.stationInaBattVolts:0.2f}V")
+    dpg.set_value("station_ina_soc",        f"Ground Station Batt SOC: {sr.streamTelem.stationInaBattSOC:0.2f}%")
 
     dpg.set_value("gps_fix",                f"GPS Fix: {'VALID' if sr.streamTelem.gpsFixValid_b else 'NO FIX'}")
     dpg.set_value("gps_lat",                f"GPS Latitude: {sr.streamTelem.gpsLat:0.6f}°")
@@ -409,9 +398,43 @@ def updateDebugWindow():
     dpg.set_value("gps_sats_visible",       f"GPS Satellites In View: {sr.streamTelem.gpsSatsVisible}")
     dpg.set_value("gps_max_cno",            f"GPS Best Signal (C/N0): {sr.streamTelem.gpsMaxCNO:0.0f} dB-Hz")
 
+# BQ25887 lines on the Debug > Charger tab: tag -> formatter(streamTelem).
+_CHGR_FAULTS = [("chgrVbusOvp_b", "VBUS OVP"), ("chgrThermalShutdown_b", "THERMAL SHUTDOWN"),
+                ("chgrSafetyTimerExpired_b", "SAFETY TIMER"), ("chgrCbTopOv_b", "TOP CELL OV"),
+                ("chgrCbBotOv_b", "BOT CELL OV"), ("chgrCbOverCurrent_b", "CB OVERCURRENT")]
+_CHGR_LIMITS = [("chgrIindpm_b", "IINDPM"), ("chgrVindpm_b", "VINDPM"), ("chgrThermalReg_b", "TREG")]
+_CHGR_EVENTS = [(n, n[len("chgrFlag"):-2]) for n in sr.streamTelem.__dataclass_fields__ if n.startswith("chgrFlag")]
+
+def _active(t, pairs):
+    return ", ".join(label for name, label in pairs if getattr(t, name)) or "none"
+
+CHARGER_DEBUG_LINES = {
+    "chgr_link":    lambda t: f"Charger: {'OK' if t.chgrConnected_b else 'NO RESPONSE'}  (PN {t.chgrPartNum} rev {t.chgrDevRev}, re-applied {t.chgrReapplyCount}x)",
+    "chgr_state":   lambda t: f"State: {t.chgrChargeStatStr or '--'}",
+    "chgr_input":   lambda t: f"Input: {t.chgrVbusStatStr or '--'}  PG={t.chgrPowerGood_b}",
+    "chgr_vbus":    lambda t: f"VBUS: {t.chgrVbus_v:0.3f} V  {t.chgrIbus_a:0.3f} A",
+    "chgr_vbat":    lambda t: f"VBAT: {t.chgrVbat_v:0.3f} V  Ichg {t.chgrIchg_a:0.3f} A",
+    "chgr_cells":   lambda t: f"Cells: top {t.chgrVcellTop_v:0.3f} V  bot {t.chgrVcellBot_v:0.3f} V  (d {abs(t.chgrVcellTop_v - t.chgrVcellBot_v)*1000:0.0f} mV)",
+    "chgr_balance": lambda t: f"Balancing: {'ACTIVE' if t.chgrCbActive_b else 'off'}  CV top={t.chgrCbTopCv_b} bot={t.chgrCbBotCv_b}",
+    "chgr_temp":    lambda t: f"Die {t.chgrTdie_c:0.1f} C   TS {t.chgrTs_pct:0.1f}% ({t.chgrTsStatStr or '--'})",
+    "chgr_ico":     lambda t: f"ICO: {t.chgrIcoStatStr or '--'}  limit {t.chgrIcoIlim_ma} mA",
+    "chgr_limits":  lambda t: f"Limiting: {_active(t, _CHGR_LIMITS)}",
+    "chgr_faults":  lambda t: f"Faults: {_active(t, _CHGR_FAULTS)}",
+    "chgr_events":  lambda t: f"Events: {_active(t, _CHGR_EVENTS)}",
+}
+
+def updateChargerDebug():
+    for tag, fmt in CHARGER_DEBUG_LINES.items():
+        dpg.set_value(tag, fmt(sr.streamTelem))
+
 def updateGpsMap():
     global _last_gps_point, _current_gps_map
-    if not sr.streamTelem.gpsFixValid_b:
+    if sr.streamTelem.gpsFixValid_b:
+        dpg.set_value("gps_coord_lat", f"Lat: {sr.streamTelem.gpsLat:11.6f}°")
+        dpg.set_value("gps_coord_lon", f"Lon: {sr.streamTelem.gpsLon:11.6f}°")
+    else:
+        dpg.set_value("gps_coord_lat", "Lat:      NO FIX")
+        dpg.set_value("gps_coord_lon", "Lon:      NO FIX")
         return
 
     point = (sr.streamTelem.gpsLon, sr.streamTelem.gpsLat)
@@ -441,11 +464,68 @@ def updateGpsMap():
                         bounds_min=m["bounds_min"],
                         bounds_max=m["bounds_max"],
                     )
-                dpg.set_axis_limits("gps_map_xaxis", lon_min, lon_max)
-                dpg.set_axis_limits("gps_map_yaxis", lat_min, lat_max)
-                dpg.set_axis_limits_auto("gps_map_xaxis")
-                dpg.set_axis_limits_auto("gps_map_yaxis")
+                frame_gps_map(m)
             break
+
+def frame_gps_map(m):
+    """Point the map view at m's bounds. The lock is held for a couple of
+    rendered frames and then released in release_gps_map_limits() so the user
+    can still pan/zoom -- releasing it in the same frame (before ImPlot ever
+    sees it) cancels it and leaves the view stuck at the default 0..1 range."""
+    global _gps_map_limit_frames
+    (lon_min, lat_min), (lon_max, lat_max) = m["bounds_min"], m["bounds_max"]
+    dpg.set_axis_limits("gps_map_xaxis", lon_min, lon_max)
+    dpg.set_axis_limits("gps_map_yaxis", lat_min, lat_max)
+    _gps_map_limit_frames = 2
+
+def release_gps_map_limits():
+    global _gps_map_limit_frames
+    if _gps_map_limit_frames > 0:
+        _gps_map_limit_frames -= 1
+        if _gps_map_limit_frames == 0:
+            dpg.set_axis_limits_auto("gps_map_xaxis")
+            dpg.set_axis_limits_auto("gps_map_yaxis")
+
+def toggle_press_pause():
+    global press_paused, _press_dirty
+    press_paused = not press_paused
+    dpg.configure_item("press_pause_button", label="Resume" if press_paused else "Pause")
+    dpg.configure_item("press_pause_hint", show=press_paused)
+    if press_paused:
+        # Hand the full history to the plot and unlock X so the user can drag
+        # back through it (wheel zooms). Y keeps range-fitting to the view.
+        _push_press_series(full=True)
+        dpg.set_axis_limits_auto("press_x_axis")
+    else:
+        _press_dirty = True  # snap back to live on the next update
+
+def _push_press_series(full=False):
+    t = list(press_t)
+    n = len(t)
+    if not full and n:
+        # Live: only send what's on screen (plus a little margin) instead of
+        # the whole 30 min history every frame.
+        cutoff = t[-1] - PRESS_WINDOW_S * 1.5
+        start = n
+        while start > 0 and t[start - 1] >= cutoff:
+            start -= 1
+        start = max(0, start - 1)
+    else:
+        start = 0
+    t = t[start:]
+    dpg.set_value("press_tank_series",    [t, list(press_tank)[start:]])
+    dpg.set_value("press_bottle_series",  [t, list(press_bottle)[start:]])
+    dpg.set_value("press_chamber_series", [t, list(press_chamber)[start:]])
+
+def updatePressPlot(now):
+    global _press_dirty
+    if press_paused:
+        return
+    if _press_dirty:
+        _push_press_series()
+        _press_dirty = False
+    now_s = now - press_t0
+    dpg.set_axis_limits("press_x_axis", now_s - PRESS_WINDOW_S, now_s)
 
 def updateLiveInfoWindow():
     global pt1_list, pt4_list, batt_rem_time
@@ -463,7 +543,8 @@ def updateLiveInfoWindow():
 def update_error_table():
     errors = {
         "sd_card": ("SD CARD ERROR", sr.streamTelem.sd_state == 0),
-        "low_batt": ("LOW BATTERY", sr.streamTelem.rktECUVolts < 7.4),
+        "rkt_low_batt": ("LOW ECU BATTERY", sr.streamTelem.rktECUVolts < 7.4),
+        "station_low_batt": ("LOW STATION BATTERY", sr.streamTelem.stationADCBattVolts < 7.4),
         "high_cpu_temp": (f"GROUND STATION CPU TEMP HIGH)", sr.streamTelem.cpuTemp_c >= settings.CPU_TEMP_WARN_C),
     }
 
@@ -472,6 +553,7 @@ def update_error_table():
             # add new row
             with dpg.table_row(parent="error_table", tag=f"err_row_{error_id}"):
                 dpg.add_text(message, color=[255, 50, 50])
+                dpg.bind_item_font(dpg.last_item(), settings.medium)
             active_errors[error_id] = True
         elif not is_active and error_id in active_errors:
             # remove row
@@ -505,7 +587,7 @@ def get_layout():
     
     
     map_x = press_x
-    map_y = events_y + events_h
+    map_y = events_y + events_h + 5
     map_w = vp_w - map_x
     map_h = vp_h - map_y
 
@@ -513,10 +595,12 @@ def get_layout():
         "status_bar":               {"pos": (statusbar_x,       statusbar_y),       "size": (statusbar_w,       statusbar_h)},
         "events_window":            {"pos": (events_x,          events_y),          "size": (events_w,          events_h)},
         "bus_info_window":          {"pos": (info_x,            info_y),            "size": (info_w,            info_h)},
-        #"press_plot_window":        {"pos": (press_x,           press_y),           "size": (press_w,           press_h)},
+        "press_plot_window":        {"pos": (press_x,           press_y),           "size": (press_w,           press_h)},
+        "press_plot":               {"pos": (0,                 30),                "size": (press_w-16,        press_h-40)},
         "error_window":             {"pos": (error_x,           error_y),           "size": (error_w,           error_h)},
         "gps_map_window":           {"pos": (map_x,             map_y),             "size": (map_w,             map_h)},
         "gps_map_plot":             {"pos": (0,                 0),                 "size": (map_w-10,          map_h-8)},
+        "gps_coord_box":            {"pos": (map_w-GPS_COORD_W-22, 36),             "size": (GPS_COORD_W,       GPS_COORD_H)},
     }
 
 def resize_viewport():
@@ -833,6 +917,8 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                             dpg.bind_item_font(dpg.last_item(), settings.large)
                             dpg.add_text(" ", tag="station_ina_volts")
                             dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="station_ina_soc")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)                            
 
                         with dpg.tab(label="GPS"):
                             dpg.add_text(" ", tag="gps_fix")
@@ -860,6 +946,11 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                             dpg.add_text(" ", tag="gps_max_cno")
                             dpg.bind_item_font(dpg.last_item(), settings.large)
 
+                        with dpg.tab(label="Charger"):
+                            for _tag in CHARGER_DEBUG_LINES:
+                                dpg.add_text(" ", tag=_tag)
+                                dpg.bind_item_font(dpg.last_item(), settings.medium)
+
 
     # ERROR window
     with dpg.child_window(width=layout["error_window"]["size"][0], height=layout["error_window"]["size"][1], pos=layout["error_window"]["pos"], tag="error_window", show=True):
@@ -875,10 +966,50 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
 
     
                 
+    # Pressure plot window
+    with dpg.child_window(width=layout["press_plot_window"]["size"][0], height=layout["press_plot_window"]["size"][1], pos=layout["press_plot_window"]["pos"], tag="press_plot_window", no_scrollbar=True):
+        with dpg.group(horizontal=True):
+            dpg.add_button(label="Pause", tag="press_pause_button", callback=toggle_press_pause, width=100)
+            dpg.add_text("Paused: drag to scroll back in time, wheel to zoom", tag="press_pause_hint", show=False)
+        with dpg.plot(label="Pressures", width=layout["press_plot"]["size"][0], height=layout["press_plot"]["size"][1], pos=layout["press_plot"]["pos"], tag="press_plot"):
+            dpg.add_plot_legend(location=dpg.mvPlot_Location_NorthWest)
+            dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)", tag="press_x_axis")
+            # auto_fit + range_fit: Y fits only the data inside the visible X
+            # range, so it tracks the live window and whatever is scrolled to.
+            with dpg.plot_axis(dpg.mvYAxis, label="Pressure (psi)", tag="press_y_axis", auto_fit=True, range_fit=True):
+                dpg.add_line_series([], [], label="Tank",    tag="press_tank_series")
+                dpg.add_line_series([], [], label="Bottle",  tag="press_bottle_series")
+                dpg.add_line_series([], [], label="Chamber", tag="press_chamber_series")
+        for _tag in ("press_tank_series", "press_bottle_series", "press_chamber_series"):
+            dpg.bind_item_theme(_tag, line_theme)
+
+    # Current-position marker: big red dot with a white outline so it stands
+    # out against the satellite image.
+    with dpg.theme() as gps_marker_theme:
+        with dpg.theme_component(dpg.mvScatterSeries):
+            dpg.add_theme_style(dpg.mvPlotStyleVar_Marker, dpg.mvPlotMarker_Circle, category=dpg.mvThemeCat_Plots)
+            dpg.add_theme_style(dpg.mvPlotStyleVar_MarkerSize, 11, category=dpg.mvThemeCat_Plots)
+            dpg.add_theme_style(dpg.mvPlotStyleVar_MarkerWeight, 3, category=dpg.mvThemeCat_Plots)
+            dpg.add_theme_color(dpg.mvPlotCol_MarkerFill, (255, 30, 30, 255), category=dpg.mvThemeCat_Plots)
+            dpg.add_theme_color(dpg.mvPlotCol_MarkerOutline, (255, 255, 255, 255), category=dpg.mvThemeCat_Plots)
+            dpg.add_theme_color(dpg.mvPlotCol_Line, (255, 255, 255, 255), category=dpg.mvThemeCat_Plots)
+
+    with dpg.theme() as gps_trail_theme:
+        with dpg.theme_component(dpg.mvLineSeries):
+            dpg.add_theme_style(dpg.mvPlotStyleVar_LineWeight, 3, category=dpg.mvThemeCat_Plots)
+            dpg.add_theme_color(dpg.mvPlotCol_Line, (255, 220, 0, 255), category=dpg.mvThemeCat_Plots)
+
+    # Semi-transparent dark box so the readout is legible over the map.
+    with dpg.theme() as gps_coord_theme:
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, (0, 0, 0, 170))
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255, 255))
+            dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 8, 4)
+
     # GPS moving map window
     with dpg.child_window(width=layout["gps_map_window"]["size"][0], height=layout["gps_map_window"]["size"][1], pos=layout["gps_map_window"]["pos"], tag="gps_map_window", show=True):
 
-        with dpg.plot(label="GPS Track", width=layout["gps_map_window"]["size"][0], height=layout["gps_map_window"]["size"][1], pos=[0,0], tag="gps_map_plot", equal_aspects=True):
+        with dpg.plot(label="GPS Track", width=layout["gps_map_plot"]["size"][0], height=layout["gps_map_plot"]["size"][1], pos=[0,0], tag="gps_map_plot", equal_aspects=True):
             dpg.add_plot_legend(outside=False, location=dpg.mvPlot_Location_NorthWest)
             with dpg.plot_axis(dpg.mvXAxis, label="Longitude", tag="gps_map_xaxis"):
                 pass
@@ -896,15 +1027,19 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                 # Track/marker added after the background so they draw on top of it.
                 dpg.add_line_series([], [], label="Track", tag="gps_map_trail")
                 dpg.add_scatter_series([], [], label="Current", tag="gps_map_current")
+        dpg.bind_item_theme("gps_map_trail", gps_trail_theme)
+        dpg.bind_item_theme("gps_map_current", gps_marker_theme)
+
+        # Coordinate readout, drawn after the plot so it sits on top of it.
+        with dpg.child_window(width=GPS_COORD_W, height=GPS_COORD_H, pos=layout["gps_coord_box"]["pos"], tag="gps_coord_box", border=False, no_scrollbar=True):
+            dpg.add_text("Lat:      NO FIX", tag="gps_coord_lat")
+            dpg.bind_item_font(dpg.last_item(), settings.xl)
+            dpg.add_text("Lon:      NO FIX", tag="gps_coord_lon")
+            dpg.bind_item_font(dpg.last_item(), settings.xl)
+        dpg.bind_item_theme("gps_coord_box", gps_coord_theme)
 
         if _default_map_name:
-            # set_axis_limits frames the initial view; set_axis_limits_auto
-            # immediately after releases the lock so the user can still
-            # freely pan/zoom afterward (otherwise it's stuck at this range).
-            dpg.set_axis_limits("gps_map_xaxis", _default_map["bounds_min"][0], _default_map["bounds_max"][0])
-            dpg.set_axis_limits("gps_map_yaxis", _default_map["bounds_min"][1], _default_map["bounds_max"][1])
-            dpg.set_axis_limits_auto("gps_map_xaxis")
-            dpg.set_axis_limits_auto("gps_map_yaxis")
+            frame_gps_map(_default_map)
 
 
     """# Live plots
@@ -1017,6 +1152,11 @@ try:
             timestamps.append(sr.streamTelem.tsy_timestamp/1000)
             pt1_list.append(sr.streamTelem.pt1)
             pt4_list.append(sr.streamTelem.pt4)
+            press_t.append(frameTime - press_t0)
+            press_tank.append(sr.streamTelem.pt4)
+            press_bottle.append(sr.streamTelem.pt1)
+            press_chamber.append(sr.streamTelem.pt3)
+            _press_dirty = True
                 
         
             
@@ -1033,7 +1173,10 @@ try:
 
         updateLiveInfoWindow()
         updateDebugWindow()
+        updateChargerDebug()
         updateGpsMap()
+        release_gps_map_limits()
+        updatePressPlot(frameTime)
         updateStatusBar()
         update_leds()
         update_error_table()
