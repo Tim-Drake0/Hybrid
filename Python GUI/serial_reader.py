@@ -146,7 +146,7 @@ class StreamTelem:
     header:            int   = 43962
     packet:            bytes = field(default_factory=bytes)
     ctrl_timestamp:    int   = 0
-    ctrl_RSSI:         int   = 0
+    stationRSSI:       int   = -120
     ctrl_looptime:     int   = 0
     ctrl_sendtime:     int   = 0
     ctrl_waittime:     int   = 0
@@ -162,8 +162,8 @@ class StreamTelem:
     pt2:               float = 0.0
     pt3:               float = 0.0
     pt4:               float = 0.0
-    battVolts:         float = 0.0
-    battCurrent:       float = 0.0
+    
+    
     tc1:               float = 0.0
     tc2:               float = 0.0
     RSSI:              int = 0
@@ -181,7 +181,19 @@ class StreamTelem:
     ina219_state:      int   = 0
     ads1115_state:     int   = 0
     
+    # Rocket Parameters
+    rktECUTemp:             float = 0.0 # temp of the Engine control unit
+    rktECUVolts:            float = 0.0
+    rktECUCurrent:          float = 0.0
+    rktAlt:                 int   = 0
+    rktVerticalVelocity:    int   = 0
+    rktMaxVel:              int   = 0
+    rktMaxMach:             int   = 0
+    rktMaxAlt:              int   = 0
+    rktMaxG:                int   = 0
+    
 
+    # Ground Station Parameters
     cpuTemp_c:              float = 0.0 # Station PI CPU temperature [C]
     
     # BME280
@@ -201,7 +213,7 @@ class StreamTelem:
     gpsFixValid_b:      int   = 0     # True once a GGA/RMC sentence reports a valid fix
     gpsLat:             float = 0.0   # signed decimal degrees, +N/-S
     gpsLon:             float = 0.0   # signed decimal degrees, +E/-W
-    gpsAlt_m:           float = 0.0   # altitude above mean sea level, from GGA
+    gpsAlt_ft:          float = 0.0   # altitude above mean sea level, from GGA [ft]
     gpsNumSV:           int   = 0     # satellites in use, from GGA
     gpsHDOP:            float = 0.0   # horizontal dilution of precision, from GGA
     gpsSpeed_kts:       float = 0.0   # ground speed in knots, from RMC
@@ -371,8 +383,11 @@ def cmd_loop():
             print("CMD error:", e)           
 
 def sensor_loop():
+    lastTimeINA = 0
+    lastSOC = 100 # update to read from memory or text file
     while True:
         try:
+            startSensorLoopTime = time.time()
             # bme280/ads1115 share one Blinka i2c object across threads -- lock
             # it for the duration of these reads so transactions can't interleave.
             with snsrs.i2c_lock:
@@ -383,10 +398,16 @@ def sensor_loop():
                 streamTelem.stationADCBattVolts = snsrs.batt_mon_v.voltage * 2.97230769231
                 streamTelem.stationADCRadioVolts = snsrs.radio_mon_v.voltage * 2.97230769231
 
-            # ina219 is on its own separate smbus handle, not the shared i2c bus.
-            streamTelem.stationInaBattCurrent = snsrs.ina.current() / 1000
-            streamTelem.stationInaBattPower = snsrs.ina.power() / 1000
-            streamTelem.stationInaBattVolts = snsrs.ina.voltage()
+            
+            if startSensorLoopTime - lastTimeINA > 1/settings.inaSampleRate:
+                # ina219 is on its own separate smbus handle, not the shared i2c bus.
+                streamTelem.stationInaBattCurrent = snsrs.ina.current() / 1000
+                streamTelem.stationInaBattPower = snsrs.ina.power() / 1000
+                streamTelem.stationInaBattVolts = snsrs.ina.voltage()
+
+                streamTelem.stationInaBattSOC = lastSOC - (streamTelem.stationInaBattSOC*((startSensorLoopTime - lastTimeINA)/3600)/(settings.batt_size_mah/1000))
+                
+                lastTimeINA = time.time()
 
         except Exception as e:
             print("Sensor error:", e)
@@ -421,7 +442,7 @@ def gps_loop():
             if identity.endswith("GGA"):
                 setfield("gpsLat", parsed.lat)
                 setfield("gpsLon", parsed.lon)
-                setfield("gpsAlt_m", parsed.alt)
+                setfield("gpsAlt_ft", parsed.alt*3.28084)
                 setfield("gpsNumSV", parsed.numSV)
                 setfield("gpsHDOP", parsed.HDOP)
                 setfield("gpsTime", parsed.time)

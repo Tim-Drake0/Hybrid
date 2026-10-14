@@ -64,6 +64,9 @@ fill_plot_started = False
 
 active_errors = {}  # dict of {error_id: row_tag}
 
+# Status bar boxes: a shared height so every box lines up.
+STATUS_BOX_H = settings.STATUS_BAR_SIZE[1] - 4
+
 gui_loopTime = deque([0], maxlen=MAX_POINTS)
 gui_AvgloopTimePlot = deque([0], maxlen=MAX_POINTS)
 
@@ -127,47 +130,134 @@ def _log(sender, app_data, user_data):
     print(f"sender: {sender}, \t app_data: {app_data}, \t user_data: {user_data}")
 
 def updateStatusBar():
+    global fill_started, fill_time, fill_min, fill_sec
     global abort_counter_started
     global abort_counter
+    
+    # Connection status
     if valid_connection == True:
         dpg.configure_item("state_modal", show=False)
         abort_counter_started = 0
         conn_color = [0, 255, 0]
         conn_label = "CONNECTED"
-        conn_pos = [35, draw_y // 2 - 15]
+        conn_pos = [31, draw_y // 2 - 19]
     else: 
         if sr.streamTelem.tsy_timestamp > 0 and not abort_counter_started:
             abort_counter = time.time()
             abort_counter_started = 1
-            
-            
-            
         conn_color = [255, 0, 0]
         conn_label = "DISCONNECTED"
-        conn_pos = [15, draw_y // 2 - 15]
+        conn_pos = [6, draw_y // 2 - 17]
         
+    # Safe, Arm, Fired status
     if sr.streamTelem.arm_state == True:
-        arm_color = [255, 115, 0]
-        arm_label = "ARMED"
-        arm_pos = [35+190, draw_y // 2 - 15]
-    else: 
+        pyro_fired = bool(sr.streamTelem.py1_state) or bool(sr.streamTelem.py2_state)
+        if pyro_fired:
+            arm_color = [255, 30, 30]
+            arm_label = "FIRED"
+            arm_pos = [28, draw_y // 2 - 20]
+        else:
+            arm_color = [255, 115, 0]
+            arm_label = "ARMED"
+            arm_pos = [28, draw_y // 2 - 20]
+    else:
         arm_color = [0, 255, 0]
         arm_label = "SAFE"
-        arm_pos = [40+190, draw_y // 2 - 15]
-        
-    dpg.configure_item("conn_status_rect", color=conn_color, fill=conn_color)
-    dpg.configure_item("conn_status_text", text=conn_label, pos=conn_pos)
-    
-    dpg.configure_item("arm_status_rect", color=arm_color, fill=arm_color)
-    dpg.configure_item("arm_status_text", text=arm_label, pos=arm_pos)
-    
+        arm_pos = [37, draw_y // 2 - 20]
+
+    # Uptime counter
     if valid_connection == True:
         stampSecs = sr.streamTelem.tsy_timestamp / 1000
         tov_min = (stampSecs / 60) % 60
         tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
         tov_sec = stampSecs % 60
         dpg.set_value("tov", f"Uptime:{int(tov_hour):02d}:{int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
+    
+    # Fill time counter
+    if sr.streamTelem.fill_state == 1:
+        if not fill_started:
+            fill_time = time.time()  # (re)start timer
+            fill_started = True
+        # always update display while filling
+        elapsed = time.time() - fill_time
+        fill_min = int(elapsed / 60) % 60
+        fill_sec = int(elapsed) % 60
+
+    elif sr.streamTelem.fill_state == 0:
+        if fill_started:
+            fill_started = False  # stop timer, freeze display (fill_min/fill_sec unchanged)
+    dpg.set_value("live_fill_time", f"Fill Time:{fill_min:02}:{fill_sec:02}")
         
+    # GPS Fix Status
+    gps_fix = bool(sr.streamTelem.gpsFixValid_b)
+    if gps_fix:
+        gps_color = [0, 255, 0] 
+        gps_label = "FIX" 
+        gps_pos = [32, draw_y // 2 - 20]
+    else:
+        gps_color = [255, 0, 0]
+        gps_label = "NO FIX"
+        gps_pos = [4, draw_y // 2 - 20]
+    
+    # Radio Status      
+    rssi_bars = rssi_to_bars(sr.streamTelem.stationRSSI)
+
+    NUM_BARS    = 5
+    BAR_W       = 11
+    BAR_SPACING = 3
+    BAR_MAX_H   = 45
+    BASE_Y      = STATUS_BOX_H - 5
+
+    for i in range(NUM_BARS):
+        bar_h     = int(BAR_MAX_H * (i + 1) / NUM_BARS)
+        bar_y_top = BASE_Y - bar_h
+        bx        = i * (BAR_W + BAR_SPACING)
+        color     = rssi_bar_color(rssi_bars) if i < rssi_bars else _inactive_bar_color()
+        dpg.delete_item(f"rssi_ctrl_bar_{i}")
+        dpg.draw_rectangle([bx, bar_y_top], [bx + BAR_W, BASE_Y],
+                           color=color, fill=color, rounding=2,
+                           tag=f"rssi_ctrl_bar_{i}", parent="rssi_drawlist")
+
+    dpg.configure_item("rssi_ctrl_label", text=f"{sr.streamTelem.stationRSSI}dBm")
+    
+    # Battery Status    
+
+    BATT_W    = 62
+    BATT_H    = 40
+    BATT_PAD  = 4
+    BATT_Y    = (STATUS_BOX_H - BATT_H) // 2
+    MAX_FILL  = BATT_W - BATT_PAD * 2
+
+    fill_w = max(1, int(MAX_FILL * sr.streamTelem.stationInaBattSOC / 100))
+
+    if sr.streamTelem.stationInaBattSOC > 50:   fill_color = [0, 200, 0]
+    elif sr.streamTelem.stationInaBattSOC > 20: fill_color = [255, 160, 0]
+    else:                                       fill_color = [220, 40, 40]
+
+    dpg.delete_item("batt_fill")
+    dpg.draw_rectangle([BATT_PAD, BATT_Y + BATT_PAD],
+                       [BATT_PAD + fill_w, BATT_Y + BATT_H - BATT_PAD],
+                       color=fill_color, fill=fill_color, rounding=1,
+                       tag="batt_fill", parent="batt_drawlist")
+
+    # Redraw (not just reconfigure) so it stays on top of the fill bar we
+    # just re-added -- each redraw appends to the end of the drawlist.
+    dpg.delete_item("batt_charge_icon")
+    polyX = 34
+    polyY = BATT_Y+5
+    dpg.draw_polygon(
+        [[polyX, polyY+2], [polyX-10, polyY+16], [polyX-4, polyY+16],
+         [polyX-8, polyY+28], [polyX+4, polyY+12], [polyX-2, polyY+12], [polyX+2, polyY+2]],
+        color=[255, 210, 0], fill=[255, 210, 0],
+        tag="batt_charge_icon", show=bool(sr.streamTelem.stationCharging_b),
+        parent="batt_drawlist",
+    )
+    
+    dpg.set_value("batt_perc_label", f"{sr.streamTelem.stationInaBattSOC}%")
+    dpg.configure_item("batt_perc_label", pos=[80, draw_y // 2 - 22])
+
+
+
     # show pop up if abort countdown started
     if valid_connection == False and sr.streamTelem.tsy_timestamp > 0:
         show_modal(f"ABORT")
@@ -176,6 +266,20 @@ def updateStatusBar():
         dpg.configure_item("rec_button", label="Stop Rec")
     else:
         dpg.configure_item("rec_button", label="Record")
+        
+        
+    dpg.configure_item("conn_status_rect", color=conn_color, fill=conn_color)
+    dpg.configure_item("conn_status_text", text=conn_label, pos=conn_pos)
+
+    dpg.configure_item("arm_status_rect", color=arm_color, fill=arm_color)
+    dpg.configure_item("arm_status_text", text=arm_label, pos=arm_pos)
+    
+    dpg.configure_item("tov", pos=[0, draw_y // 2 - 22])
+    
+    dpg.configure_item("live_fill_time", pos=[0, draw_y // 2 - 22])
+    
+    dpg.configure_item("gps_signal_rect", color=gps_color, fill=gps_color)
+    dpg.configure_item("gps_signal_text", text=gps_label, pos=gps_pos)
             
 def lipo_2s_percent(voltage: float) -> int:
     # 2S voltage -> approximate % remaining
@@ -233,80 +337,11 @@ def _outline_color():
 def _batt_bg_color():
     return [30, 30, 30] if is_dark_theme else [220, 220, 220]
 
-def redraw_static_widget_elements():
-    """Redraw theme-dependent static elements (outline, background) on theme toggle."""
-    BATT_W     = 52
-    BATT_H     = 30
-    BATT_TIP_W = 6
-    BATT_TIP_H = 12
-    BATT_Y     = (60 - BATT_H) // 2
-    BATT_TIP_Y = BATT_Y + (BATT_H - BATT_TIP_H) // 2
-
-    dpg.delete_item("batt_outline")
-    dpg.draw_rectangle([0, BATT_Y], [BATT_W, BATT_Y + BATT_H],
-                       color=_outline_color(), fill=_batt_bg_color(), rounding=2, thickness=2,
-                       tag="batt_outline", parent="batt_drawlist")
-    dpg.delete_item("batt_tip")
-    dpg.draw_rectangle([BATT_W, BATT_TIP_Y], [BATT_W + BATT_TIP_W, BATT_TIP_Y + BATT_TIP_H],
-                       color=_outline_color(), fill=_outline_color(), rounding=1,
-                       tag="batt_tip", parent="batt_drawlist")
-    dpg.configure_item("rssi_ctrl_label", color=_text_color())
-
-def update_rssi_widget():
-    ctrl_rssi = sr.streamTelem.ctrl_RSSI
-    ctrl_bars = rssi_to_bars(ctrl_rssi)
-
-    NUM_BARS    = 5
-    BAR_W       = 11
-    BAR_SPACING = 3
-    BAR_MAX_H   = 28
-    BASE_Y      = 46
-
-    for i in range(NUM_BARS):
-        bar_h     = int(BAR_MAX_H * (i + 1) / NUM_BARS)
-        bar_y_top = BASE_Y - bar_h
-        bx        = i * (BAR_W + BAR_SPACING)
-        color     = rssi_bar_color(ctrl_bars) if i < ctrl_bars else _inactive_bar_color()
-        dpg.delete_item(f"rssi_ctrl_bar_{i}")
-        dpg.draw_rectangle([bx, bar_y_top], [bx + BAR_W, BASE_Y],
-                           color=color, fill=color, rounding=2,
-                           tag=f"rssi_ctrl_bar_{i}", parent="rssi_drawlist")
-
-    dpg.configure_item("rssi_ctrl_label", text=f"{ctrl_rssi}dBm")
-
-def update_battery_widget():
-    perc = lipo_2s_percent(sr.streamTelem.battVolts)
-
-    BATT_W    = 52
-    BATT_H    = 30
-    BATT_PAD  = 4
-    BATT_Y    = (60 - BATT_H) // 2
-    MAX_FILL  = BATT_W - BATT_PAD * 2
-
-    fill_w = max(1, int(MAX_FILL * perc / 100))
-
-    if perc > 50:   fill_color = [0, 200, 0]
-    elif perc > 20: fill_color = [255, 160, 0]
-    else:           fill_color = [220, 40, 40]
-
-    dpg.delete_item("batt_fill")
-    dpg.draw_rectangle([BATT_PAD, BATT_Y + BATT_PAD],
-                       [BATT_PAD + fill_w, BATT_Y + BATT_H - BATT_PAD],
-                       color=fill_color, fill=fill_color, rounding=1,
-                       tag="batt_fill", parent="batt_drawlist")
-
-    dpg.set_value("batt_perc_label", f"{perc}%")
-
 def update_leds():
     new_states = {
         "FILL": sr.streamTelem.fill_state,
         "VENT": not sr.streamTelem.vent_state,
         "MOV":  sr.streamTelem.mov_state,
-        "ARM":  sr.streamTelem.arm_state,
-        "PY1":  sr.streamTelem.py1_state,
-        "PY2":  sr.streamTelem.py2_state,
-        "C1":   sr.streamTelem.c1_state,
-        "C2":   sr.streamTelem.c2_state,
     }
     for name, state in new_states.items():
         if state != settings.led_panel_states[name]["state"]:
@@ -331,7 +366,7 @@ def show_modal(message: str):
     
 def updateDebugWindow():
     # dpg.set_value("ctrl_timestamp",         f"Ctrl timestamp: {sr.streamTelem.ctrl_timestamp} ms")
-    # dpg.set_value("ctrl_RSSI",              f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
+    # dpg.set_value("stationRSSI",              f"Ctrl RSSI: {sr.streamTelem.stationRSSI} dBm")
     # dpg.set_value("ctrl_looptime",          f"Ctrl looptime: {sr.streamTelem.ctrl_looptime} us")
     # dpg.set_value("ctrl_sendtime",          f"Ctrl sendtime: {sr.streamTelem.ctrl_sendtime} us")
     # dpg.set_value("ctrl_waittime",          f"Ctrl waittime: {sr.streamTelem.ctrl_waittime} us")
@@ -348,9 +383,9 @@ def updateDebugWindow():
     # dpg.set_value("pt2",                    f"PT2: {round(sr.streamTelem.pt2, 4)} PSI")
     # dpg.set_value("pt3",                    f"PT3: {round(sr.streamTelem.pt3, 4)} PSI")
     # dpg.set_value("pt4",                    f"PT4: {round(sr.streamTelem.pt4, 4)} PSI")
-    # dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.battVolts, 4)} V")
+    # dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.rktECUVolts, 4)} V")
     # dpg.set_value("batt_current",           f"Battery current: {round(sr.streamTelem.battCurrent/1000, 4)} A")
-    # dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
+    # dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.rktECUVolts)}%  ({round(sr.streamTelem.rktECUVolts, 2)}V)")
     dpg.set_value("cpu_temp",               f"Ground Station CPU Temp: {sr.streamTelem.cpuTemp_c}°C")
     dpg.set_value("station_temp",           f"Ground Station Temp: {sr.streamTelem.stationTemp_c:0.2f}°C")
     dpg.set_value("station_alt",            f"Ground Station Altitude: {sr.streamTelem.stationBaroAlt_m:0.2f} m")
@@ -364,7 +399,7 @@ def updateDebugWindow():
     dpg.set_value("gps_fix",                f"GPS Fix: {'VALID' if sr.streamTelem.gpsFixValid_b else 'NO FIX'}")
     dpg.set_value("gps_lat",                f"GPS Latitude: {sr.streamTelem.gpsLat:0.6f}°")
     dpg.set_value("gps_lon",                f"GPS Longitude: {sr.streamTelem.gpsLon:0.6f}°")
-    dpg.set_value("gps_alt",                f"GPS Altitude: {sr.streamTelem.gpsAlt_m:0.1f} m")
+    dpg.set_value("gps_alt",                f"GPS Altitude: {sr.streamTelem.gpsAlt_ft:0.1f} ft")
     dpg.set_value("gps_numsv",              f"GPS Satellites: {sr.streamTelem.gpsNumSV}")
     dpg.set_value("gps_hdop",               f"GPS HDOP: {sr.streamTelem.gpsHDOP:0.2f}")
     dpg.set_value("gps_speed",              f"GPS Speed: {sr.streamTelem.gpsSpeed_kts:0.2f} kts")
@@ -413,51 +448,22 @@ def updateGpsMap():
             break
 
 def updateLiveInfoWindow():
-    global fill_started, fill_time, live_time, pt1_list, pt4_list, fill_min, fill_sec, batt_rem_time
-    dpg.set_value("live_tank_pressure", f"{sr.streamTelem.pt4:.1f} psi")
-    dpg.set_value("live_bottle_pressure", f"{sr.streamTelem.pt1:.1f} psi")
-    dpg.set_value("live_chamber_pressure", f"{sr.streamTelem.pt3:.1f} psi")
-    
-    if sr.streamTelem.fill_state == 1:
-        if not fill_started:
-            fill_time = time.time()  # (re)start timer
-            fill_started = True
-        # always update display while filling
-        elapsed = time.time() - fill_time
-        fill_min = int(elapsed / 60) % 60
-        fill_sec = int(elapsed) % 60
-
-    elif sr.streamTelem.fill_state == 0:
-        if fill_started:
-            fill_started = False  # stop timer, freeze display (fill_min/fill_sec unchanged)
-            
-    dpg.set_value("live_tc1_temp", f"{sr.streamTelem.tc1:.1f} °F")
-    dpg.set_value("live_tc2_temp", f"{sr.streamTelem.tc2:.1f} °F")
-
-    
-    dpg.set_value("live_fill_time", f"{fill_min:02}:{fill_sec:02}")
-    
-    batt_perc = lipo_2s_percent(sr.streamTelem.battVolts)
-    dpg.set_value("live_batt_perc", f"{batt_perc:.1f} %")
-    
-    dpg.set_value("live_batt_pwr", f"{((sr.streamTelem.battVolts * sr.streamTelem.battCurrent)/1000):.1f} W")
-    
-    if sr.streamTelem.battCurrent != 0 and time.time() - batt_rem_time > 10:
-        time_left = (settings.batt_size_mah * (batt_perc/100)) / sr.streamTelem.battCurrent
-        if time_left < 1: # convert to minutes
-            dpg.set_value("live_batt_time", f"Time remaining on charge: {time_left * 60:.1f} minutes")
-        else:
-            dpg.set_value("live_batt_time", f"Time remaining on charge: {time_left:.1f} hours")
-        batt_rem_time = time.time()
-    
-
-    dpg.set_value("live_ctrl_rssi", f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
-    dpg.set_value("live_daq_rssi",  f"DAQ RSSI:  {sr.streamTelem.RSSI} dBm")
+    global pt1_list, pt4_list, batt_rem_time
+    dpg.set_value("rkt_tank_pressure", f"{sr.streamTelem.pt4:.1f} psi")
+    dpg.set_value("rkt_bottle_pressure", f"{sr.streamTelem.pt1:.1f} psi")
+    dpg.set_value("rkt_chamber_pressure", f"{sr.streamTelem.pt3:.1f} psi")
+    dpg.set_value("rkt_ecu_temp", f"ECU Temp: {sr.streamTelem.rktECUTemp:.1f}°C")
+    dpg.set_value("rkt_ecu_batt_volts", f"Battery Voltage: {sr.streamTelem.rktECUVolts:.1f}V")
+    dpg.set_value("rkt_alt_ft", f"Altitude: {sr.streamTelem.rktAlt:.1f} ft")
+    dpg.set_value("rkt_vert_vel", f"Vertical Velocity: {sr.streamTelem.rktVerticalVelocity:.1f} ft/s")
+    dpg.set_value("rkt_max_vel", f"Max Speed: {sr.streamTelem.rktMaxVel:.1f} ft/s ({sr.streamTelem.rktMaxMach}M)")
+    dpg.set_value("rkt_max_alt", f"Max Altitude: {sr.streamTelem.rktMaxAlt:.1f} ft")
+    dpg.set_value("rkt_max_g", f"Max Acceleration: {sr.streamTelem.rktMaxG:.1f}G")
 
 def update_error_table():
     errors = {
         "sd_card": ("SD CARD ERROR", sr.streamTelem.sd_state == 0),
-        "low_batt": ("LOW BATTERY", sr.streamTelem.battVolts < 7.4),
+        "low_batt": ("LOW BATTERY", sr.streamTelem.rktECUVolts < 7.4),
         "high_cpu_temp": (f"GROUND STATION CPU TEMP HIGH)", sr.streamTelem.cpuTemp_c >= settings.CPU_TEMP_WARN_C),
     }
 
@@ -477,46 +483,40 @@ def get_layout():
     vp_h = dpg.get_viewport_client_height()   
     
     statusbar_x, statusbar_y = 0, 0
-    statusbar_w, statusbar_h = vp_w, 60
+    statusbar_w, statusbar_h = vp_w, settings.STATUS_BAR_SIZE[1]
 
     info_x, info_y = 0, statusbar_h + 10
-    info_w, info_h = 570, 550
+    info_w, info_h = 570, 700
 
-    events_w, events_h = 300, info_h
+    events_w, events_h = settings.EVENTS_WINDOW_SIZE[0], settings.EVENTS_WINDOW_SIZE[1]
     events_x = vp_w - events_w
     events_y = statusbar_h + 10
+    
+    press_x = info_w + 5
+    press_y = info_y
+    press_w = events_x - press_x
+    press_h = events_h
     
     error_x, error_y = 0, info_y + info_h
     error_w = info_w
     error_h = vp_h - info_h - statusbar_h - 10
 
-    press_x = info_w + 5
-    press_y = statusbar_h + 10
-    press_w = events_x - info_w + 5
-    press_h = info_h
 
-
-    plot_w = vp_w - press_x
-    plot_h = error_h
-    plot_x = press_x
-    plot_y = error_y
     
-    rec_button_w, rec_button_h = 80, statusbar_h
-    rec_button_x, rec_button_y = vp_w - rec_button_w, statusbar_y
-
-    theme_button_w, theme_button_h = 80, statusbar_h
-    theme_button_x, theme_button_y = vp_w - rec_button_w - theme_button_w, statusbar_y
+    
+    map_x = press_x
+    map_y = events_y + events_h
+    map_w = vp_w - map_x
+    map_h = vp_h - map_y
 
     return {
-        "status_bar":               {"pos": (statusbar_x,       statusbar_y),       "size": (statusbar_w,       statusbar_h)}, 
+        "status_bar":               {"pos": (statusbar_x,       statusbar_y),       "size": (statusbar_w,       statusbar_h)},
         "events_window":            {"pos": (events_x,          events_y),          "size": (events_w,          events_h)},
         "bus_info_window":          {"pos": (info_x,            info_y),            "size": (info_w,            info_h)},
+        #"press_plot_window":        {"pos": (press_x,           press_y),           "size": (press_w,           press_h)},
         "error_window":             {"pos": (error_x,           error_y),           "size": (error_w,           error_h)},
-        "gps_map_window":           {"pos": (press_x,           press_y),           "size": (press_w,           press_h)},
-        "gps_map_plot":             {"pos": (0,                 0),                 "size": (press_w-10,        press_h-8)},
-        "dynamic_plots_window":     {"pos": (plot_x,            plot_y),            "size": (plot_w,            plot_h)},
-        "rec_button":               {"pos": (rec_button_x,      rec_button_y),      "size": (rec_button_w,      rec_button_h)},
-        "theme_button":             {"pos": (theme_button_x,    theme_button_y),    "size": (theme_button_w,    theme_button_h)},
+        "gps_map_window":           {"pos": (map_x,             map_y),             "size": (map_w,             map_h)},
+        "gps_map_plot":             {"pos": (0,                 0),                 "size": (map_w-10,          map_h-8)},
     }
 
 def resize_viewport():
@@ -601,103 +601,127 @@ layout = get_layout()
 with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=settings.TAB_WINDOW_DIM[0], height=settings.TAB_WINDOW_DIM[1], pos=settings.TAB_WINDOW_POS, 
                 min_size=settings.WINDOW_DIM,no_title_bar=True, no_scrollbar=True, no_move=True, no_resize=True):
     
+    # Tight padding for the status-bar boxes: the default child_window
+    # padding was eating enough of the 60px status bar height to clip
+    # content at the bottom. Binding this to the outer "status_bar"
+    # container cascades it to every nested box too.
+    with dpg.theme() as status_bar_theme:
+        with dpg.theme_component(dpg.mvChildWindow):
+            dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 4, 1, category=dpg.mvThemeCat_Core)
+            dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 6, 2, category=dpg.mvThemeCat_Core)
+
     # Status Bar
     with dpg.child_window(width=layout["status_bar"]["size"][0], height=layout["status_bar"]["size"][1], pos=layout["status_bar"]["pos"], tag="status_bar", no_scrollbar=True):
+        dpg.bind_item_theme("status_bar", status_bar_theme)
         with dpg.group(horizontal=True):
-            
+
             _draw_t = 3.0
-            draw_size = 20
-            draw_spacing = 10
-            draw_rounding = draw_size/5.0
+            draw_rounding = 6
             draw_color = [100, 100, 100]
-            draw_y = settings.STATUS_BAR_SIZE[1] - 15
+            draw_y = STATUS_BOX_H - 4
+
+            # ---- Connection status ----
+            with dpg.child_window(width=220, height=STATUS_BOX_H, border=True, no_scrollbar=True):
+                with dpg.drawlist(width=216, height=STATUS_BOX_H):
+                    dpg.draw_rectangle([2, 1], [212, draw_y], rounding=draw_rounding, thickness=_draw_t, color=draw_color, fill=draw_color, tag="conn_status_rect")
+                    dpg.draw_text([30, draw_y // 2 - 15], "CONNECTED", color=[0, 0, 0], size=37, tag="conn_status_text")
+
+            # ---- Arm / Fired status ----
+            with dpg.child_window(width=150, height=STATUS_BOX_H, border=True, no_scrollbar=True):
+                with dpg.drawlist(width=146, height=STATUS_BOX_H):
+                    dpg.draw_rectangle([2, 1], [142, draw_y], rounding=draw_rounding, thickness=_draw_t, color=draw_color, fill=draw_color, tag="arm_status_rect")
+                    dpg.draw_text([38, draw_y // 2 - 15], "SAFE", color=[0, 0, 0], size=40, tag="arm_status_text")
+
+            # ---- Uptime ----
+            with dpg.child_window(width=280, height=STATUS_BOX_H, border=True, no_scrollbar=True):
+                txt_tov = dpg.add_text("Uptime: 00:00:00", tag="tov")
+                dpg.bind_item_font(txt_tov, settings.xl)
+
+            dpg.add_spacer(width=10)
             
-            box1_x = 10
-            box1_w = 180
-            box2_x = box1_x + box1_w + draw_spacing
-            box2_w = 115
+            # ---- Fill Time ----
+            with dpg.child_window(width=300, height=STATUS_BOX_H, border=True, no_scrollbar=True):
+                with dpg.group(horizontal=True):
+                    dpg.add_text("Fill Time: 00:00", tag="live_fill_time")
+                    dpg.bind_item_font(dpg.last_item(), settings.xl)
 
-            with dpg.drawlist(width=box2_x + box2_w + 10, height=settings.STATUS_BAR_SIZE[1]):
-                
-                # Connection status box
-                dpg.draw_rectangle([box1_x, 1], [box1_x + box1_w, draw_y], rounding=draw_rounding, thickness=_draw_t, color=draw_color, fill=draw_color, tag="conn_status_rect")
-                dpg.draw_text([box1_x + 15, draw_y // 2 - 15], "CONNECTED", color=[0, 0, 0], size=30, tag="conn_status_text")
+            dpg.add_spacer(width=200)
 
-                # Arm status box
-                dpg.draw_rectangle([box2_x, 1], [box2_x + box2_w, draw_y], rounding=draw_rounding, thickness=_draw_t, color=draw_color, fill=draw_color, tag="arm_status_rect")
-                dpg.draw_text([box2_x + 15, draw_y // 2 - 15], "SAFE", color=[0, 0, 0], size=30, tag="arm_status_text")
+            # ---- GPS Signal ----
+            with dpg.child_window(width=120, height=STATUS_BOX_H, border=True, no_scrollbar=True):
+                with dpg.drawlist(width=120, height=STATUS_BOX_H):
+                    dpg.draw_rectangle([2, 1], [116, draw_y], rounding=draw_rounding, thickness=_draw_t, color=draw_color, fill=draw_color, tag="gps_signal_rect")
+                    dpg.draw_text([14, draw_y // 2 - 15], "NO FIX", color=[0, 0, 0], size=40, tag="gps_signal_text")
 
-            # TOV
-            txt_tov = dpg.add_text("Uptime: 00:00:00", tag="tov")
-            dpg.bind_item_font(txt_tov,settings.xl)
-            
-            # Fill time
-            with dpg.group(horizontal=True):
-                dpg.add_text("  Fill Time:")
-                dpg.bind_item_font(dpg.last_item(), settings.xl)
-                dpg.add_text("--:--", tag="live_fill_time")
-                dpg.bind_item_font(dpg.last_item(), settings.xl)
-                
-            # Signal strength widget (ctrl RSSI only)
+            # ---- Radio Signal (RSSI bars) ----
             NUM_BARS     = 5
             BAR_W        = 11
             BAR_SPACING  = 3
             BAR_MAX_H    = 28
             GROUP_W      = NUM_BARS * (BAR_W + BAR_SPACING)
-            BASE_Y       = 46
-            DBM_SIZE     = 18
+            BASE_Y       = STATUS_BOX_H - 14
+            DBM_SIZE     = 40
             DBM_X        = GROUP_W + 6
-            TEXT_Y       = BASE_Y - DBM_SIZE + 2
-            TOTAL_W      = DBM_X + 80
+            TOTAL_W      = DBM_X + 140
 
-            with dpg.drawlist(width=TOTAL_W, height=settings.STATUS_BAR_SIZE[1], tag="rssi_drawlist"):
-                dpg.draw_text([DBM_X, TEXT_Y], "0dBm", color=[200,200,200], size=DBM_SIZE, tag="rssi_ctrl_label")
-                for i in range(NUM_BARS):
-                    bar_h     = int(BAR_MAX_H * (i + 1) / NUM_BARS)
-                    bar_y_top = BASE_Y - bar_h
-                    bx        = i * (BAR_W + BAR_SPACING)
-                    dpg.draw_rectangle([bx, bar_y_top], [bx + BAR_W, BASE_Y],
-                                       color=[60,60,60], fill=[60,60,60], rounding=2,
-                                       tag=f"rssi_ctrl_bar_{i}")
+            with dpg.child_window(width=TOTAL_W, height=STATUS_BOX_H, border=True, no_scrollbar=True):
+                with dpg.drawlist(width=TOTAL_W, height=STATUS_BOX_H, tag="rssi_drawlist"):
+                    dpg.draw_text([DBM_X, draw_y // 2 - 20], "0dBm", color=[200,200,200], size=DBM_SIZE, tag="rssi_ctrl_label")
+                    for i in range(NUM_BARS):
+                        bar_h     = int(BAR_MAX_H * (i + 1) / NUM_BARS)
+                        bar_y_top = BASE_Y - bar_h
+                        bx        = i * (BAR_W + BAR_SPACING)
+                        dpg.draw_rectangle([bx, bar_y_top], [bx + BAR_W, BASE_Y+50],
+                                           color=[60,60,60], fill=[60,60,60], rounding=2,
+                                           tag=f"rssi_ctrl_bar_{i}")
 
-            # Battery icon + percentage
-            BATT_W       = 52
-            BATT_H       = 30
+            # ---- Battery % ----
+            BATT_W       = 62
+            BATT_H       = 40
             BATT_TIP_W   = 6
             BATT_TIP_H   = 12
             BATT_PAD     = 4
-            BATT_Y       = (settings.STATUS_BAR_SIZE[1] - BATT_H) // 2
+            BATT_Y       = (STATUS_BOX_H - BATT_H) // 2
             BATT_TIP_Y   = BATT_Y + (BATT_H - BATT_TIP_H) // 2
             PERC_X       = BATT_W + BATT_TIP_W + 8
-            PERC_SIZE    = 26
-            PERC_Y       = BATT_Y + (BATT_H - PERC_SIZE) // 2 + 2
             BATT_TOTAL_W = PERC_X
 
-            with dpg.drawlist(width=BATT_TOTAL_W, height=settings.STATUS_BAR_SIZE[1], tag="batt_drawlist"):
-                # battery body outline
-                dpg.draw_rectangle([0, BATT_Y], [BATT_W, BATT_Y + BATT_H],
-                                   color=[180,180,180], fill=[30,30,30], rounding=2, thickness=2,
-                                   tag="batt_outline")
-                # battery tip
-                dpg.draw_rectangle([BATT_W, BATT_TIP_Y], [BATT_W + BATT_TIP_W, BATT_TIP_Y + BATT_TIP_H],
-                                   color=[180,180,180], fill=[180,180,180], rounding=1,
-                                   tag="batt_tip")
-                # fill bar (dynamic)
-                dpg.draw_rectangle([BATT_PAD, BATT_Y + BATT_PAD],
-                                   [BATT_PAD + 1, BATT_Y + BATT_H - BATT_PAD],
-                                   color=[60,60,60], fill=[60,60,60], rounding=1, tag="batt_fill")
-                
-            # percentage text
-            dpg.add_text("0%", tag="batt_perc_label")
-            dpg.bind_item_font(dpg.last_item(), settings.xl)
+            with dpg.child_window(width=BATT_TOTAL_W + 80, height=STATUS_BOX_H, border=True, no_scrollbar=True):
+                with dpg.group(horizontal=True):
+                    with dpg.drawlist(width=BATT_TOTAL_W, height=STATUS_BOX_H, tag="batt_drawlist"):
+                        # battery body outline
+                        dpg.draw_rectangle([0, BATT_Y], [BATT_W, BATT_Y + BATT_H],
+                                           color=[180,180,180], fill=[30,30,30], rounding=2, thickness=2,
+                                           tag="batt_outline")
+                        # battery tip
+                        dpg.draw_rectangle([BATT_W, BATT_TIP_Y], [BATT_W + BATT_TIP_W, BATT_TIP_Y + BATT_TIP_H],
+                                           color=[180,180,180], fill=[180,180,180], rounding=1,
+                                           tag="batt_tip")
+                        # fill bar (dynamic)
+                        dpg.draw_rectangle([BATT_PAD, BATT_Y + BATT_PAD],
+                                           [BATT_PAD + 1, BATT_Y + BATT_H - BATT_PAD],
+                                           color=[60,60,60], fill=[60,60,60], rounding=1, tag="batt_fill")
+                        # charging bolt -- shown over the icon when stationCharging_b == 1
+                        dpg.draw_polygon(
+                            [[30, BATT_Y+2], [20, BATT_Y+16], [26, BATT_Y+16],
+                             [22, BATT_Y+28], [34, BATT_Y+12], [28, BATT_Y+12], [32, BATT_Y+2]],
+                            color=[255, 210, 0], fill=[255, 210, 0],
+                            tag="batt_charge_icon", show=False,
+                        )
 
-            # Theme toggle button
-            dpg.add_button(label="Light", tag="theme_button", callback=toggle_theme)
+                    # percentage text
+                    dpg.add_text("0%", tag="batt_perc_label")
+                    dpg.bind_item_font(dpg.last_item(), settings.xl)
 
-            # Button to start or stop recording                    
-            dpg.add_button(label="Record", tag="rec_button", callback=sr.init_log_raw)
-                    
-            
+            # ---- Theme toggle ----
+            with dpg.child_window(width=100, height=STATUS_BOX_H, border=True, no_scrollbar=True):
+                dpg.add_button(label="Light", tag="theme_button", callback=toggle_theme, width=-1, height=-1)
+
+            # ---- Record ----
+            with dpg.child_window(width=100, height=STATUS_BOX_H, border=True, no_scrollbar=True):
+                dpg.add_button(label="Record", tag="rec_button", callback=sr.init_log_raw, width=-1, height=-1)
+
+    # Detailed Info
     with dpg.child_window(width=layout["bus_info_window"]["size"][0], height=layout["bus_info_window"]["size"][1], pos=layout["bus_info_window"]["pos"], tag="bus_info_window", show=True):
         with dpg.group(width=150):
             with dpg.tab_bar(label="Main Tabs"):
@@ -706,58 +730,53 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                     with dpg.group(horizontal=True):
                         dpg.add_text("Tank Pressure:")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        dpg.add_text("--- psi", tag="live_tank_pressure")
+                        dpg.add_text("--- psi", tag="rkt_tank_pressure")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                     with dpg.group(horizontal=True):
                         dpg.add_text("Bottle Pressure:")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        dpg.add_text("--- psi", tag="live_bottle_pressure")
+                        dpg.add_text("--- psi", tag="rkt_bottle_pressure")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                     with dpg.group(horizontal=True):
                         dpg.add_text("Chamber Pressure:")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        dpg.add_text("--- psi", tag="live_chamber_pressure")
-                        dpg.bind_item_font(dpg.last_item(), settings.xl)                        
+                        dpg.add_text("--- psi", tag="rkt_chamber_pressure")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)      
+                                          
                     dpg.add_separator()
-                    
-                    # Temperatures
+                                                       
                     with dpg.group(horizontal=True):
-                        dpg.add_text("Fwd Tank Temp:")
+                        dpg.add_text("ECU Temp: 00.00 °C", tag="rkt_ecu_temp")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        dpg.add_text("--- °F", tag="live_tc2_temp")
-                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+
                     with dpg.group(horizontal=True):
-                        dpg.add_text("Aft Tank Temp:")
+                        dpg.add_text("Battery Voltage: 0.00 V", tag="rkt_ecu_batt_volts")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        dpg.add_text("--- °F", tag="live_tc1_temp")
+
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Altitude: 0000 ft", tag="rkt_alt_ft")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
                         
-                    
-                    dpg.add_separator()
-                    
-                    # Battery
                     with dpg.group(horizontal=True):
-                        dpg.add_text("Battery:")
+                        dpg.add_text("Vertical Velocity: 000.00 ft/s", tag="rkt_vert_vel")
                         dpg.bind_item_font(dpg.last_item(), settings.xl)
-                        dpg.add_text("-- %", tag="live_batt_perc")
-                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                
+                    dpg.add_separator()   
                     
-                    # Battery time remaining
-                    dpg.add_text(" ", tag="live_batt_time")
-                    dpg.bind_item_font(dpg.last_item(), settings.large)
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Max Speed: 000 ft/sec (0.0M)", tag="rkt_max_vel")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
+
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Max Altitude: 0000 ft", tag="rkt_max_alt")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
                         
-                    # Battery power
-                    dpg.add_text(" ", tag="live_batt_pwr")
-                    dpg.bind_item_font(dpg.last_item(), settings.large)
-                    
-                      
-                    dpg.add_separator()
-                    # RSSI
                     with dpg.group(horizontal=True):
-                        dpg.add_text(" ", tag="live_ctrl_rssi")
-                        dpg.bind_item_font(dpg.last_item(), settings.large)
-                        dpg.add_text(" ", tag="live_daq_rssi")
-                        dpg.bind_item_font(dpg.last_item(), settings.large)
+                        dpg.add_text("Max Acceleration: 0.0 G", tag="rkt_max_g")
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)    
+
+                    dpg.add_separator()   
+                    
                     
                 with dpg.tab(label="Debug"):
                     # Ctrl info
@@ -767,7 +786,7 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                     # with dpg.group(horizontal=True):
                     #     dpg.add_text(" ", tag="ctrl_sendtime")
                     #     dpg.add_text(" ", tag="ctrl_waittime")
-                    # dpg.add_text(" ", tag="ctrl_RSSI")
+                    # dpg.add_text(" ", tag="stationRSSI")
 
                     # # DAQ info
                     # with dpg.group(horizontal=True):
@@ -888,15 +907,15 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
             dpg.set_axis_limits_auto("gps_map_yaxis")
 
 
-    # Live plots
+    """# Live plots
     with dpg.child_window(width=layout["dynamic_plots_window"]["size"][0], height=layout["dynamic_plots_window"]["size"][1], pos=layout["dynamic_plots_window"]["pos"], tag="dynamic_plots_window", show=True):
-        dc.build_panel("dynamic_plots_window", sr.streamTelem)
+        dc.build_panel("dynamic_plots_window", sr.streamTelem)"""
                           
     # Events window
     with dpg.child_window(width=layout["events_window"]["size"][0], height=layout["events_window"]["size"][1], pos=layout["events_window"]["pos"], tag="events_window", no_scrollbar=True):
-        dpg.bind_item_font(dpg.last_item(), settings.large)
+        dpg.bind_item_font(dpg.last_item(), settings.xl)
 
-        with dpg.drawlist(width=settings.EVENTS_WINDOW_SIZE[0]-20, height=settings.EVENTS_WINDOW_SIZE[1]-60, tag="led_drawlist"):
+        with dpg.drawlist(width=settings.EVENTS_WINDOW_SIZE[0]-20, height=settings.EVENTS_WINDOW_SIZE[1]-20, tag="led_drawlist"):
             for i, (name, cfg) in enumerate(settings.led_panel_states.items()):
                 col = i % settings.LED_COLS
                 row = i // settings.LED_COLS
@@ -920,7 +939,7 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                     [x + 5, y + 3],
                     name,
                     color=text_color,
-                    size=32,
+                    size=50,
                     tag=f"led_name_{name}"
                 )
                 # status text (bottom-right inside)
@@ -928,7 +947,7 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                     [x + 5, y + settings.LED_H-50],
                     label,
                     color=text_color,
-                    size=33,
+                    size=38,
                     tag=f"led_status_{name}"
                 )
                 
@@ -1017,8 +1036,6 @@ try:
         updateGpsMap()
         updateStatusBar()
         update_leds()
-        update_rssi_widget()
-        update_battery_widget()
         update_error_table()
         # Wall-clock time drives the strip charts so they keep scrolling in
         # real time even with no radio connected (telem timestamp would

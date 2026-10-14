@@ -15,24 +15,19 @@ STATUS_BAR_SIZE = (WINDOW_DIM[0] - 25, 60)
 y_offset = 32
 x_offset = 5
 
-LED_W = 120
-LED_H = 100
+LED_W = 130
+LED_H = 120
 LED_SPACING_X = 10
 LED_SPACING_Y = 10
-LED_COLS = 2
+LED_COLS = 1
 
 led_panel_states = {
     "FILL":   {"state": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "label_on": "OPEN",   "label_off": "CLOSED"},
     "VENT":   {"state": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "label_on": "OPEN",   "label_off": "CLOSED"},
     "MOV":    {"state": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "label_on": "OPEN",   "label_off": "CLOSED"},
-    "ARM":    {"state": 0, "color_on": (255, 120, 0),   "color_off": (60, 25, 0),  "label_on": "ARMED",  "label_off": "SAFE"},
-    "PY1":    {"state": 0, "color_on": (255, 50, 50),   "color_off": (60, 10, 10), "label_on": "FIRE",   "label_off": "SAFE"},
-    "PY2":    {"state": 0, "color_on": (255, 50, 50),   "color_off": (60, 10, 10), "label_on": "FIRE",   "label_off": "SAFE"},
-    "C1":     {"state": 0, "color_on": (50, 255, 100),  "color_off": (10, 60, 20), "label_on": "CONT",   "label_off": "NO CONT"},
-    "C2":     {"state": 0, "color_on": (50, 255, 100),  "color_off": (10, 60, 20), "label_on": "CONT",   "label_off": "NO CONT"},
 }
 
-EVENTS_WINDOW_SIZE = (300,550)
+EVENTS_WINDOW_SIZE = (150,400)
 EVENTS_WINDOW_POS = (WINDOW_DIM[0] - EVENTS_WINDOW_SIZE[0], STATUS_BAR_SIZE[1] + 10)
 
 INFO_WINDOW_POS = (0, STATUS_BAR_SIZE[1] + 10)
@@ -78,6 +73,8 @@ SAT_PRESSURES = [
 
 batt_size_mah = 850
 
+
+inaSampleRate = 5 #Hz
 
 CPU_TEMP_POLL_INTERVAL_S = 2 # How often to read the ground-station Pi's own CPU temp sensor, in seconds.
 CPU_TEMP_WARN_C = 75.0 # Ground-station Pi CPU temp (°C) at/above which a warning row is shown
