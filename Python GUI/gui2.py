@@ -3,6 +3,7 @@ import serial_reader as sr
 import serial_writer as sw
 import gui_settings as settings
 import dynamic_charts as dc
+import Station_Sensors as snsrs
 import time
 from collections import deque
 import pandas as pd
@@ -52,6 +53,13 @@ pt4_list = deque([sr.streamTelem.pt4], maxlen=MAX_POINTS)
 fill_live_time = []
 fill_pt1_list = []
 fill_pt4_list = []
+
+# GPS track (lon, lat) history for the Map tab -- only appended on a valid,
+# new fix (see updateGpsMap()), so it doesn't fill with repeated/blank points.
+gps_track_lon = deque(maxlen=MAX_POINTS)
+gps_track_lat = deque(maxlen=MAX_POINTS)
+_last_gps_point = None
+_current_gps_map = None  # name of the map currently shown behind the track
 fill_plot_started = False 
 
 active_errors = {}  # dict of {error_id: row_tag}
@@ -322,29 +330,88 @@ def show_modal(message: str):
     dpg.configure_item("state_modal", show=True)
     
 def updateDebugWindow():
-    dpg.set_value("ctrl_timestamp",         f"Ctrl timestamp: {sr.streamTelem.ctrl_timestamp} ms")
-    dpg.set_value("ctrl_RSSI",              f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
-    dpg.set_value("ctrl_looptime",          f"Ctrl looptime: {sr.streamTelem.ctrl_looptime} us")
-    dpg.set_value("ctrl_sendtime",          f"Ctrl sendtime: {sr.streamTelem.ctrl_sendtime} us")
-    dpg.set_value("ctrl_waittime",          f"Ctrl waittime: {sr.streamTelem.ctrl_waittime} us")
-    dpg.set_value("daq_timestamp",          f"DAQ timestamp: {sr.streamTelem.daq_timestamp} ms")
-    dpg.set_value("daq_RSSI",               f"DAQ RSSI: {sr.streamTelem.RSSI} dBm")
-    dpg.set_value("daq_looptime",           f"DAQ looptime: {sr.streamTelem.daq_looptime} us")
-    dpg.set_value("tsy_timestamp",          f"Teensy timestamp: {sr.streamTelem.tsy_timestamp} ms")
-    dpg.set_value("tsy_looptime",           f"Teensy looptime: {sr.streamTelem.tsy_looptime} us")
-    dpg.set_value("valve_states",           f"Valve states: {sr.streamTelem.valve_states:08b}")
-    dpg.set_value("pyro_states",            f"Pyro states: {sr.streamTelem.pyro_states:08b}")
-    dpg.set_value("arm_state",              f"Arm state: {sr.streamTelem.arm_state}")
-    dpg.set_value("dbg_sensor_state",       f"Sensor state: {sr.streamTelem.sensor_states:08b}")
-    dpg.set_value("pt1",                    f"PT1: {round(sr.streamTelem.pt1, 4)} PSI")
-    dpg.set_value("pt2",                    f"PT2: {round(sr.streamTelem.pt2, 4)} PSI")
-    dpg.set_value("pt3",                    f"PT3: {round(sr.streamTelem.pt3, 4)} PSI")
-    dpg.set_value("pt4",                    f"PT4: {round(sr.streamTelem.pt4, 4)} PSI")
-    dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.battVolts, 4)} V")
-    dpg.set_value("batt_current",           f"Battery current: {round(sr.streamTelem.battCurrent/1000, 4)} A")
-    dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
+    # dpg.set_value("ctrl_timestamp",         f"Ctrl timestamp: {sr.streamTelem.ctrl_timestamp} ms")
+    # dpg.set_value("ctrl_RSSI",              f"Ctrl RSSI: {sr.streamTelem.ctrl_RSSI} dBm")
+    # dpg.set_value("ctrl_looptime",          f"Ctrl looptime: {sr.streamTelem.ctrl_looptime} us")
+    # dpg.set_value("ctrl_sendtime",          f"Ctrl sendtime: {sr.streamTelem.ctrl_sendtime} us")
+    # dpg.set_value("ctrl_waittime",          f"Ctrl waittime: {sr.streamTelem.ctrl_waittime} us")
+    # dpg.set_value("daq_timestamp",          f"DAQ timestamp: {sr.streamTelem.daq_timestamp} ms")
+    # dpg.set_value("daq_RSSI",               f"DAQ RSSI: {sr.streamTelem.RSSI} dBm")
+    # dpg.set_value("daq_looptime",           f"DAQ looptime: {sr.streamTelem.daq_looptime} us")
+    # dpg.set_value("tsy_timestamp",          f"Teensy timestamp: {sr.streamTelem.tsy_timestamp} ms")
+    # dpg.set_value("tsy_looptime",           f"Teensy looptime: {sr.streamTelem.tsy_looptime} us")
+    # dpg.set_value("valve_states",           f"Valve states: {sr.streamTelem.valve_states:08b}")
+    # dpg.set_value("pyro_states",            f"Pyro states: {sr.streamTelem.pyro_states:08b}")
+    # dpg.set_value("arm_state",              f"Arm state: {sr.streamTelem.arm_state}")
+    # dpg.set_value("dbg_sensor_state",       f"Sensor state: {sr.streamTelem.sensor_states:08b}")
+    # dpg.set_value("pt1",                    f"PT1: {round(sr.streamTelem.pt1, 4)} PSI")
+    # dpg.set_value("pt2",                    f"PT2: {round(sr.streamTelem.pt2, 4)} PSI")
+    # dpg.set_value("pt3",                    f"PT3: {round(sr.streamTelem.pt3, 4)} PSI")
+    # dpg.set_value("pt4",                    f"PT4: {round(sr.streamTelem.pt4, 4)} PSI")
+    # dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.battVolts, 4)} V")
+    # dpg.set_value("batt_current",           f"Battery current: {round(sr.streamTelem.battCurrent/1000, 4)} A")
+    # dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.battVolts)}%  ({round(sr.streamTelem.battVolts, 2)}V)")
     dpg.set_value("cpu_temp",               f"Ground Station CPU Temp: {sr.streamTelem.cpuTemp_c}°C")
-    
+    dpg.set_value("station_temp",           f"Ground Station Temp: {sr.streamTelem.stationTemp_c:0.2f}°C")
+    dpg.set_value("station_alt",            f"Ground Station Altitude: {sr.streamTelem.stationBaroAlt_m:0.2f} m")
+    dpg.set_value("station_chrg_v",         f"Ground Station VUSB: {sr.streamTelem.stationChargeVolts:0.2f}V")
+    dpg.set_value("station_batt_v",         f"Ground Station Battery: {sr.streamTelem.stationBattVolts:0.2f}V")
+    dpg.set_value("station_radio_v",        f"Ground Station Radio: {sr.streamTelem.stationRadioVolts:0.2f}V")
+    dpg.set_value("station_batt_current",   f"Ground Station Batt Current: {sr.streamTelem.stationBattCurrent:0.3f}A")
+    dpg.set_value("station_batt_pwr",       f"Ground Station Batt Power: {sr.streamTelem.stationBattPower:0.3f}W")
+    dpg.set_value("station_ina_volts",      f"Ground Station INA Volts: {sr.streamTelem.stationBattVolts2:0.2f}V")
+
+    dpg.set_value("gps_fix",                f"GPS Fix: {'VALID' if sr.streamTelem.gpsFixValid_b else 'NO FIX'}")
+    dpg.set_value("gps_lat",                f"GPS Latitude: {sr.streamTelem.gpsLat:0.6f}°")
+    dpg.set_value("gps_lon",                f"GPS Longitude: {sr.streamTelem.gpsLon:0.6f}°")
+    dpg.set_value("gps_alt",                f"GPS Altitude: {sr.streamTelem.gpsAlt_m:0.1f} m")
+    dpg.set_value("gps_numsv",              f"GPS Satellites: {sr.streamTelem.gpsNumSV}")
+    dpg.set_value("gps_hdop",               f"GPS HDOP: {sr.streamTelem.gpsHDOP:0.2f}")
+    dpg.set_value("gps_speed",              f"GPS Speed: {sr.streamTelem.gpsSpeed_kts:0.2f} kts")
+    dpg.set_value("gps_course",             f"GPS Course: {sr.streamTelem.gpsCourse_deg:0.1f}°")
+    dpg.set_value("gps_time",               f"GPS Time (UTC): {sr.streamTelem.gpsTime or '--'}")
+    dpg.set_value("gps_date",               f"GPS Date (UTC): {sr.streamTelem.gpsDate or '--'}")
+    dpg.set_value("gps_sats_visible",       f"GPS Satellites In View: {sr.streamTelem.gpsSatsVisible}")
+    dpg.set_value("gps_max_cno",            f"GPS Best Signal (C/N0): {sr.streamTelem.gpsMaxCNO:0.0f} dB-Hz")
+
+def updateGpsMap():
+    global _last_gps_point, _current_gps_map
+    if not sr.streamTelem.gpsFixValid_b:
+        return
+
+    point = (sr.streamTelem.gpsLon, sr.streamTelem.gpsLat)
+    if point == _last_gps_point:
+        return  # no new fix since last frame
+    _last_gps_point = point
+
+    gps_track_lon.append(point[0])
+    gps_track_lat.append(point[1])
+
+    dpg.set_value("gps_map_trail", [list(gps_track_lon), list(gps_track_lat)])
+    dpg.set_value("gps_map_current", [[point[0]], [point[1]]])
+
+    # Switch the background image if the fix moved into a different map's
+    # bounding box (or out of all of them, in which case keep showing
+    # whichever map was displayed last rather than blanking it).
+    lon, lat = point
+    for name, m in gps_map_textures.items():
+        (lon_min, lat_min), (lon_max, lat_max) = m["bounds_min"], m["bounds_max"]
+        if lon_min <= lon <= lon_max and lat_min <= lat <= lat_max:
+            if name != _current_gps_map:
+                _current_gps_map = name
+                if dpg.does_item_exist("gps_map_bg"):
+                    dpg.configure_item(
+                        "gps_map_bg",
+                        texture_tag=m["texture_tag"],
+                        bounds_min=m["bounds_min"],
+                        bounds_max=m["bounds_max"],
+                    )
+                dpg.set_axis_limits("gps_map_xaxis", lon_min, lon_max)
+                dpg.set_axis_limits("gps_map_yaxis", lat_min, lat_max)
+                dpg.set_axis_limits_auto("gps_map_xaxis")
+                dpg.set_axis_limits_auto("gps_map_yaxis")
+            break
+
 def updateLiveInfoWindow():
     global fill_started, fill_time, live_time, pt1_list, pt4_list, fill_min, fill_sec, batt_rem_time
     dpg.set_value("live_tank_pressure", f"{sr.streamTelem.pt4:.1f} psi")
@@ -445,8 +512,8 @@ def get_layout():
         "events_window":            {"pos": (events_x,          events_y),          "size": (events_w,          events_h)},
         "bus_info_window":          {"pos": (info_x,            info_y),            "size": (info_w,            info_h)},
         "error_window":             {"pos": (error_x,           error_y),           "size": (error_w,           error_h)},
-        "press_temp_plot_window":   {"pos": (press_x,           press_y),           "size": (press_w,           press_h)},
-        "press_temp_plot":          {"pos": (0,                 0),                 "size": (press_w-10,        press_h-8)},
+        "gps_map_window":           {"pos": (press_x,           press_y),           "size": (press_w,           press_h)},
+        "gps_map_plot":             {"pos": (0,                 0),                 "size": (press_w-10,        press_h-8)},
         "dynamic_plots_window":     {"pos": (plot_x,            plot_y),            "size": (plot_w,            plot_h)},
         "rec_button":               {"pos": (rec_button_x,      rec_button_y),      "size": (rec_button_w,      rec_button_h)},
         "theme_button":             {"pos": (theme_button_x,    theme_button_y),    "size": (theme_button_w,    theme_button_h)},
@@ -466,6 +533,20 @@ def resize_viewport():
 dpg.create_context()
 settings.createFonts()
 dpg.bind_font(settings.default)
+
+# GPS moving-map background images (see settings.GPS_MAPS). Loaded once at
+# startup; updateGpsMap() picks whichever one's bounding box contains the
+# current fix and points the plot's image_series at it.
+gps_map_textures = {}
+with dpg.texture_registry():
+    for m in settings.GPS_MAPS:
+        tex_w, tex_h, _, tex_data = dpg.load_image(m["file"])
+        tex_tag = dpg.add_static_texture(tex_w, tex_h, tex_data)
+        gps_map_textures[m["name"]] = {
+            "texture_tag": tex_tag,
+            "bounds_min": m["bounds_min"],
+            "bounds_max": m["bounds_max"],
+        }
 
 # ── Dark theme (DPG default colours) ──────────────────────────────────────────
 with dpg.theme() as dark_theme:
@@ -680,42 +761,87 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                     
                 with dpg.tab(label="Debug"):
                     # Ctrl info
-                    with dpg.group(horizontal=True):
-                        dpg.add_text(" ", tag="ctrl_timestamp")
-                        dpg.add_text(" ", tag="ctrl_looptime")
-                    with dpg.group(horizontal=True):
-                        dpg.add_text(" ", tag="ctrl_sendtime")
-                        dpg.add_text(" ", tag="ctrl_waittime")
-                    dpg.add_text(" ", tag="ctrl_RSSI")
+                    # with dpg.group(horizontal=True):
+                    #     dpg.add_text(" ", tag="ctrl_timestamp")
+                    #     dpg.add_text(" ", tag="ctrl_looptime")
+                    # with dpg.group(horizontal=True):
+                    #     dpg.add_text(" ", tag="ctrl_sendtime")
+                    #     dpg.add_text(" ", tag="ctrl_waittime")
+                    # dpg.add_text(" ", tag="ctrl_RSSI")
 
-                    # DAQ info
-                    with dpg.group(horizontal=True):
-                        dpg.add_text(" ", tag="daq_timestamp")
-                        dpg.add_text(" ", tag="daq_looptime")
-                    dpg.add_text(" ", tag="daq_RSSI")
+                    # # DAQ info
+                    # with dpg.group(horizontal=True):
+                    #     dpg.add_text(" ", tag="daq_timestamp")
+                    #     dpg.add_text(" ", tag="daq_looptime")
+                    # dpg.add_text(" ", tag="daq_RSSI")
 
                     # Teensy info
-                    with dpg.group(horizontal=True):
-                        dpg.add_text(" ", tag="tsy_timestamp")
-                        dpg.add_text(" ", tag="tsy_looptime")
-                    dpg.add_text(" ", tag="valve_states")
-                    dpg.add_text(" ", tag="pyro_states")
-                    dpg.add_text(" ", tag="arm_state")
-                    dpg.add_text(" ", tag="dbg_sensor_state")
-                    with dpg.group(horizontal=True):
-                        dpg.add_text(" ", tag="pt1")
-                        dpg.add_text(" ", tag="pt2")
-                        dpg.add_text(" ", tag="pt3")
-                    with dpg.group(horizontal=True):
-                        dpg.add_text(" ", tag="pt4")
-                    dpg.add_text(" ", tag="batt_perc")
-                    with dpg.group(horizontal=True):
-                        dpg.add_text(" ", tag="battVolts")
-                        dpg.add_text(" ", tag="batt_current")
+                    # with dpg.group(horizontal=True):
+                    #     dpg.add_text(" ", tag="tsy_timestamp")
+                    #     dpg.add_text(" ", tag="tsy_looptime")
+                    # dpg.add_text(" ", tag="valve_states")
+                    # dpg.add_text(" ", tag="pyro_states")
+                    # dpg.add_text(" ", tag="arm_state")
+                    # dpg.add_text(" ", tag="dbg_sensor_state")
+                    # with dpg.group(horizontal=True):
+                    #     dpg.add_text(" ", tag="pt1")
+                    #     dpg.add_text(" ", tag="pt2")
+                    #     dpg.add_text(" ", tag="pt3")
+                    # with dpg.group(horizontal=True):
+                    #     dpg.add_text(" ", tag="pt4")
+                    # dpg.add_text(" ", tag="batt_perc")
+                    # with dpg.group(horizontal=True):
+                    #     dpg.add_text(" ", tag="battVolts")
+                    #     dpg.add_text(" ", tag="batt_current")
                         
-                    dpg.add_text(" ", tag="cpu_temp")
-                        
-    
+                    with dpg.tab_bar(label="Debug Tabs"):
+                        with dpg.tab(label="Station"):
+                            dpg.add_text(" ", tag="cpu_temp")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="station_temp")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="station_alt")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="station_chrg_v")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="station_batt_v")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="station_radio_v")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="station_batt_current")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="station_batt_pwr")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="station_ina_volts")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+
+                        with dpg.tab(label="GPS"):
+                            dpg.add_text(" ", tag="gps_fix")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_lat")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_lon")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_alt")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_numsv")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_hdop")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_speed")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_course")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_time")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_date")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_sats_visible")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+                            dpg.add_text(" ", tag="gps_max_cno")
+                            dpg.bind_item_font(dpg.last_item(), settings.large)
+
+
     # ERROR window
     with dpg.child_window(width=layout["error_window"]["size"][0], height=layout["error_window"]["size"][1], pos=layout["error_window"]["pos"], tag="error_window", show=True):
         dpg.add_text("Error Info")
@@ -730,34 +856,38 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
 
     
                 
-    # Live temp vs pressure plot window
-    with dpg.child_window(width=layout["press_temp_plot_window"]["size"][0], height=layout["press_temp_plot_window"]["size"][1], pos=layout["press_temp_plot_window"]["pos"], tag="press_temp_plot_window", show=True):
+    # GPS moving map window
+    with dpg.child_window(width=layout["gps_map_window"]["size"][0], height=layout["gps_map_window"]["size"][1], pos=layout["gps_map_window"]["pos"], tag="gps_map_window", show=True):
 
-        with dpg.plot(label="Live Temp vs Pressure", width=layout["press_temp_plot_window"]["size"][0], height=layout["press_temp_plot_window"]["size"][1], pos=[0,0], tag="press_temp_plot"):
+        with dpg.plot(label="GPS Track", width=layout["gps_map_window"]["size"][0], height=layout["gps_map_window"]["size"][1], pos=[0,0], tag="gps_map_plot", equal_aspects=True):
             dpg.add_plot_legend(outside=False, location=dpg.mvPlot_Location_NorthWest)
-            with dpg.plot_axis(dpg.mvYAxis, label="Pressure (PSI)", tag="y_axis_pressure"):
-                dpg.set_axis_limits(dpg.last_item(), 00, 1000)
-                
-                dpg.add_line_series(
-                    settings.SAT_TEMPS,
-                    settings.SAT_PRESSURES,
-                    label="##Saturation Curve (L+V)",
-                    tag="sat_curve",
-                )
-                
-                # Apply a theme to increase line thickness
-                with dpg.theme() as line_theme:
-                    with dpg.theme_component(dpg.mvLineSeries):
-                        dpg.add_theme_style(dpg.mvPlotStyleVar_LineWeight, 3.0, category=dpg.mvThemeCat_Plots)
+            with dpg.plot_axis(dpg.mvXAxis, label="Longitude", tag="gps_map_xaxis"):
+                pass
+            with dpg.plot_axis(dpg.mvYAxis, label="Latitude", tag="gps_map_yaxis"):
+                _default_map_name = next(iter(gps_map_textures), None)
+                if _default_map_name:
+                    _default_map = gps_map_textures[_default_map_name]
+                    dpg.add_image_series(
+                        _default_map["texture_tag"],
+                        bounds_min=_default_map["bounds_min"],
+                        bounds_max=_default_map["bounds_max"],
+                        tag="gps_map_bg",
+                    )
+                    _current_gps_map = _default_map_name
+                # Track/marker added after the background so they draw on top of it.
+                dpg.add_line_series([], [], label="Track", tag="gps_map_trail")
+                dpg.add_scatter_series([], [], label="Current", tag="gps_map_current")
 
-                dpg.bind_item_theme("sat_curve", line_theme)
+        if _default_map_name:
+            # set_axis_limits frames the initial view; set_axis_limits_auto
+            # immediately after releases the lock so the user can still
+            # freely pan/zoom afterward (otherwise it's stuck at this range).
+            dpg.set_axis_limits("gps_map_xaxis", _default_map["bounds_min"][0], _default_map["bounds_max"][0])
+            dpg.set_axis_limits("gps_map_yaxis", _default_map["bounds_min"][1], _default_map["bounds_max"][1])
+            dpg.set_axis_limits_auto("gps_map_xaxis")
+            dpg.set_axis_limits_auto("gps_map_yaxis")
 
-            with dpg.plot_axis(dpg.mvXAxis, label="Temperature (°F)", tag="x_axis_temp"):
-                dpg.set_axis_limits(dpg.last_item(), 0, 100)
-                dpg.add_scatter_series([], [], label="Fwd Tank (TC1)", tag="tc1_scatter")
-                dpg.add_scatter_series([], [], label="Aft Tank (TC2)", tag="tc2_scatter")
 
-    
     # Live plots
     with dpg.child_window(width=layout["dynamic_plots_window"]["size"][0], height=layout["dynamic_plots_window"]["size"][1], pos=layout["dynamic_plots_window"]["pos"], tag="dynamic_plots_window", show=True):
         dc.build_panel("dynamic_plots_window", sr.streamTelem)
@@ -832,6 +962,11 @@ dpg.set_viewport_resize_callback(resize_viewport)
 
 dpg.setup_dearpygui()
 dpg.show_viewport()
+# Let the window manager actually map the window before requesting
+# fullscreen -- toggling immediately after show_viewport() races with
+# the WM on Linux (X11/Wayland) and the request is sometimes dropped.
+for _ in range(5):
+    dpg.render_dearpygui_frame()
 dpg.toggle_viewport_fullscreen()
 
 # Auto screen size adjust
@@ -839,7 +974,6 @@ dpg.bind_item_handler_registry("main_window", "vp_handler")
 #dpg.start_dearpygui()
 
 # ---------------- main loop ----------------
-WINDOW_SIZE = 80  # seconds or timestamp units to display
 lastTime = 0
 
 try:
@@ -868,28 +1002,20 @@ try:
         
             
         
-        #dpg.set_value("pt1_list", [list(timestamps), list(pt1_list)]) 
-        #dpg.set_value("pt4_list", [list(timestamps), list(pt4_list)]) 
+        #dpg.set_value("pt1_list", [list(timestamps), list(pt1_list)])
+        #dpg.set_value("pt4_list", [list(timestamps), list(pt4_list)])
         #all_pressures = list(pt1_list) + list(pt4_list)
         #dpg.set_axis_limits("y_axis_pressure", min(all_pressures), max(all_pressures))
 
-        
-        # Update x-axis limits to show a moving window
-        if timestamps:
-            latest = timestamps[-1]
-            start = max(latest - WINDOW_SIZE, timestamps[0])  # don't go before first timestamp
-            dpg.set_value("tc1_scatter", [[sr.streamTelem.tc1], [sr.streamTelem.pt4]])
-            dpg.set_value("tc2_scatter", [[sr.streamTelem.tc2], [sr.streamTelem.pt4]])
-            
+
             #dpg.set_axis_limits("x_axis_busIMUaccel", start, latest)
             
-        # Pi's own CPU temp — local reading, independent of any radio link,
-        # so it's always live for the debug text and the strip charts.
         sr.streamTelem.cpuTemp_c = get_cpu_temp()
 
         updateLiveInfoWindow()
         updateDebugWindow()
-        updateStatusBar()    
+        updateGpsMap()
+        updateStatusBar()
         update_leds()
         update_rssi_widget()
         update_battery_widget()

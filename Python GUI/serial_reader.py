@@ -5,7 +5,9 @@ from collections import deque
 import time
 from pathlib import Path
 import struct
-import serial_writer as sw 
+import serial_writer as sw
+import Station_Sensors as snsrs
+import gui_settings as settings
 import queue
 from dataclasses import dataclass, field
 import os
@@ -179,9 +181,39 @@ class StreamTelem:
     ina219_state:      int   = 0
     ads1115_state:     int   = 0
     
-    cpuTemp_c:         float = 0.0
+    # Raspberry Pi Ground Station Data:
+    cpuTemp_c:          float = 0.0
     
+    # BME280
+    stationTemp_c:      float = 0.0
+    stationBaroAlt_m:     float = 0.0
     
+    stationBattVolts:   float = 0.0
+    stationBattCurrent: float = 0.0
+    stationBattSOC:     float = 0.0
+    stationChargeVolts: float = 0.0
+    stationCharging_b:  int = 0
+    stationRadioVolts:  float = 0.0
+    stationBattPower:   float = 0.0
+    stationBattVolts2:  float = 0.0
+
+    # GPS (MAX-M10S, via NMEA GGA/RMC)
+    gpsFixValid_b:      int   = 0     # True once a GGA/RMC sentence reports a valid fix
+    gpsLat:             float = 0.0   # signed decimal degrees, +N/-S
+    gpsLon:             float = 0.0   # signed decimal degrees, +E/-W
+    gpsAlt_m:           float = 0.0   # altitude above mean sea level, from GGA
+    gpsNumSV:           int   = 0     # satellites in use, from GGA
+    gpsHDOP:            float = 0.0   # horizontal dilution of precision, from GGA
+    gpsSpeed_kts:       float = 0.0   # ground speed in knots, from RMC
+    gpsCourse_deg:      float = 0.0   # course over ground in degrees true, from RMC
+    gpsTime:            object = None # UTC time (datetime.time), from GGA/RMC
+    gpsDate:            object = None # UTC date (datetime.date), from RMC
+    gpsSatsVisible:     int   = 0     # satellites in view (tracked, not necessarily used), from GSV
+    gpsMaxCNO:          float = 0.0   # best C/N0 signal strength seen, dB-Hz, from GSV
+
+
+
+
     def readBuffer(self):
         import struct
         (self.ctrl_timestamp, 
@@ -338,8 +370,118 @@ def cmd_loop():
         except Exception as e:
             print("CMD error:", e)           
 
-ser, activePort, activeRate = find_serial()
+def sensor_loop():
+    while True:
+        try:
+            # bme280/ads1115 share one Blinka i2c object across threads -- lock
+            # it for the duration of these reads so transactions can't interleave.
+            with snsrs.i2c_lock:
+                streamTelem.stationTemp_c = snsrs.bme280.temperature
+                streamTelem.stationBaroAlt_m = snsrs.bme280.altitude
 
+                streamTelem.stationChargeVolts = snsrs.vusb_mon_v.voltage * 1.67727393264
+                streamTelem.stationBattVolts = snsrs.batt_mon_v.voltage * 2.97230769231
+                streamTelem.stationRadioVolts = snsrs.radio_mon_v.voltage * 2.97230769231
+
+            # ina219 is on its own separate smbus handle, not the shared i2c bus.
+            streamTelem.stationBattCurrent = snsrs.ina.current() / 1000
+            streamTelem.stationBattPower = snsrs.ina.power() / 1000
+            streamTelem.stationBattVolts2 = snsrs.ina.voltage()
+
+        except Exception as e:
+            print("Sensor error:", e)
+
+
+def gps_loop():
+    """Continuously reads and parses NMEA/UBX messages from the MAX-M10S
+    over I2C, updating the GPS fields on streamTelem as sentences arrive."""
+    # MAX-M10S interleaves GSV sentences from multiple constellations
+    # (GPGSV, GLGSV, GAGSV, GBGSV...), each with its own independent
+    # msgNum/numMsg sequence, so each talker ID needs its own accumulator
+    # -- otherwise one constellation's scan starting resets another's
+    # still-in-progress one.
+    gps_loop.cno_accum = {}    # identity -> cnos accumulated so far this scan
+    gps_loop.cno_best = {}     # identity -> best cno from its last completed scan
+    while True:
+        try:
+            _, parsed = snsrs.gps_reader.read()
+            if parsed is None:
+                continue
+
+            identity = getattr(parsed, "identity", "")
+
+            # pynmeagps returns "" (not a number/time/date) for any field a
+            # sentence leaves blank, e.g. lat/lon/alt before the GPS has a
+            # fix. Only overwrite a telemetry field when the parsed value is
+            # actually usable, so we don't clobber the last good reading.
+            def setfield(name, value):
+                if value != "":
+                    setattr(streamTelem, name, value)
+
+            if identity.endswith("GGA"):
+                setfield("gpsLat", parsed.lat)
+                setfield("gpsLon", parsed.lon)
+                setfield("gpsAlt_m", parsed.alt)
+                setfield("gpsNumSV", parsed.numSV)
+                setfield("gpsHDOP", parsed.HDOP)
+                setfield("gpsTime", parsed.time)
+                streamTelem.gpsFixValid_b = int(parsed.quality > 0)
+
+            elif identity.endswith("RMC"):
+                setfield("gpsLat", parsed.lat)
+                setfield("gpsLon", parsed.lon)
+                setfield("gpsSpeed_kts", parsed.spd)
+                setfield("gpsCourse_deg", parsed.cog)
+                setfield("gpsTime", parsed.time)
+                setfield("gpsDate", parsed.date)
+                streamTelem.gpsFixValid_b = int(parsed.status == "A")
+
+            elif identity.endswith("GSV"):
+                # GSV reports satellites *in view* with signal strength (C/N0),
+                # independent of whether a fix has been computed yet -- useful
+                # to tell "no signal reaching the receiver" apart from
+                # "acquiring, just needs more time".
+                setfield("gpsSatsVisible", parsed.numSV)
+
+                if getattr(parsed, "msgNum", 1) == 1:
+                    gps_loop.cno_accum[identity] = []
+
+                accum = gps_loop.cno_accum.setdefault(identity, [])
+                for key in ("cno", "cno_01", "cno_02", "cno_03"):
+                    val = getattr(parsed, key, "")
+                    if isinstance(val, (int, float)):
+                        accum.append(val)
+
+                if getattr(parsed, "msgNum", 1) == getattr(parsed, "numMsg", 1):
+                    gps_loop.cno_best[identity] = max(accum) if accum else 0.0
+                    streamTelem.gpsMaxCNO = max(gps_loop.cno_best.values())
+
+        except Exception as e:
+            print("GPS error:", e)
+
+
+def buzzer_loop():
+    """Pulses the ground-station buzzer on for settings.BUZZER_ON_DURATION_S
+    every settings.BUZZER_INTERVAL_S seconds."""
+    while True:
+        try:
+            if not settings.BUZZER_ENABLED:
+                snsrs.buzzer.off()
+                time.sleep(settings.BUZZER_INTERVAL_S)
+                continue
+
+            snsrs.buzzer.value = 0.5  # 50% duty square wave at BUZZER_FREQUENCY_HZ -> audible tone
+            time.sleep(settings.BUZZER_ON_DURATION_S)
+            snsrs.buzzer.off()
+            time.sleep(max(settings.BUZZER_INTERVAL_S - settings.BUZZER_ON_DURATION_S, 0))
+        except Exception as e:
+            print("Buzzer error:", e)
+
+
+ser, activePort, activeRate = find_serial()
+threading.Thread(target=sensor_loop,   daemon=True).start()
+threading.Thread(target=buzzer_loop,   daemon=True).start()
+threading.Thread(target=gps_loop,      daemon=True).start()
 if activePort:
     # Start reading in background thread
     print(f"Found activity on {activePort} at {activeRate} baudrate")
@@ -348,5 +490,6 @@ if activePort:
     threading.Thread(target=read_serial_loop, daemon=True).start()
     threading.Thread(target=telem_loop, daemon=True).start()
     threading.Thread(target=cmd_loop,   daemon=True).start()
+    
 else:
     print("Serial Invalid!")

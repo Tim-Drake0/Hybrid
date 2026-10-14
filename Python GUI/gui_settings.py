@@ -78,15 +78,29 @@ SAT_PRESSURES = [
 
 batt_size_mah = 850
 
-# How often to read the ground-station Pi's own CPU temp sensor, in seconds.
-# Lower = faster updates on the debug text / dynamic_charts plot, at the cost
-# of more sysfs reads per second.
-CPU_TEMP_POLL_INTERVAL_S = 2
 
-# Ground-station Pi CPU temp (°C) at/above which a warning row is shown in
-# the error table. Pi 5 starts thermal-throttling around 80-85°C, so this
-# gives a heads-up before that happens.
-CPU_TEMP_WARN_C = 75.0
+CPU_TEMP_POLL_INTERVAL_S = 2 # How often to read the ground-station Pi's own CPU temp sensor, in seconds.
+CPU_TEMP_WARN_C = 75.0 # Ground-station Pi CPU temp (°C) at/above which a warning row is shown
+BUZZER_ENABLED = False
+BUZZER_GPIO_PIN = 13
+BUZZER_FREQUENCY_HZ = 4000
+BUZZER_ON_DURATION_S = 1.0
+BUZZER_INTERVAL_S = 5.0
+
+GPS_MAPS = [
+    {
+        "name": "FAR",
+        "file": "Assets/FAR_map.jpg",
+        "bounds_min": (-117.9075, 35.312778),     # (lon, lat) of bottom-left corner
+        "bounds_max": (-117.7125, 35.377778),     # (lon, lat) of top-right corner
+    },
+    {
+        "name": "Lancaster",
+        "file": "Assets/Lancaster_map.jpg",
+        "bounds_min": (-118.227778, 34.651111),
+        "bounds_max": (-118.065556, 34.708056),
+    },
+]
 
 def show_right_window(tag):
     for window in RIGHT_WINDOWS:
