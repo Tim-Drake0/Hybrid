@@ -181,21 +181,21 @@ class StreamTelem:
     ina219_state:      int   = 0
     ads1115_state:     int   = 0
     
-    # Raspberry Pi Ground Station Data:
-    cpuTemp_c:          float = 0.0
+
+    cpuTemp_c:              float = 0.0 # Station PI CPU temperature [C]
     
     # BME280
-    stationTemp_c:      float = 0.0
-    stationBaroAlt_m:     float = 0.0
+    stationTemp_c:          float = 0.0 # Station PI Hat temperature [C]
+    stationBaroAlt_m:       float = 0.0 # Station PI Altitude in [m]
     
-    stationBattVolts:   float = 0.0
-    stationBattCurrent: float = 0.0
-    stationBattSOC:     float = 0.0
-    stationChargeVolts: float = 0.0
-    stationCharging_b:  int = 0
-    stationRadioVolts:  float = 0.0
-    stationBattPower:   float = 0.0
-    stationBattVolts2:  float = 0.0
+    stationADCBattVolts:    float = 0.0 # Station ADC battery voltage [V]
+    stationInaBattCurrent:  float = 0.0 # Station PI Altitude in [m]
+    stationInaBattSOC:      float = 0.0 # Station battery state of charge [%]
+    stationADCChargeVolts:  float = 0.0 # Station USB charging voltage [V]
+    stationCharging_b:      int   = 0   # 1 = battery is charging
+    stationADCRadioVolts:   float = 0.0 # Station ADC radio voltage [V]
+    stationInaBattPower:    float = 0.0 # Station INA battery power [W]
+    stationInaBattVolts:    float = 0.0 # Station INA battery voltage [V]
 
     # GPS (MAX-M10S, via NMEA GGA/RMC)
     gpsFixValid_b:      int   = 0     # True once a GGA/RMC sentence reports a valid fix
@@ -380,13 +380,13 @@ def sensor_loop():
                 streamTelem.stationBaroAlt_m = snsrs.bme280.altitude
 
                 streamTelem.stationChargeVolts = snsrs.vusb_mon_v.voltage * 1.67727393264
-                streamTelem.stationBattVolts = snsrs.batt_mon_v.voltage * 2.97230769231
-                streamTelem.stationRadioVolts = snsrs.radio_mon_v.voltage * 2.97230769231
+                streamTelem.stationADCBattVolts = snsrs.batt_mon_v.voltage * 2.97230769231
+                streamTelem.stationADCRadioVolts = snsrs.radio_mon_v.voltage * 2.97230769231
 
             # ina219 is on its own separate smbus handle, not the shared i2c bus.
-            streamTelem.stationBattCurrent = snsrs.ina.current() / 1000
-            streamTelem.stationBattPower = snsrs.ina.power() / 1000
-            streamTelem.stationBattVolts2 = snsrs.ina.voltage()
+            streamTelem.stationInaBattCurrent = snsrs.ina.current() / 1000
+            streamTelem.stationInaBattPower = snsrs.ina.power() / 1000
+            streamTelem.stationInaBattVolts = snsrs.ina.voltage()
 
         except Exception as e:
             print("Sensor error:", e)
