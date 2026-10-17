@@ -74,6 +74,9 @@ press_chamber  = deque(maxlen=PRESS_HISTORY_PTS)
 press_paused   = False
 _press_dirty   = False  # new sample since the series were last pushed
 
+# Height reserved for the tab bar at the top of the right-hand panel.
+RIGHT_TAB_BAR_H = 34
+
 # Lat/lon readout overlaid on the top-right corner of the map.
 GPS_COORD_W, GPS_COORD_H = 310, 100
 
@@ -570,29 +573,30 @@ def get_layout():
     info_x, info_y = 0, statusbar_h + 10
     info_w, info_h = 570, 700
 
-    events_w, events_h = settings.EVENTS_WINDOW_SIZE[0], settings.EVENTS_WINDOW_SIZE[1]
-    events_x = vp_w - events_w
-    events_y = statusbar_h + 10
-    
-    press_x = info_w + 5
-    press_y = info_y
-    press_w = events_x - press_x
-    press_h = events_h
-    
     error_x, error_y = 0, info_y + info_h
     error_w = info_w
     error_h = vp_h - info_h - statusbar_h - 10
 
+    # Tabbed right-hand panel. Each tab's page sits just below the tab bar;
+    # everything inside a page is positioned relative to that page.
+    panel_x, panel_y = info_w + 5, info_y
+    panel_w, panel_h = vp_w - panel_x, vp_h - panel_y
+    page_w,  page_h  = panel_w, panel_h - RIGHT_TAB_BAR_H
 
-    
-    
-    map_x = press_x
-    map_y = events_y + events_h + 5
-    map_w = vp_w - map_x
-    map_h = vp_h - map_y
+    events_w, events_h = settings.EVENTS_WINDOW_SIZE[0], settings.EVENTS_WINDOW_SIZE[1]
+    events_x, events_y = page_w - events_w, 0
+
+    press_x, press_y = 0, 0
+    press_w, press_h = events_x, events_h
+
+    map_x, map_y = 0, events_h + 5
+    map_w, map_h = page_w, page_h - map_y
 
     return {
         "status_bar":               {"pos": (statusbar_x,       statusbar_y),       "size": (statusbar_w,       statusbar_h)},
+        "right_panel":              {"pos": (panel_x,           panel_y),           "size": (panel_w,           panel_h)},
+        "overview_page":            {"pos": (0,                 RIGHT_TAB_BAR_H),   "size": (page_w,            page_h)},
+        "dynamic_plots_window":     {"pos": (0,                 RIGHT_TAB_BAR_H),   "size": (page_w,            page_h)},
         "events_window":            {"pos": (events_x,          events_y),          "size": (events_w,          events_h)},
         "bus_info_window":          {"pos": (info_x,            info_y),            "size": (info_w,            info_h)},
         "press_plot_window":        {"pos": (press_x,           press_y),           "size": (press_w,           press_h)},
@@ -966,23 +970,6 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
 
     
                 
-    # Pressure plot window
-    with dpg.child_window(width=layout["press_plot_window"]["size"][0], height=layout["press_plot_window"]["size"][1], pos=layout["press_plot_window"]["pos"], tag="press_plot_window", no_scrollbar=True):
-        with dpg.group(horizontal=True):
-            dpg.add_button(label="Pause", tag="press_pause_button", callback=toggle_press_pause, width=100)
-            dpg.add_text("Paused: drag to scroll back in time, wheel to zoom", tag="press_pause_hint", show=False)
-        with dpg.plot(label="Pressures", width=layout["press_plot"]["size"][0], height=layout["press_plot"]["size"][1], pos=layout["press_plot"]["pos"], tag="press_plot"):
-            dpg.add_plot_legend(location=dpg.mvPlot_Location_NorthWest)
-            dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)", tag="press_x_axis")
-            # auto_fit + range_fit: Y fits only the data inside the visible X
-            # range, so it tracks the live window and whatever is scrolled to.
-            with dpg.plot_axis(dpg.mvYAxis, label="Pressure (psi)", tag="press_y_axis", auto_fit=True, range_fit=True):
-                dpg.add_line_series([], [], label="Tank",    tag="press_tank_series")
-                dpg.add_line_series([], [], label="Bottle",  tag="press_bottle_series")
-                dpg.add_line_series([], [], label="Chamber", tag="press_chamber_series")
-        for _tag in ("press_tank_series", "press_bottle_series", "press_chamber_series"):
-            dpg.bind_item_theme(_tag, line_theme)
-
     # Current-position marker: big red dot with a white outline so it stands
     # out against the satellite image.
     with dpg.theme() as gps_marker_theme:
@@ -1006,86 +993,110 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
             dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255, 255))
             dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 8, 4)
 
-    # GPS moving map window
-    with dpg.child_window(width=layout["gps_map_window"]["size"][0], height=layout["gps_map_window"]["size"][1], pos=layout["gps_map_window"]["pos"], tag="gps_map_window", show=True):
+    # Right-hand tabbed panel: Overview (pressures, valves, map) / Dynamic Plots
+    with dpg.child_window(width=layout["right_panel"]["size"][0], height=layout["right_panel"]["size"][1], pos=layout["right_panel"]["pos"], tag="right_panel", border=False, no_scrollbar=True, no_scroll_with_mouse=True):
+        # Without a group width the first tab header stretches across the whole bar.
+        with dpg.group(width=150):
+            with dpg.tab_bar(tag="right_tabs"):
+                with dpg.tab(label="Overview"):
+                    with dpg.child_window(width=layout["overview_page"]["size"][0], height=layout["overview_page"]["size"][1], pos=layout["overview_page"]["pos"], tag="overview_page", border=False, no_scrollbar=True, no_scroll_with_mouse=True):
 
-        with dpg.plot(label="GPS Track", width=layout["gps_map_plot"]["size"][0], height=layout["gps_map_plot"]["size"][1], pos=[0,0], tag="gps_map_plot", equal_aspects=True):
-            dpg.add_plot_legend(outside=False, location=dpg.mvPlot_Location_NorthWest)
-            with dpg.plot_axis(dpg.mvXAxis, label="Longitude", tag="gps_map_xaxis"):
-                pass
-            with dpg.plot_axis(dpg.mvYAxis, label="Latitude", tag="gps_map_yaxis"):
-                _default_map_name = next(iter(gps_map_textures), None)
-                if _default_map_name:
-                    _default_map = gps_map_textures[_default_map_name]
-                    dpg.add_image_series(
-                        _default_map["texture_tag"],
-                        bounds_min=_default_map["bounds_min"],
-                        bounds_max=_default_map["bounds_max"],
-                        tag="gps_map_bg",
-                    )
-                    _current_gps_map = _default_map_name
-                # Track/marker added after the background so they draw on top of it.
-                dpg.add_line_series([], [], label="Track", tag="gps_map_trail")
-                dpg.add_scatter_series([], [], label="Current", tag="gps_map_current")
-        dpg.bind_item_theme("gps_map_trail", gps_trail_theme)
-        dpg.bind_item_theme("gps_map_current", gps_marker_theme)
+                        # Pressure plot window
+                        with dpg.child_window(width=layout["press_plot_window"]["size"][0], height=layout["press_plot_window"]["size"][1], pos=layout["press_plot_window"]["pos"], tag="press_plot_window", no_scrollbar=True):
+                            with dpg.group(horizontal=True):
+                                dpg.add_button(label="Pause", tag="press_pause_button", callback=toggle_press_pause, width=100)
+                                dpg.add_text("Paused: drag to scroll back in time, wheel to zoom", tag="press_pause_hint", show=False)
+                            with dpg.plot(label="Pressures", width=layout["press_plot"]["size"][0], height=layout["press_plot"]["size"][1], pos=layout["press_plot"]["pos"], tag="press_plot"):
+                                dpg.add_plot_legend(location=dpg.mvPlot_Location_NorthWest)
+                                dpg.add_plot_axis(dpg.mvXAxis, label="Time (s)", tag="press_x_axis")
+                                # auto_fit + range_fit: Y fits only the data inside the visible X
+                                # range, so it tracks the live window and whatever is scrolled to.
+                                with dpg.plot_axis(dpg.mvYAxis, label="Pressure (psi)", tag="press_y_axis", auto_fit=True, range_fit=True):
+                                    dpg.add_line_series([], [], label="Tank",    tag="press_tank_series")
+                                    dpg.add_line_series([], [], label="Bottle",  tag="press_bottle_series")
+                                    dpg.add_line_series([], [], label="Chamber", tag="press_chamber_series")
+                            for _tag in ("press_tank_series", "press_bottle_series", "press_chamber_series"):
+                                dpg.bind_item_theme(_tag, line_theme)
 
-        # Coordinate readout, drawn after the plot so it sits on top of it.
-        with dpg.child_window(width=GPS_COORD_W, height=GPS_COORD_H, pos=layout["gps_coord_box"]["pos"], tag="gps_coord_box", border=False, no_scrollbar=True):
-            dpg.add_text("Lat:      NO FIX", tag="gps_coord_lat")
-            dpg.bind_item_font(dpg.last_item(), settings.xl)
-            dpg.add_text("Lon:      NO FIX", tag="gps_coord_lon")
-            dpg.bind_item_font(dpg.last_item(), settings.xl)
-        dpg.bind_item_theme("gps_coord_box", gps_coord_theme)
+                        # GPS moving map window
+                        with dpg.child_window(width=layout["gps_map_window"]["size"][0], height=layout["gps_map_window"]["size"][1], pos=layout["gps_map_window"]["pos"], tag="gps_map_window", show=True):
 
-        if _default_map_name:
-            frame_gps_map(_default_map)
+                            with dpg.plot(label="GPS Track", width=layout["gps_map_plot"]["size"][0], height=layout["gps_map_plot"]["size"][1], pos=[0,0], tag="gps_map_plot", equal_aspects=True):
+                                dpg.add_plot_legend(outside=False, location=dpg.mvPlot_Location_NorthWest)
+                                with dpg.plot_axis(dpg.mvXAxis, label="Longitude", tag="gps_map_xaxis"):
+                                    pass
+                                with dpg.plot_axis(dpg.mvYAxis, label="Latitude", tag="gps_map_yaxis"):
+                                    _default_map_name = next(iter(gps_map_textures), None)
+                                    if _default_map_name:
+                                        _default_map = gps_map_textures[_default_map_name]
+                                        dpg.add_image_series(
+                                            _default_map["texture_tag"],
+                                            bounds_min=_default_map["bounds_min"],
+                                            bounds_max=_default_map["bounds_max"],
+                                            tag="gps_map_bg",
+                                        )
+                                        _current_gps_map = _default_map_name
+                                    # Track/marker added after the background so they draw on top of it.
+                                    dpg.add_line_series([], [], label="Track", tag="gps_map_trail")
+                                    dpg.add_scatter_series([], [], label="Current", tag="gps_map_current")
+                            dpg.bind_item_theme("gps_map_trail", gps_trail_theme)
+                            dpg.bind_item_theme("gps_map_current", gps_marker_theme)
 
+                            # Coordinate readout, drawn after the plot so it sits on top of it.
+                            with dpg.child_window(width=GPS_COORD_W, height=GPS_COORD_H, pos=layout["gps_coord_box"]["pos"], tag="gps_coord_box", border=False, no_scrollbar=True):
+                                dpg.add_text("Lat:      NO FIX", tag="gps_coord_lat")
+                                dpg.bind_item_font(dpg.last_item(), settings.xl)
+                                dpg.add_text("Lon:      NO FIX", tag="gps_coord_lon")
+                                dpg.bind_item_font(dpg.last_item(), settings.xl)
+                            dpg.bind_item_theme("gps_coord_box", gps_coord_theme)
 
-    """# Live plots
-    with dpg.child_window(width=layout["dynamic_plots_window"]["size"][0], height=layout["dynamic_plots_window"]["size"][1], pos=layout["dynamic_plots_window"]["pos"], tag="dynamic_plots_window", show=True):
-        dc.build_panel("dynamic_plots_window", sr.streamTelem)"""
-                          
-    # Events window
-    with dpg.child_window(width=layout["events_window"]["size"][0], height=layout["events_window"]["size"][1], pos=layout["events_window"]["pos"], tag="events_window", no_scrollbar=True):
-        dpg.bind_item_font(dpg.last_item(), settings.xl)
+                            if _default_map_name:
+                                frame_gps_map(_default_map)
 
-        with dpg.drawlist(width=settings.EVENTS_WINDOW_SIZE[0]-20, height=settings.EVENTS_WINDOW_SIZE[1]-20, tag="led_drawlist"):
-            for i, (name, cfg) in enumerate(settings.led_panel_states.items()):
-                col = i % settings.LED_COLS
-                row = i // settings.LED_COLS
-                x = settings.LED_SPACING_X + col * (settings.LED_W + settings.LED_SPACING_X)
-                y = settings.LED_SPACING_Y + row * (settings.LED_H + settings.LED_SPACING_Y)
+                        # Events window
+                        with dpg.child_window(width=layout["events_window"]["size"][0], height=layout["events_window"]["size"][1], pos=layout["events_window"]["pos"], tag="events_window", no_scrollbar=True):
+                            dpg.bind_item_font(dpg.last_item(), settings.xl)
 
-                color = cfg["color_on"] if cfg["state"] else cfg["color_off"]
-                label = cfg["label_on"] if cfg["state"] else cfg["label_off"]
-                text_color = (0, 0, 0) if cfg["state"] else (100, 100, 100)
+                            with dpg.drawlist(width=settings.EVENTS_WINDOW_SIZE[0]-20, height=settings.EVENTS_WINDOW_SIZE[1]-20, tag="led_drawlist"):
+                                for i, (name, cfg) in enumerate(settings.led_panel_states.items()):
+                                    col = i % settings.LED_COLS
+                                    row = i // settings.LED_COLS
+                                    x = settings.LED_SPACING_X + col * (settings.LED_W + settings.LED_SPACING_X)
+                                    y = settings.LED_SPACING_Y + row * (settings.LED_H + settings.LED_SPACING_Y)
 
-                # LED rectangle
-                dpg.draw_rectangle(
-                    [x, y], [x + settings.LED_W, y + settings.LED_H],
-                    rounding=6,
-                    color=color,
-                    fill=color,
-                    tag=f"led_{name}"
-                )
-                # name label (top-left inside)
-                dpg.draw_text(
-                    [x + 5, y + 3],
-                    name,
-                    color=text_color,
-                    size=50,
-                    tag=f"led_name_{name}"
-                )
-                # status text (bottom-right inside)
-                dpg.draw_text(
-                    [x + 5, y + settings.LED_H-50],
-                    label,
-                    color=text_color,
-                    size=38,
-                    tag=f"led_status_{name}"
-                )
-                
+                                    color = cfg["color_on"] if cfg["state"] else cfg["color_off"]
+                                    label = cfg["label_on"] if cfg["state"] else cfg["label_off"]
+                                    text_color = (0, 0, 0) if cfg["state"] else (100, 100, 100)
+
+                                    # LED rectangle
+                                    dpg.draw_rectangle(
+                                        [x, y], [x + settings.LED_W, y + settings.LED_H],
+                                        rounding=6,
+                                        color=color,
+                                        fill=color,
+                                        tag=f"led_{name}"
+                                    )
+                                    # name label (top-left inside)
+                                    dpg.draw_text(
+                                        [x + 5, y + 3],
+                                        name,
+                                        color=text_color,
+                                        size=50,
+                                        tag=f"led_name_{name}"
+                                    )
+                                    # status text (bottom-right inside)
+                                    dpg.draw_text(
+                                        [x + 5, y + settings.LED_H-50],
+                                        label,
+                                        color=text_color,
+                                        size=38,
+                                        tag=f"led_status_{name}"
+                                    )
+
+                with dpg.tab(label="Dynamic Plots"):
+                    with dpg.child_window(width=layout["dynamic_plots_window"]["size"][0], height=layout["dynamic_plots_window"]["size"][1], pos=layout["dynamic_plots_window"]["pos"], tag="dynamic_plots_window", border=False):
+                        dc.build_panel("dynamic_plots_window", sr.streamTelem)
+
     # Abort modal screen
     with dpg.window(label="ABORT WARNING", modal=True, show=False, tag="state_modal", 
                     no_resize=True, width=300, height=120):
