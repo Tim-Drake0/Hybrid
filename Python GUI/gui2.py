@@ -430,6 +430,36 @@ def updateChargerDebug():
     for tag, fmt in CHARGER_DEBUG_LINES.items():
         dpg.set_value(tag, fmt(sr.streamTelem))
 
+# TCA9555 Debug > IO tab. Pin states come from chip.state, cached by
+# snsrs.poll_io_expanders() in sensor_loop; the Set boxes write straight to
+# the chip on Enter.
+IOX_STATE_COLORS = {1: (0, 220, 0), 0: (150, 150, 150), None: (255, 60, 60)}
+_iox_msg = {}   # chip name -> last override result, shown on its status line
+
+def _iox_override(sender, app_data, user_data):
+    chip_name, pin = user_data
+    txt = app_data.strip()
+    if txt not in ("0", "1"):
+        _iox_msg[chip_name] = f"{pin}: enter 0 or 1, not {txt!r}"
+        return
+    try:
+        snsrs.io_expanders[chip_name].write_pin(pin, int(txt))
+        _iox_msg[chip_name] = f"{pin} set to {txt}"
+    except Exception as e:
+        _iox_msg[chip_name] = f"{pin} write failed: {e}"
+    dpg.set_value(sender, "")
+
+def updateIoxDebug():
+    for name, chip in snsrs.io_expanders.items():
+        link = "OK" if chip.state is not None else "NO RESPONSE"
+        dpg.set_value(f"iox_{name}_status",
+                      f"{name} @0x{settings.TCA9555_CHIPS[name]['address']:02X}: {link}  "
+                      f"(re-applied {chip.reapply_count}x)  {_iox_msg.get(name, '')}")
+        for bit, pin in enumerate(snsrs.TCA9555.PIN_NAMES):
+            val = None if chip.state is None else (chip.state >> bit) & 1
+            dpg.set_value(f"iox_{name}_{pin}", "--" if val is None else str(val))
+            dpg.configure_item(f"iox_{name}_{pin}", color=IOX_STATE_COLORS[val])
+
 def updateGpsMap():
     global _last_gps_point, _current_gps_map
     if sr.streamTelem.gpsFixValid_b:
@@ -955,6 +985,33 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                                 dpg.add_text(" ", tag=_tag)
                                 dpg.bind_item_font(dpg.last_item(), settings.medium)
 
+                        with dpg.tab(label="IO"):
+                            if not snsrs.io_expanders:
+                                dpg.add_text("No TCA9555 chips enabled in settings")
+                            with dpg.tab_bar():
+                                for _name in snsrs.io_expanders:
+                                    with dpg.tab(label=_name):
+                                        dpg.add_text(" ", tag=f"iox_{_name}_status", wrap=layout["bus_info_window"]["size"][0] - 30)
+                                        with dpg.table(header_row=True, borders_innerH=True, borders_outerH=True,
+                                                       borders_innerV=True, borders_outerV=True):
+                                            dpg.add_table_column(label="Pin",   width_fixed=True, init_width_or_weight=45)
+                                            dpg.add_table_column(label="Name")
+                                            dpg.add_table_column(label="Mode",  width_fixed=True, init_width_or_weight=75)
+                                            dpg.add_table_column(label="State", width_fixed=True, init_width_or_weight=55)
+                                            dpg.add_table_column(label="Set",   width_fixed=True, init_width_or_weight=60)
+                                            for _pin in snsrs.TCA9555.PIN_NAMES:
+                                                _p = settings.TCA9555_CHIPS[_name]["pins"][_pin]
+                                                with dpg.table_row():
+                                                    dpg.add_text(_pin)
+                                                    dpg.add_text(_p["name"] or "-")
+                                                    dpg.add_text("in (inv)" if _p["mode"] == "in" and _p["invert"] else _p["mode"])
+                                                    dpg.add_text("--", tag=f"iox_{_name}_{_pin}")
+                                                    if _p["mode"] == "out":
+                                                        dpg.add_input_text(width=-1, hint="0/1", on_enter=True, no_spaces=True,
+                                                                           callback=_iox_override, user_data=(_name, _pin))
+                                                    else:
+                                                        dpg.add_text("-")
+
 
     # ERROR window
     with dpg.child_window(width=layout["error_window"]["size"][0], height=layout["error_window"]["size"][1], pos=layout["error_window"]["pos"], tag="error_window", show=True):
@@ -1185,6 +1242,7 @@ try:
         updateLiveInfoWindow()
         updateDebugWindow()
         updateChargerDebug()
+        updateIoxDebug()
         updateGpsMap()
         release_gps_map_limits()
         updatePressPlot(frameTime)

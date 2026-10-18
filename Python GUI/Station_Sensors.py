@@ -6,7 +6,7 @@ import adafruit_ads1x15.ads1115 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
 from ina219 import INA219
 from ina219 import DeviceRangeError
-from gpiozero import PWMOutputDevice
+from rpi_hardware_pwm import HardwarePWM
 from pyubx2 import UBXReader, NMEA_PROTOCOL, UBX_PROTOCOL
 from smbus2 import SMBus, i2c_msg
 import gui_settings as settings
@@ -20,8 +20,12 @@ i2c = board.I2C()  # uses board.SCL and board.SDA
 i2c_lock = threading.Lock()
 
 # Passive buzzer: needs a driven square wave (not just DC) to produce a tone.
-buzzer = PWMOutputDevice(settings.BUZZER_GPIO_PIN, frequency=settings.BUZZER_FREQUENCY_HZ)
-
+# Hardware PWM so the tone stays clean regardless of CPU/GIL load (gpiozero's
+# software PWM jittered at 4 kHz and sounded crackly). Needs the pwm-2chan
+# overlay in /boot/firmware/config.txt -- see BUZZER_PWM_* in gui_settings.
+buzzer = HardwarePWM(pwm_channel=settings.BUZZER_PWM_CHANNEL, hz=settings.BUZZER_FREQUENCY_HZ,
+                     chip=settings.BUZZER_PWM_CHIP)
+buzzer.start(0)
 
 bme280 = adafruit_bme280.Adafruit_BME280_I2C(i2c)
 
@@ -411,3 +415,209 @@ class BQ25887:
 charger = None
 if settings.BQ25887_ENABLED:
     charger = BQ25887(settings.BQ25887_I2C_BUS, settings.BQ25887_I2C_ADDRESS, settings.BQ25887_SETTINGS)
+
+
+# ---------------- TCA9555 16-bit I/O expanders (I2C) ----------------
+class TCA9555:
+    """Driver for one TI TCA9555 16-bit I/O expander (datasheet SCPS200).
+
+    apply_settings() writes a chip's entry from gui_settings.TCA9555_CHIPS
+    (pin direction, startup output level, input polarity). check() re-applies
+    it if the chip has lost it (a power-on reset puts every pin back to input
+    and clears the outputs). Pins can be addressed by datasheet name ("P03",
+    "P14") or by the signal name given in settings.
+
+    Own smbus2 handle like the GPS/charger. Output writes are a
+    read-modify-write of a cached latch value, so they're serialized with a
+    per-chip lock in case they come from more than one thread.
+    """
+
+    # Register pairs: port 0 at the even address, port 1 at the odd one. A
+    # 2-byte transfer starting at the port-0 register covers both ports.
+    REG_INPUT    = 0x00
+    REG_OUTPUT   = 0x02
+    REG_POLARITY = 0x04
+    REG_CONFIG   = 0x06   # 1 = input (power-on default), 0 = output
+
+    PIN_NAMES = [f"P{port}{bit}" for port in (0, 1) for bit in range(8)]   # index = bit in the 16-bit word
+
+    def __init__(self, name, bus_num, cfg):
+        self.name = name
+        self._bus = SMBus(bus_num)
+        self._address = cfg["address"]
+        # Validate up front so a bad settings file fails loudly.
+        self._config, self._polarity, self._output, self._bits = self.encode_settings(name, cfg)
+        self._lock = threading.Lock()
+        self.applied = False
+        self.reapply_count = 0
+        self.state = None   # last read_inputs() word from poll_io_expanders(), None = no response
+
+    # ---- settings -> register words ----
+    @classmethod
+    def encode_settings(cls, name, cfg):
+        """Chip settings -> (config, polarity, output) 16-bit words plus a
+        {pin name / signal name: bit} lookup. Raises ValueError naming the
+        offending pin if anything is invalid."""
+        where = f"TCA9555_CHIPS['{name}']"
+        if not 0x20 <= cfg["address"] <= 0x27:
+            raise ValueError(f"{where}['address'] = 0x{cfg['address']:02X} is outside 0x20..0x27")
+        pins = cfg["pins"]
+        unknown = set(pins) - set(cls.PIN_NAMES)
+        if unknown:
+            raise ValueError(f"{where}: unknown pin(s) {sorted(unknown)}, must be P00-P07 / P10-P17")
+        missing = [p for p in cls.PIN_NAMES if p not in pins]
+        if missing:
+            raise ValueError(f"{where}: missing pin(s) {missing}")
+
+        config = polarity = output = 0
+        bits = {}
+        for bit, pin in enumerate(cls.PIN_NAMES):
+            p = pins[pin]
+            if p["mode"] not in ("in", "out"):
+                raise ValueError(f"{where}['pins']['{pin}']['mode'] = {p['mode']!r}, must be 'in' or 'out'")
+            if p["init"] not in (0, 1):
+                raise ValueError(f"{where}['pins']['{pin}']['init'] = {p['init']!r}, must be 0 or 1")
+            config   |= (p["mode"] == "in") << bit
+            polarity |= bool(p["invert"]) << bit
+            output   |= p["init"] << bit
+            bits[pin] = bit
+            if p["name"]:
+                if p["name"] in bits:
+                    raise ValueError(f"{where}: signal name {p['name']!r} used on more than one pin")
+                bits[p["name"]] = bit
+        return config, polarity, output, bits
+
+    # ---- I2C ----
+    def _read16(self, reg):
+        lo, hi = self._bus.read_i2c_block_data(self._address, reg, 2)
+        return lo | (hi << 8)
+
+    def _write16(self, reg, val):
+        self._bus.write_i2c_block_data(self._address, reg, [val & 0xFF, (val >> 8) & 0xFF])
+
+    def apply_settings(self):
+        """Write the output latch first, so pins switching to output come up
+        at their configured level instead of glitching, then polarity and
+        direction. Read back to confirm."""
+        with self._lock:
+            self._write16(self.REG_OUTPUT, self._output)
+            self._write16(self.REG_POLARITY, self._polarity)
+            self._write16(self.REG_CONFIG, self._config)
+            got = (self._read16(self.REG_OUTPUT), self._read16(self.REG_POLARITY), self._read16(self.REG_CONFIG))
+        if got != (self._output, self._polarity, self._config):
+            raise IOError(f"TCA9555 {self.name} @0x{self._address:02X}: readback mismatch "
+                          f"(out/pol/cfg wrote {self._output:04X}/{self._polarity:04X}/{self._config:04X}, "
+                          f"read {got[0]:04X}/{got[1]:04X}/{got[2]:04X})")
+        self.applied = True
+
+    def check(self):
+        """Apply settings if never applied, or re-apply (restoring the current
+        output states) if the chip's config no longer matches."""
+        if not self.applied:
+            self.apply_settings()
+            return
+        with self._lock:
+            ok = self._read16(self.REG_CONFIG) == self._config and self._read16(self.REG_POLARITY) == self._polarity
+        if not ok:
+            self.reapply_count += 1
+            self.apply_settings()
+
+    # ---- pin access ----
+    def has(self, pin):
+        return pin in self._bits
+
+    def _bit(self, pin):
+        try:
+            return self._bits[pin]
+        except KeyError:
+            raise KeyError(f"TCA9555 {self.name}: no pin or signal named {pin!r}") from None
+
+    def read_inputs(self):
+        """All 16 pins as one word (bit 0 = P00 ... bit 15 = P17), after
+        polarity inversion. Output pins read back their driven level."""
+        with self._lock:
+            return self._read16(self.REG_INPUT)
+
+    def read_pin(self, pin):
+        return (self.read_inputs() >> self._bit(pin)) & 1
+
+    def write_pin(self, pin, value):
+        bit = self._bit(pin)
+        if (self._config >> bit) & 1:
+            raise ValueError(f"TCA9555 {self.name}: {pin!r} is configured as an input")
+        with self._lock:
+            out = (self._output | (1 << bit)) if value else (self._output & ~(1 << bit))
+            self._write16(self.REG_OUTPUT, out)
+            self._output = out
+
+
+io_expanders = {}   # chip name -> TCA9555
+if settings.TCA9555_ENABLED:
+    _enabled = {n: c for n, c in settings.TCA9555_CHIPS.items() if c["enabled"]}
+    _addresses = [c["address"] for c in _enabled.values()]
+    if len(_addresses) != len(set(_addresses)):
+        raise ValueError("TCA9555_CHIPS: two enabled chips share an I2C address")
+    _signals = [p["name"] for c in _enabled.values() for p in c["pins"].values() if p["name"]]
+    if len(_signals) != len(set(_signals)):
+        raise ValueError("TCA9555_CHIPS: a signal name is used on more than one pin")
+    for _name, _cfg in _enabled.items():
+        io_expanders[_name] = TCA9555(_name, settings.TCA9555_I2C_BUS, _cfg)
+
+
+def init_io_expanders():
+    """Apply settings to every enabled TCA9555. A chip that doesn't answer is
+    reported and left with applied = False, so check_io_expanders() retries
+    it later instead of stopping startup. Returns {chip name: True/False}."""
+    ok = {}
+    for name, chip in io_expanders.items():
+        try:
+            chip.apply_settings()
+            ok[name] = True
+        except Exception as e:
+            chip.applied = False
+            ok[name] = False
+            print(f"TCA9555 {name} init error:", e)
+    return ok
+
+
+def check_io_expanders():
+    """Init any chip that failed to, and re-apply any that has reset since."""
+    for name, chip in io_expanders.items():
+        try:
+            chip.check()
+        except Exception as e:
+            chip.applied = False
+            print(f"TCA9555 {name} error:", e)
+
+
+def poll_io_expanders():
+    """Cache every chip's current pin levels in chip.state (for the Debug >
+    IO tab), so the GUI never has to touch I2C itself."""
+    for name, chip in io_expanders.items():
+        try:
+            chip.state = chip.read_inputs()
+        except Exception as e:
+            if chip.state is not None:   # only report the transition, not every poll
+                print(f"TCA9555 {name} read error:", e)
+            chip.state = None
+            chip.applied = False
+
+
+def _io_chip_for(signal):
+    for chip in io_expanders.values():
+        if chip.has(signal):
+            return chip
+    raise KeyError(f"No TCA9555 pin named {signal!r}")
+
+
+def io_write(signal, value):
+    """Drive an output by its settings signal name, e.g. io_write("FILL_SOL", 1)."""
+    _io_chip_for(signal).write_pin(signal, value)
+
+
+def io_read(signal):
+    """Read a pin by its settings signal name."""
+    return _io_chip_for(signal).read_pin(signal)
+
+
+init_io_expanders()

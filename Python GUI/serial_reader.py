@@ -470,6 +470,9 @@ def cmd_loop():
 def sensor_loop():
     lastTimeINA = 0
     lastTimeChgr = 0
+    lastTimeIox = 0
+    lastTimeIoxRead = 0
+    chgrOk = True   # only report charger errors on the ok -> failing transition, not every poll
     lastSOC = 100 # update to read from memory or text file
     while True:
         try:
@@ -506,10 +509,23 @@ def sensor_loop():
                 for name, value in snsrs.charger.poll().items():
                     setattr(streamTelem, name, value)
                 streamTelem.stationCharging_b = streamTelem.chgrCharging_b
+                if not chgrOk:
+                    print("Charger reconnected")
+                    chgrOk = True
             except Exception as e:
                 streamTelem.chgrConnected_b = 0
                 snsrs.charger.applied = False  # re-write settings once it answers again
-                print("Charger error:", e)
+                if chgrOk:
+                    print("Charger error (will keep retrying quietly):", e)
+                    chgrOk = False
+
+        # Re-init any I/O expander that failed at startup or has reset since.
+        if snsrs.io_expanders and time.time() - lastTimeIox > settings.TCA9555_POLL_INTERVAL_S:
+            lastTimeIox = time.time()
+            snsrs.check_io_expanders()
+        if snsrs.io_expanders and time.time() - lastTimeIoxRead > settings.TCA9555_READ_INTERVAL_S:
+            lastTimeIoxRead = time.time()
+            snsrs.poll_io_expanders()
 
 
 def gps_loop():
@@ -541,7 +557,7 @@ def gps_loop():
             if identity.endswith("GGA"):
                 setfield("gpsLat", parsed.lat)
                 setfield("gpsLon", parsed.lon)
-                setfield("gpsAlt_ft", parsed.alt*3.28084)
+                setfield("gpsAlt_ft", parsed.alt*3.28084 if parsed.alt != "" else "")
                 setfield("gpsNumSV", parsed.numSV)
                 setfield("gpsHDOP", parsed.HDOP)
                 setfield("gpsTime", parsed.time)
@@ -586,13 +602,13 @@ def buzzer_loop():
     while True:
         try:
             if not settings.BUZZER_ENABLED:
-                snsrs.buzzer.off()
+                snsrs.buzzer.change_duty_cycle(0)
                 time.sleep(settings.BUZZER_INTERVAL_S)
                 continue
 
-            snsrs.buzzer.value = 0.5  # 50% duty square wave at BUZZER_FREQUENCY_HZ -> audible tone
+            snsrs.buzzer.change_duty_cycle(50)  # 50% duty square wave at BUZZER_FREQUENCY_HZ -> audible tone
             time.sleep(settings.BUZZER_ON_DURATION_S)
-            snsrs.buzzer.off()
+            snsrs.buzzer.change_duty_cycle(0)
             time.sleep(max(settings.BUZZER_INTERVAL_S - settings.BUZZER_ON_DURATION_S, 0))
         except Exception as e:
             print("Buzzer error:", e)

@@ -79,7 +79,13 @@ inaSampleRate = 5 #Hz
 CPU_TEMP_POLL_INTERVAL_S = 2 # How often to read the ground-station Pi's own CPU temp sensor, in seconds.
 CPU_TEMP_WARN_C = 75.0 # Ground-station Pi CPU temp (°C) at/above which a warning row is shown
 BUZZER_ENABLED = False
-BUZZER_GPIO_PIN = 13
+# Buzzer is on GPIO13 using Pi 5 hardware PWM. Requires this line in
+# /boot/firmware/config.txt (then reboot):
+#   dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4
+# GPIO12 -> channel 0, GPIO13 -> channel 1. The chip is pwmchip0 on Pi 5
+# kernels 6.6.47+ (pwmchip2 on older ones) -- check `ls /sys/class/pwm/`.
+BUZZER_PWM_CHIP = 0
+BUZZER_PWM_CHANNEL = 1
 BUZZER_FREQUENCY_HZ = 4000
 BUZZER_ON_DURATION_S = 1.0
 BUZZER_INTERVAL_S = 5.0
@@ -165,6 +171,112 @@ BQ25887_SETTINGS = {
     "mask_timer":       False, "mask_sns_short": False,
     "mask_cb":          False, "mask_hs_cv":    False, "mask_ls_cv":    False,
     "mask_hs_ov":       False, "mask_ls_ov":    False, "mask_cb_oc":    False,
+}
+
+# ---------------- TCA9555 16-bit I/O expanders (I2C) ----------------
+# Written to each chip at startup, and re-applied automatically if a chip
+# loses its config (power-on reset puts every pin back to input). Datasheet
+# TI SCPS200. Pins are named as on the datasheet: P00-P07 (port 0), P10-P17
+# (port 1). Every I/O has a fixed internal 100k pull-up to VCC.
+#   "name":   optional signal name, so code can use io_write("FILL_SOL", 1)
+#             instead of a chip/pin. Must be unique across all chips.
+#   "mode":   "in" or "out"
+#   "init":   0/1 level driven at startup (outputs only)
+#   "invert": True = input reads back inverted (inputs only)
+TCA9555_ENABLED         = True
+TCA9555_I2C_BUS         = 1
+TCA9555_POLL_INTERVAL_S = 1.0   # how often to check each chip still has its config
+TCA9555_READ_INTERVAL_S = 0.1   # how often to read pin states (shown on Debug > IO)
+
+TCA9555_CHIPS = {
+    "IOX1": {
+        "enabled": True,
+        "address": 0x23,   # 0x20-0x27, set by A2/A1/A0
+        "pins": {
+            "P00": {"name": "LED_ARM",      "mode": "out",  "init": 0, "invert": False},
+            "P01": {"name": "",             "mode": "out",  "init": 0, "invert": False},
+            "P02": {"name": "SW_ARM",       "mode": "in",   "init": 0, "invert": True},
+            "P03": {"name": "",             "mode": "out",  "init": 0, "invert": False},
+            "P04": {"name": "SW_PYRO_FIRE", "mode": "in",   "init": 0, "invert": True},
+            "P05": {"name": "SW_PYRO_CH",   "mode": "in",   "init": 0, "invert": True},
+            "P06": {"name": "",             "mode": "out",  "init": 0, "invert": False},
+            "P07": {"name": "",             "mode": "in",   "init": 0, "invert": False},
+            "P10": {"name": "",             "mode": "out",  "init": 0, "invert": False},
+            "P11": {"name": "SW_REC_EN",    "mode": "in",   "init": 0, "invert": True},
+            "P12": {"name": "",             "mode": "out",  "init": 0, "invert": False},
+            "P13": {"name": "SW_CAMERA_EN", "mode": "in",   "init": 0, "invert": True},
+            "P14": {"name": "",             "mode": "out",  "init": 0, "invert": False},
+            "P15": {"name": "SW_SPARE1",    "mode": "in",   "init": 0, "invert": True},
+            "P16": {"name": "",             "mode": "out",  "init": 0, "invert": False},
+            "P17": {"name": "SW_SPARE2",    "mode": "in",   "init": 0, "invert": True},
+        },
+    },
+    "IOX2": {
+        "enabled": True,
+        "address": 0x22,
+        "pins": {
+            "P00": {"name": "LED_FILL",         "mode": "out", "init": 1, "invert": False},
+            "P01": {"name": "",                 "mode": "out", "init": 0, "invert": False},
+            "P02": {"name": "LED_VENT",         "mode": "out", "init": 0, "invert": False},
+            "P03": {"name": "",                 "mode": "out", "init": 0, "invert": False},
+            "P04": {"name": "LED_MOV",          "mode": "out", "init": 0, "invert": False},
+            "P05": {"name": "",                 "mode": "out", "init": 0, "invert": False},
+            "P06": {"name": "LED_SPARE_VALVE",  "mode": "out", "init": 0, "invert": False},
+            "P07": {"name": "",                 "mode": "out", "init": 0, "invert": False},
+            "P10": {"name": "",                 "mode": "in",  "init": 0, "invert": False},
+            "P11": {"name": "",                 "mode": "in",  "init": 0, "invert": False},
+            "P12": {"name": "",                 "mode": "in",  "init": 0, "invert": False},
+            "P13": {"name": "",                 "mode": "in",  "init": 0, "invert": False},
+            "P14": {"name": "SW_AUTO_FIRE_EN",  "mode": "in",  "init": 0, "invert": True},
+            "P15": {"name": "",                 "mode": "out", "init": 0, "invert": False},
+            "P16": {"name": "SW_TM_EN",         "mode": "in",  "init": 0, "invert": True},
+            "P17": {"name": "",                 "mode": "out", "init": 0, "invert": False},
+        },
+    },
+    "IOX3": {
+        "enabled": True,
+        "address": 0x21,
+        "pins": {
+            "P00": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P01": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P02": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P03": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P04": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P05": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P06": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P07": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P10": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P11": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P12": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P13": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P14": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P15": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P16": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P17": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+        },
+    },
+    "IOX4": {
+        "enabled": True,
+        "address": 0x20,
+        "pins": {
+            "P00": {"name": "SW_FILL",          "mode": "in",   "init": 0, "invert": True},
+            "P01": {"name": "",                 "mode": "out",  "init": 0, "invert": False},
+            "P02": {"name": "SW_VENT",          "mode": "in",   "init": 0, "invert": True},
+            "P03": {"name": "",                 "mode": "out",  "init": 0, "invert": False},
+            "P04": {"name": "SW_MOV",           "mode": "in",   "init": 0, "invert": True},
+            "P05": {"name": "",                 "mode": "out",  "init": 0, "invert": False},
+            "P06": {"name": "SW_SPARE_VALVE",   "mode": "in",   "init": 0, "invert": True},
+            "P07": {"name": "",                 "mode": "out", "init": 0, "invert": False},
+            "P10": {"name": "LED_PWR_ON",       "mode": "out", "init": 0, "invert": False},
+            "P11": {"name": "",                 "mode": "out", "init": 0, "invert": False},
+            "P12": {"name": "LED_TM_RX",        "mode": "out", "init": 0, "invert": False},
+            "P13": {"name": "",                 "mode": "out", "init": 0, "invert": False},
+            "P14": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P15": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P16": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+            "P17": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
+        },
+    },
 }
 
 GPS_MAPS = [
