@@ -293,7 +293,30 @@ class StreamTelem:
     chgrFlagCbTopOv_b:      int   = 0
     chgrFlagCbBotOv_b:      int   = 0
     chgrFlagCbOverCurrent_b: int  = 0
-
+    
+    # Switch Panel Commands / LEDs
+    stationSw_PwrSwStatus:      int   = 0 # 1 = power switch in on position, 0 = off
+    stationLED_Pwr:             int   = 0 # 1 = LED on, 0 = off
+    stationLED_Radio:           int   = 0 # 1 = LED on, 0 = off
+    stationSw_FillVlv:          int   = 0 # 1 = valve open, 0 = valve closed
+    stationSw_VentVlv:          int   = 0 # 1 = valve open, 0 = valve closed
+    stationLED_FillVlv:         int   = 0 # 1 = LED on, 0 = off
+    stationLED_VentVlv:         int   = 0 # 1 = LED on, 0 = off
+    stationSw_MOV:              int   = 0 # 1 = valve open, 0 = valve closed
+    stationSw_SpareVlv:         int   = 0 # 1 = valve open, 0 = valve closed
+    stationLED_MOV:             int   = 0 # 1 = LED on, 0 = off
+    stationLED_SpareVlv:        int   = 0 # 1 = LED on, 0 = off
+    stationSw_TMEnable:         int   = 0 # 1 = On, 0 = off
+    stationSw_CameraEnable:     int   = 0 # 1 = On, 0 = off
+    stationSw_Spare1Enable:     int   = 0 # 1 = On, 0 = off
+    stationSw_Auto_FireEnable:  int   = 0 # 1 = On, 0 = off
+    stationSw_RecordEnable:     int   = 0 # 1 = On, 0 = off
+    stationSw_Spare2Enable:     int   = 0 # 1 = On, 0 = off
+    stationLED_Arm:             int   = 0 # 1 = LED on, 0 = off
+    stationSw_Arm:              int   = 0 # 1 = Arm, 0 = Safe
+    stationSw_PyroChannel:      int   = 0 # 1 = Channel 1, 0 = Channel 2
+    stationSw_PyroFire:         int   = 0 # 1 = Fire, 0 = off
+    
     # GPS (MAX-M10S, via NMEA GGA/RMC)
     gpsFixValid_b:      int   = 0     # True once a GGA/RMC sentence reports a valid fix
     gpsLat:             float = 0.0   # signed decimal degrees, +N/-S
@@ -467,12 +490,65 @@ def cmd_loop():
         except Exception as e:
             print("CMD error:", e)           
 
+def valve_open_feedback(t=None):
+    """Valve name -> 1 if the serial stream reports it open. Shared by the GUI
+    valve LEDs and the switch-panel LEDs so they always agree."""
+    t = t or streamTelem
+    if settings.VALVE_FEEDBACK_FROM_SWITCHES:
+        # Placeholder until the serial feedback is implemented: treat each
+        # valve as open whenever its switch commands it open.
+        return {
+            "FILL": int(bool(t.stationSw_FillVlv)),
+            "VENT": int(bool(t.stationSw_VentVlv)),
+            "MOV":  int(bool(t.stationSw_MOV)),
+        }
+    return {
+        "FILL": int(t.fill_state),
+        "VENT": int(not t.vent_state),
+        "MOV":  int(t.mov_state),
+    }
+
+# valve name -> (switch-panel LED signal, streamTelem field mirroring it)
+SWITCH_PANEL_LEDS = {
+    "FILL": ("LED_FILL", "stationLED_FillVlv"),
+    "VENT": ("LED_VENT", "stationLED_VentVlv"),
+    "MOV":  ("LED_MOV",  "stationLED_MOV"),
+}
+
+def update_switch_panel_leds(written):
+    """Light each switch-panel valve LED while its feedback says open. Only
+    writes on change; `written` holds what's been successfully written, so a
+    failed write is retried on the next call."""
+    for valve, is_open in valve_open_feedback().items():
+        signal, field = SWITCH_PANEL_LEDS[valve]
+        if written.get(signal) == is_open:
+            continue
+        try:
+            snsrs.io_write(signal, is_open)
+        except KeyError:      # LED not on any enabled chip
+            continue
+        except Exception as e:
+            print(f"Switch panel {signal} write error:", e)
+            continue
+        written[signal] = is_open
+        setattr(streamTelem, field, is_open)
+
+# streamTelem field -> TCA9555 signal name (gui_settings.TCA9555_CHIPS)
+SWITCH_PANEL_SIGNALS = {
+    "stationSw_FillVlv":  "SW_FILL",
+    "stationSw_VentVlv":  "SW_VENT",
+    "stationSw_MOV":      "SW_MOV",
+    "stationSw_SpareVlv": "SW_SPARE_VALVE",
+    "stationLED_Pwr":     "LED_PWR_ON",      # output; reads back the driven level
+}
+
 def sensor_loop():
     lastTimeINA = 0
     lastTimeChgr = 0
     lastTimeIox = 0
     lastTimeIoxRead = 0
     chgrOk = True   # only report charger errors on the ok -> failing transition, not every poll
+    panelLedsWritten = {}   # switch-panel LED signal -> last level written
     lastSOC = 100 # update to read from memory or text file
     while True:
         try:
@@ -526,6 +602,13 @@ def sensor_loop():
         if snsrs.io_expanders and time.time() - lastTimeIoxRead > settings.TCA9555_READ_INTERVAL_S:
             lastTimeIoxRead = time.time()
             snsrs.poll_io_expanders()
+            # Switch-panel valve commands (0 if the switch's chip isn't responding)
+            for field, signal in SWITCH_PANEL_SIGNALS.items():
+                try:
+                    setattr(streamTelem, field, snsrs.io_cached(signal) or 0)
+                except KeyError:   # signal not on any enabled chip
+                    setattr(streamTelem, field, 0)
+            update_switch_panel_leds(panelLedsWritten)
 
 
 def gps_loop():

@@ -155,7 +155,11 @@ def updateStatusBar():
     global abort_counter
     
     # Connection status
-    if valid_connection == True:
+    if not snsrs.ON_PI:
+        conn_color = [0, 200, 255]
+        conn_label = "SIMULATION"
+        conn_pos = [26, draw_y // 2 - 19]
+    elif valid_connection == True:
         dpg.configure_item("state_modal", show=False)
         abort_counter_started = 0
         conn_color = [0, 255, 0]
@@ -273,6 +277,8 @@ def updateStatusBar():
         parent="batt_drawlist",
     )
     
+    dpg.set_value("station_temp_status", f"{sr.streamTelem.stationTemp_c:.1f}°C")
+
     dpg.set_value("batt_perc_label", f"{sr.streamTelem.stationInaBattSOC}%")
     dpg.configure_item("batt_perc_label", pos=[80, draw_y // 2 - 22])
 
@@ -328,21 +334,31 @@ def _outline_color():
 def _batt_bg_color():
     return [30, 30, 30] if is_dark_theme else [220, 220, 220]
 
-def update_leds():
-    new_states = {
-        "FILL": sr.streamTelem.fill_state,
-        "VENT": not sr.streamTelem.vent_state,
-        "MOV":  sr.streamTelem.mov_state,
-    }
-    for name, state in new_states.items():
-        if state != settings.led_panel_states[name]["state"]:
-            settings.led_panel_states[name]["state"] = state
-            cfg = settings.led_panel_states[name]
-            color = cfg["color_on"] if state else cfg["color_off"]
-            label = cfg["label_on"] if state else cfg["label_off"]
-            text_color = (0, 0, 0) if state else (100, 100, 100)
+def _led_style(cfg):
+    """(border, fill, label, text color) for a valve LED: fill follows the
+    serial feedback, border lights color_cmd while the switch commands open."""
+    fill = cfg["color_on"] if cfg["state"] else cfg["color_off"]
+    border = cfg["color_cmd"] if cfg["cmd"] else fill
+    label = cfg["label_on"] if cfg["state"] else cfg["label_off"]
+    text_color = (0, 0, 0) if cfg["state"] else (100, 100, 100)
+    return border, fill, label, text_color
 
-            dpg.configure_item(f"led_{name}",     color=color, fill=color)
+def update_leds():
+    t = sr.streamTelem
+    fb = sr.valve_open_feedback(t)
+    new_states = {   # name: (switch panel command, serial feedback)
+        "FILL": (t.stationSw_FillVlv, fb["FILL"]),
+        "VENT": (t.stationSw_VentVlv, fb["VENT"]),
+        "MOV":  (t.stationSw_MOV,     fb["MOV"]),
+    }
+    for name, (cmd, state) in new_states.items():
+        cfg = settings.led_panel_states[name]
+        cmd, state = int(bool(cmd)), int(bool(state))
+        if state != cfg["state"] or cmd != cfg["cmd"]:
+            cfg["state"], cfg["cmd"] = state, cmd
+            border, fill, label, text_color = _led_style(cfg)
+
+            dpg.configure_item(f"led_{name}",     color=border, fill=fill)
             dpg.configure_item(f"led_name_{name}",   color=text_color)
             dpg.configure_item(f"led_status_{name}", text=label, color=text_color)
       
@@ -443,7 +459,11 @@ def _iox_override(sender, app_data, user_data):
         _iox_msg[chip_name] = f"{pin}: enter 0 or 1, not {txt!r}"
         return
     try:
-        snsrs.io_expanders[chip_name].write_pin(pin, int(txt))
+        chip = snsrs.io_expanders[chip_name]
+        if settings.TCA9555_CHIPS[chip_name]["pins"][pin]["mode"] == "in":
+            chip.sim_set_input(pin, int(txt))   # only offered on simulated chips
+        else:
+            chip.write_pin(pin, int(txt))
         _iox_msg[chip_name] = f"{pin} set to {txt}"
     except Exception as e:
         _iox_msg[chip_name] = f"{pin} write failed: {e}"
@@ -763,7 +783,12 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                     dpg.add_text("Fill Time: 00:00", tag="live_fill_time")
                     dpg.bind_item_font(dpg.last_item(), settings.xl)
 
-            dpg.add_spacer(width=200)
+            dpg.add_spacer(width=50)
+
+            # ---- Ground station temp ----
+            with dpg.child_window(width=140, height=STATUS_BOX_H, border=True, no_scrollbar=True):
+                dpg.add_text("--.-°C", tag="station_temp_status")
+                dpg.bind_item_font(dpg.last_item(), settings.xl)
 
             # ---- GPS Signal ----
             with dpg.child_window(width=120, height=STATUS_BOX_H, border=True, no_scrollbar=True):
@@ -1006,7 +1031,8 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                                                     dpg.add_text(_p["name"] or "-")
                                                     dpg.add_text("in (inv)" if _p["mode"] == "in" and _p["invert"] else _p["mode"])
                                                     dpg.add_text("--", tag=f"iox_{_name}_{_pin}")
-                                                    if _p["mode"] == "out":
+                                                    # Inputs can be set too on a simulated chip (PC testing) to fake a switch.
+                                                    if _p["mode"] == "out" or getattr(snsrs.io_expanders[_name], "simulated", False):
                                                         dpg.add_input_text(width=-1, hint="0/1", on_enter=True, no_spaces=True,
                                                                            callback=_iox_override, user_data=(_name, _pin))
                                                     else:
@@ -1121,16 +1147,15 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                                     x = settings.LED_SPACING_X + col * (settings.LED_W + settings.LED_SPACING_X)
                                     y = settings.LED_SPACING_Y + row * (settings.LED_H + settings.LED_SPACING_Y)
 
-                                    color = cfg["color_on"] if cfg["state"] else cfg["color_off"]
-                                    label = cfg["label_on"] if cfg["state"] else cfg["label_off"]
-                                    text_color = (0, 0, 0) if cfg["state"] else (100, 100, 100)
+                                    border, fill, label, text_color = _led_style(cfg)
 
                                     # LED rectangle
                                     dpg.draw_rectangle(
                                         [x, y], [x + settings.LED_W, y + settings.LED_H],
                                         rounding=6,
-                                        color=color,
-                                        fill=color,
+                                        color=border,
+                                        fill=fill,
+                                        thickness=settings.LED_BORDER_THICKNESS,
                                         tag=f"led_{name}"
                                     )
                                     # name label (top-left inside)
@@ -1184,12 +1209,14 @@ dpg.set_viewport_resize_callback(resize_viewport)
 
 dpg.setup_dearpygui()
 dpg.show_viewport()
-# Let the window manager actually map the window before requesting
-# fullscreen -- toggling immediately after show_viewport() races with
-# the WM on Linux (X11/Wayland) and the request is sometimes dropped.
-for _ in range(5):
-    dpg.render_dearpygui_frame()
-dpg.toggle_viewport_fullscreen()
+# Fullscreen only on the ground-station Pi; on a dev PC stay windowed.
+if snsrs.ON_PI:
+    # Let the window manager actually map the window before requesting
+    # fullscreen -- toggling immediately after show_viewport() races with
+    # the WM on Linux (X11/Wayland) and the request is sometimes dropped.
+    for _ in range(5):
+        dpg.render_dearpygui_frame()
+    dpg.toggle_viewport_fullscreen()
 
 # Auto screen size adjust
 dpg.bind_item_handler_registry("main_window", "vp_handler")

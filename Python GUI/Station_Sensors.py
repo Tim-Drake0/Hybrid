@@ -1,17 +1,27 @@
+import os
+import sys
 import time
+import random
 import threading
-import board
-from adafruit_bme280 import basic as adafruit_bme280
-import adafruit_ads1x15.ads1115 as ADS
-from adafruit_ads1x15.analog_in import AnalogIn
-from ina219 import INA219
-from ina219 import DeviceRangeError
-from rpi_hardware_pwm import HardwarePWM
 from pyubx2 import UBXReader, NMEA_PROTOCOL, UBX_PROTOCOL
-from smbus2 import SMBus, i2c_msg
 import gui_settings as settings
 
-i2c = board.I2C()  # uses board.SCL and board.SDA
+# Real station hardware only exists on the Pi. Anywhere else (e.g. a Windows
+# dev PC) the sensors, GPS, buzzer, charger and I/O expanders are replaced by
+# stand-ins below so the GUI can still be run for basic testing.
+ON_PI = sys.platform.startswith("linux") and os.path.exists("/dev/i2c-1")
+
+if ON_PI:
+    import board
+    from adafruit_bme280 import basic as adafruit_bme280
+    import adafruit_ads1x15.ads1115 as ADS
+    from adafruit_ads1x15.analog_in import AnalogIn
+    from ina219 import INA219
+    from ina219 import DeviceRangeError
+    from rpi_hardware_pwm import HardwarePWM
+    from smbus2 import SMBus, i2c_msg
+else:
+    print("Station_Sensors: no Pi I2C bus found -- using simulated station hardware")
 
 # bme280/ads1115 share this `i2c` (Blinka) object and may be accessed from
 # different threads, so every transaction through it must be serialized with
@@ -19,32 +29,78 @@ i2c = board.I2C()  # uses board.SCL and board.SDA
 # (see below) so they don't need it.
 i2c_lock = threading.Lock()
 
-# Passive buzzer: needs a driven square wave (not just DC) to produce a tone.
-# Hardware PWM so the tone stays clean regardless of CPU/GIL load (gpiozero's
-# software PWM jittered at 4 kHz and sounded crackly). Needs the pwm-2chan
-# overlay in /boot/firmware/config.txt -- see BUZZER_PWM_* in gui_settings.
-buzzer = HardwarePWM(pwm_channel=settings.BUZZER_PWM_CHANNEL, hz=settings.BUZZER_FREQUENCY_HZ,
-                     chip=settings.BUZZER_PWM_CHIP)
-buzzer.start(0)
-
-bme280 = adafruit_bme280.Adafruit_BME280_I2C(i2c)
-
-ads = ADS.ADS1115(i2c, address=0x49)
-# 2/3 = +/-6.144V, 1 = +/-4.096V, 2 = +/-2.048V
-ads.gain = 1 
-
-# 4. Assign the pin channel (0 corresponds to hardware pin A0)
-vusb_mon_v = AnalogIn(ads, 0)
-batt_mon_v = AnalogIn(ads, 1)
-spare_mon_v = AnalogIn(ads, 2)
-radio_mon_v = AnalogIn(ads, 3)
-
 # Define your shunt resistor ohm value and maximum expected current
 SHUNT_OHMS = 0.05
 MAX_EXPECTED_AMPS = 4
 
-ina = INA219(SHUNT_OHMS, MAX_EXPECTED_AMPS, busnum=1, address=0x45)
-ina.configure(ina.RANGE_16V)
+if ON_PI:
+    i2c = board.I2C()  # uses board.SCL and board.SDA
+
+    # Passive buzzer: needs a driven square wave (not just DC) to produce a tone.
+    # Hardware PWM so the tone stays clean regardless of CPU/GIL load (gpiozero's
+    # software PWM jittered at 4 kHz and sounded crackly). Needs the pwm-2chan
+    # overlay in /boot/firmware/config.txt -- see BUZZER_PWM_* in gui_settings.
+    buzzer = HardwarePWM(pwm_channel=settings.BUZZER_PWM_CHANNEL, hz=settings.BUZZER_FREQUENCY_HZ,
+                         chip=settings.BUZZER_PWM_CHIP)
+    buzzer.start(0)
+
+    bme280 = adafruit_bme280.Adafruit_BME280_I2C(i2c)
+
+    ads = ADS.ADS1115(i2c, address=0x49)
+    # 2/3 = +/-6.144V, 1 = +/-4.096V, 2 = +/-2.048V
+    ads.gain = 1
+
+    # 4. Assign the pin channel (0 corresponds to hardware pin A0)
+    vusb_mon_v = AnalogIn(ads, 0)
+    batt_mon_v = AnalogIn(ads, 1)
+    spare_mon_v = AnalogIn(ads, 2)
+    radio_mon_v = AnalogIn(ads, 3)
+
+    ina = INA219(SHUNT_OHMS, MAX_EXPECTED_AMPS, busnum=1, address=0x45)
+    ina.configure(ina.RANGE_16V)
+
+else:
+    # ---------------- simulated hardware (non-Pi) ----------------
+    def _noisy(value, spread):
+        return value + random.uniform(-spread, spread)
+
+    class _SimBME280:
+        @property
+        def temperature(self):
+            # Real I2C reads take a few ms; without this sensor_loop would
+            # spin a whole CPU core on the PC.
+            time.sleep(0.05)
+            return _noisy(22.0, 0.2)
+
+        @property
+        def altitude(self):
+            return _noisy(150.0, 0.5)
+
+    class _SimADC:
+        # Raw ADC pin volts; serial_reader scales these by the divider ratios.
+        def __init__(self, volts):
+            self._volts = volts
+
+        @property
+        def voltage(self):
+            return _noisy(self._volts, 0.005)
+
+    class _SimINA219:
+        def current(self): return _noisy(450.0, 20.0)    # mA
+        def power(self):   return _noisy(3400.0, 150.0)  # mW
+        def voltage(self): return _noisy(7.6, 0.02)      # V
+
+    class _SimBuzzer:
+        def change_duty_cycle(self, duty): pass
+        def stop(self): pass
+
+    buzzer = _SimBuzzer()
+    bme280 = _SimBME280()
+    vusb_mon_v  = _SimADC(2.98)   # ~5.0 V after scaling
+    batt_mon_v  = _SimADC(2.56)   # ~7.6 V
+    spare_mon_v = _SimADC(0.0)
+    radio_mon_v = _SimADC(1.68)   # ~5.0 V
+    ina = _SimINA219()
 
 
 # ---------------- MAX-M10S GPS (I2C / DDC) ----------------
@@ -118,8 +174,19 @@ class I2CGPSStream:
         self._bus.i2c_rdwr(i2c_msg.write(self._address, bytes(data)))
 
 
-gps_stream = I2CGPSStream(1, GPS_I2C_ADDRESS)
-gps_reader = UBXReader(gps_stream, protfilter=NMEA_PROTOCOL | UBX_PROTOCOL)
+class _SimGPSReader:
+    """Stand-in for the UBXReader off the Pi: produces no messages, and
+    blocks like a real read so gps_loop doesn't spin."""
+    def read(self):
+        time.sleep(1.0)
+        return None, None
+
+
+if ON_PI:
+    gps_stream = I2CGPSStream(1, GPS_I2C_ADDRESS)
+    gps_reader = UBXReader(gps_stream, protfilter=NMEA_PROTOCOL | UBX_PROTOCOL)
+else:
+    gps_reader = _SimGPSReader()
 
 
 # ---------------- BQ25887 2S charger (I2C) ----------------
@@ -413,7 +480,7 @@ class BQ25887:
 
 
 charger = None
-if settings.BQ25887_ENABLED:
+if settings.BQ25887_ENABLED and ON_PI:
     charger = BQ25887(settings.BQ25887_I2C_BUS, settings.BQ25887_I2C_ADDRESS, settings.BQ25887_SETTINGS)
 
 
@@ -443,7 +510,7 @@ class TCA9555:
 
     def __init__(self, name, bus_num, cfg):
         self.name = name
-        self._bus = SMBus(bus_num)
+        self._bus = self._open_bus(bus_num)
         self._address = cfg["address"]
         # Validate up front so a bad settings file fails loudly.
         self._config, self._polarity, self._output, self._bits = self.encode_settings(name, cfg)
@@ -488,6 +555,9 @@ class TCA9555:
         return config, polarity, output, bits
 
     # ---- I2C ----
+    def _open_bus(self, bus_num):
+        return SMBus(bus_num)
+
     def _read16(self, reg):
         lo, hi = self._bus.read_i2c_block_data(self._address, reg, 2)
         return lo | (hi << 8)
@@ -551,7 +621,43 @@ class TCA9555:
             self._output = out
 
 
-io_expanders = {}   # chip name -> TCA9555
+class _SimTCA9555(TCA9555):
+    """In-memory TCA9555 for running off the Pi. Behaves like the real chip
+    (registers, polarity inversion, outputs reading back their latch), and
+    sim_set_input() stands in for flipping a physical switch."""
+
+    simulated = True
+
+    def _open_bus(self, bus_num):
+        # Power-on register defaults: outputs latched high, no inversion, all
+        # pins inputs. Every pin idles high from its internal pull-up.
+        self._regs = {self.REG_OUTPUT: 0xFFFF, self.REG_POLARITY: 0x0000, self.REG_CONFIG: 0xFFFF}
+        self._pin_levels = 0xFFFF
+        return None
+
+    def _read16(self, reg):
+        if reg == self.REG_INPUT:
+            cfg = self._regs[self.REG_CONFIG]
+            level = (self._pin_levels & cfg) | (self._regs[self.REG_OUTPUT] & ~cfg & 0xFFFF)
+            return level ^ (self._regs[self.REG_POLARITY] & cfg)
+        return self._regs[reg]
+
+    def _write16(self, reg, val):
+        if reg != self.REG_INPUT:
+            self._regs[reg] = val & 0xFFFF
+
+    def sim_set_input(self, pin, value):
+        """Set an input pin so it reads back as `value` (after polarity
+        inversion), e.g. sim_set_input("SW_FILL", 1) = switch on."""
+        bit = self._bit(pin)
+        if not (self._config >> bit) & 1:
+            raise ValueError(f"TCA9555 {self.name}: {pin!r} is configured as an output")
+        level = bool(value) ^ bool((self._polarity >> bit) & 1)
+        with self._lock:
+            self._pin_levels = (self._pin_levels | (1 << bit)) if level else (self._pin_levels & ~(1 << bit))
+
+
+io_expanders = {}   # chip name -> TCA9555 (_SimTCA9555 off the Pi)
 if settings.TCA9555_ENABLED:
     _enabled = {n: c for n, c in settings.TCA9555_CHIPS.items() if c["enabled"]}
     _addresses = [c["address"] for c in _enabled.values()]
@@ -561,7 +667,7 @@ if settings.TCA9555_ENABLED:
     if len(_signals) != len(set(_signals)):
         raise ValueError("TCA9555_CHIPS: a signal name is used on more than one pin")
     for _name, _cfg in _enabled.items():
-        io_expanders[_name] = TCA9555(_name, settings.TCA9555_I2C_BUS, _cfg)
+        io_expanders[_name] = (TCA9555 if ON_PI else _SimTCA9555)(_name, settings.TCA9555_I2C_BUS, _cfg)
 
 
 def init_io_expanders():
@@ -618,6 +724,13 @@ def io_write(signal, value):
 def io_read(signal):
     """Read a pin by its settings signal name."""
     return _io_chip_for(signal).read_pin(signal)
+
+
+def io_cached(signal):
+    """A pin's level from the last poll_io_expanders() (no I2C traffic), or
+    None if its chip isn't responding."""
+    chip = _io_chip_for(signal)
+    return None if chip.state is None else (chip.state >> chip._bit(signal)) & 1
 
 
 init_io_expanders()

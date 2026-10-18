@@ -15,16 +15,26 @@ STATUS_BAR_SIZE = (WINDOW_DIM[0] - 25, 60)
 y_offset = 32
 x_offset = 5
 
-LED_W = 130
-LED_H = 120
+LED_W = 115
+LED_H = 115
 LED_SPACING_X = 10
 LED_SPACING_Y = 10
 LED_COLS = 1
 
+LED_BORDER_THICKNESS = 6
+
+# True = valve "feedback" (LED centres, switch-panel LEDs) just mirrors the
+# switch-panel command. Set False once the serial stream reports real valve
+# states (fill/vent/mov_state).
+VALVE_FEEDBACK_FROM_SWITCHES = True
+
+# Centre = valve feedback from the serial stream (color_on/color_off).
+# Border = switch panel command: color_cmd while the switch commands open,
+# otherwise the same as the centre.
 led_panel_states = {
-    "FILL":   {"state": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "label_on": "OPEN",   "label_off": "CLOSED"},
-    "VENT":   {"state": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "label_on": "OPEN",   "label_off": "CLOSED"},
-    "MOV":    {"state": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "label_on": "OPEN",   "label_off": "CLOSED"},
+    "FILL":   {"state": 0, "cmd": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "color_cmd": (255, 170, 0),  "label_on": "OPEN",   "label_off": "CLOSED"},
+    "VENT":   {"state": 0, "cmd": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "color_cmd": (255, 170, 0),  "label_on": "OPEN",   "label_off": "CLOSED"},
+    "MOV":    {"state": 0, "cmd": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "color_cmd": (255, 170, 0),  "label_on": "OPEN",   "label_off": "CLOSED"},
 }
 
 EVENTS_WINDOW_SIZE = (150,400)
@@ -215,9 +225,9 @@ TCA9555_CHIPS = {
         "enabled": True,
         "address": 0x22,
         "pins": {
-            "P00": {"name": "LED_FILL",         "mode": "out", "init": 1, "invert": False},
-            "P01": {"name": "",                 "mode": "out", "init": 0, "invert": False},
-            "P02": {"name": "LED_VENT",         "mode": "out", "init": 0, "invert": False},
+            "P00": {"name": "",                 "mode": "in",  "init": 0, "invert": False},
+            "P01": {"name": "",                 "mode": "in",  "init": 0, "invert": False},
+            "P02": {"name": "",                 "mode": "in",  "init": 0, "invert": False},
             "P03": {"name": "",                 "mode": "out", "init": 0, "invert": False},
             "P04": {"name": "LED_MOV",          "mode": "out", "init": 0, "invert": False},
             "P05": {"name": "",                 "mode": "out", "init": 0, "invert": False},
@@ -259,18 +269,18 @@ TCA9555_CHIPS = {
         "enabled": True,
         "address": 0x20,
         "pins": {
-            "P00": {"name": "SW_FILL",          "mode": "in",   "init": 0, "invert": True},
+            "P00": {"name": "LED_VENT",         "mode": "out",  "init": 0, "invert": False},
             "P01": {"name": "",                 "mode": "out",  "init": 0, "invert": False},
             "P02": {"name": "SW_VENT",          "mode": "in",   "init": 0, "invert": True},
             "P03": {"name": "",                 "mode": "out",  "init": 0, "invert": False},
-            "P04": {"name": "SW_MOV",           "mode": "in",   "init": 0, "invert": True},
+            "P04": {"name": "LED_FILL",         "mode": "out",  "init": 0, "invert": False},
             "P05": {"name": "",                 "mode": "out",  "init": 0, "invert": False},
-            "P06": {"name": "SW_SPARE_VALVE",   "mode": "in",   "init": 0, "invert": True},
-            "P07": {"name": "",                 "mode": "out", "init": 0, "invert": False},
-            "P10": {"name": "LED_PWR_ON",       "mode": "out", "init": 0, "invert": False},
-            "P11": {"name": "",                 "mode": "out", "init": 0, "invert": False},
-            "P12": {"name": "LED_TM_RX",        "mode": "out", "init": 0, "invert": False},
-            "P13": {"name": "",                 "mode": "out", "init": 0, "invert": False},
+            "P06": {"name": "SW_FILL",          "mode": "in",   "init": 0, "invert": True},
+            "P07": {"name": "",                 "mode": "out",  "init": 0, "invert": False},
+            "P10": {"name": "LED_PWR_ON",       "mode": "out",  "init": 1, "invert": False},   # always on while the Pi is up
+            "P11": {"name": "",                 "mode": "out",  "init": 0, "invert": False},
+            "P12": {"name": "LED_TM_RX",        "mode": "out",  "init": 0, "invert": False},
+            "P13": {"name": "",                 "mode": "out",  "init": 0, "invert": False},
             "P14": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
             "P15": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
             "P16": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
