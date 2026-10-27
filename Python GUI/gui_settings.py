@@ -101,6 +101,18 @@ BUZZER_FREQUENCY_HZ = 4000
 BUZZER_ON_DURATION_S = 1.0
 BUZZER_INTERVAL_S = 5.0
 
+# ---------------- Radio serial link ----------------
+# On the Pi the radio is on UART0: GPIO14 = TX (pin 8), GPIO15 = RX (pin 10),
+# enabled by dtparam=uart0=on. (/dev/serial0 is the debug-connector UART.)
+RADIO_SERIAL_PORT_PI = "/dev/ttyAMA0"
+RADIO_SERIAL_PORT_PC = "COM5"
+RADIO_BAUD_RATE      = 115200
+
+# Switch-state packet (serial_writer.CMD_SWITCH_STATES) sent on the radio
+# link: immediately whenever a switch changes, and at least this often.
+SWITCH_PACKET_ENABLED    = True
+SWITCH_PACKET_INTERVAL_S = 0.2
+
 # ---------------- BQ25887 2S charger (I2C) ----------------
 # Written to the chip at startup, and re-applied automatically if the chip's
 # I2C watchdog expires or a register no longer matches (the watchdog resets

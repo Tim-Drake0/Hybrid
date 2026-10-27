@@ -23,8 +23,8 @@ import INFO_LSM9DS1 as lsm9ds1
 import INFO_EEPROM as eeprom
 
 # ---------------- CONFIG ----------------
-SERIAL_PORT = "COM5"#["COM2","COM3","COM4","COM5","COM6","COM7","COM8"]
-BAUD_RATE = 115200
+SERIAL_PORT = settings.RADIO_SERIAL_PORT_PI if snsrs.ON_PI else settings.RADIO_SERIAL_PORT_PC
+BAUD_RATE = settings.RADIO_BAUD_RATE
 
 STREAM_NAME = "streamSerialTelem"
 MAX_POINTS = 500
@@ -658,6 +658,8 @@ def sensor_loop():
     lastTimeIoxRead = 0
     chgrOk = True   # only report charger errors on the ok -> failing transition, not every poll
     switchLevels = {}       # IOX1/IOX2 switch signal -> last level seen (check_switch_events)
+    lastSwitchBits = None   # last switch bitfield sent on the radio link
+    lastSwitchTx = 0
     lastSOC = 100 # update to read from memory or text file
     while True:
         try:
@@ -725,6 +727,15 @@ def sensor_loop():
             update_indicators()
         except Exception as e:
             print("update_indicators error:", e)
+
+        # Switch states out on the radio link: on any change, else every
+        # SWITCH_PACKET_INTERVAL_S. A switch whose chip isn't answering reads 0.
+        if settings.SWITCH_PACKET_ENABLED:
+            bits = sw.switch_bits(streamTelem)
+            now = time.time()
+            if bits != lastSwitchBits or now - lastSwitchTx >= settings.SWITCH_PACKET_INTERVAL_S:
+                if sw.send_switch_states(bits):
+                    lastSwitchBits, lastSwitchTx = bits, now
 
 
 def gps_loop():

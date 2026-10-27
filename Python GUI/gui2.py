@@ -174,7 +174,9 @@ def updateStatusBar():
         conn_pos = [6, draw_y // 2 - 17]
         
     # Safe, Arm, Fired status
-    if sr.streamTelem.arm_state == True:
+    # Same source as the ARM LED: the arm switch while
+    # VALVE_FEEDBACK_FROM_SWITCHES is on, the rocket's arm_state otherwise.
+    if sr.valve_open_feedback()["ARM"]:
         pyro_fired = bool(sr.streamTelem.py1_state) or bool(sr.streamTelem.py2_state)
         if pyro_fired:
             arm_color = [255, 30, 30]

@@ -29,9 +29,40 @@ CMD_END       = [0xEF, 0xBE]
 CMD_PING                    = 0x01
 CMD_GET_BME280_SETTINGS     = 0x02
 CMD_GET_LSM9DS1_SETTINGS    = 0x03
+CMD_SWITCH_STATES           = 0x10   # 0x04/0x05 are the EEPROM commands in Sensor Info/
+
+# == Switch-state packet ========================================================
+# CMD_SWITCH_STATES payload, 3 bytes, little-endian:
+#   [0]    uint8   sequence number (increments every packet, wraps at 255)
+#   [1..2] uint16  switch bits, bit N = SWITCH_PACKET_BITS[N] (1 = switch on)
+# Full frame: DE AD 10 03 <seq> <bits lo> <bits hi> <crc> EF BE (10 bytes).
+#
+# Deliberately NOT the old CONTROL_Nano Switch_Payload (AB CD header, 9 bool
+# bytes): DAQ_teensy acts on that one (moves servos, fires pyros), so this
+# packet must never be mistaken for it.
+#
+# Order matters -- the Teensy side decodes by bit position. Add new switches
+# at the end. Keep in sync with SWITCH_NAMES in tools/switch_packet_test.
+SWITCH_PACKET_BITS = [
+    "stationSw_FillVlv",          # bit 0
+    "stationSw_VentVlv",          # bit 1
+    "stationSw_MOV",              # bit 2
+    "stationSw_SpareVlv",         # bit 3
+    "stationSw_Arm",              # bit 4
+    "stationSw_PyroFire",         # bit 5
+    "stationSw_PyroChannel",      # bit 6  (1 = channel 1, 0 = channel 2)
+    "stationSw_Auto_FireEnable",  # bit 7
+    "stationSw_TMEnable",         # bit 8
+    "stationSw_RecordEnable",     # bit 9
+    "stationSw_CameraEnable",     # bit 10
+    "stationSw_Spare1Enable",     # bit 11
+    "stationSw_Spare2Enable",     # bit 12
+]
+
 # == Internal ===================================================================
 _ser      = None                # set by init()
 _tx_lock  = threading.Lock()   # one transmission at a time
+_switch_seq = 0
 
 def _crc8(data: bytes) -> int:
     """XOR CRC over all bytes. Matches the C crc8() in serial_cmd.c."""
@@ -87,6 +118,24 @@ def init(serial_handle):
 # == Command functions ==========================================================
 # Each function is one command. Add parameters to the payload struct as needed.
 # Use struct.pack() to serialise — big-endian (">") to match your existing style.
+
+def switch_bits(telem) -> int:
+    """Pack the SWITCH_PACKET_BITS fields of `telem` into the uint16 bitfield."""
+    bits = 0
+    for i, field in enumerate(SWITCH_PACKET_BITS):
+        if getattr(telem, field, 0):
+            bits |= 1 << i
+    return bits
+
+def send_switch_states(bits: int) -> bool:
+    """Send a CMD_SWITCH_STATES packet. Returns False (quietly -- it's sent
+    several times a second) if the radio port isn't open."""
+    global _switch_seq
+    if _ser is None or not _ser.is_open:
+        return False
+    ok = _send(CMD_SWITCH_STATES, struct.pack("<BH", _switch_seq, bits & 0xFFFF))
+    _switch_seq = (_switch_seq + 1) & 0xFF
+    return ok
 
 def send_ping() -> bool:
     print("Send ping")
