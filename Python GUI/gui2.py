@@ -345,9 +345,44 @@ def _led_style(cfg):
     text_color = (0, 0, 0) if cfg["state"] else (100, 100, 100)
     return border, fill, label, text_color
 
+_status_led_themes = {}   # (fill, text color) -> button theme
+
+def _status_led_theme(fill, text_color):
+    """Button theme that makes a button look like a lit/unlit LED (same
+    colour when hovered or clicked, so it doesn't look interactive)."""
+    key = (tuple(fill), tuple(text_color))
+    if key not in _status_led_themes:
+        with dpg.theme() as theme:
+            with dpg.theme_component(dpg.mvButton):
+                for col in (dpg.mvThemeCol_Button, dpg.mvThemeCol_ButtonHovered, dpg.mvThemeCol_ButtonActive):
+                    dpg.add_theme_color(col, fill, category=dpg.mvThemeCat_Core)
+                dpg.add_theme_color(dpg.mvThemeCol_Text, text_color, category=dpg.mvThemeCat_Core)
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6, category=dpg.mvThemeCat_Core)
+        _status_led_themes[key] = theme
+    return _status_led_themes[key]
+
+def _apply_status_led(name, cfg):
+    on = cfg["state"]
+    fill = cfg["color_on"] if on else cfg["color_off"]
+    # Dark text on any bright fill (lit, or a coloured "off" like the red
+    # GOOD LEDs); grey text only on a dim unlit fill.
+    text_color = (0, 0, 0) if max(fill) > 100 else (140, 140, 140)
+    dpg.configure_item(f"sled_{name}", label=cfg["label_on"] if on else cfg["label_off"])
+    dpg.bind_item_theme(f"sled_{name}", _status_led_theme(fill, text_color))
+
+def update_status_leds():
+    """Update the status LEDs that changed (state is set in
+    sr.update_indicators())."""
+    for name, cfg in settings.status_leds.items():
+        on = sr.gui_leds.get(name, (0, 0))[0]
+        if on != cfg["state"]:
+            cfg["state"] = on
+            _apply_status_led(name, cfg)
+
 def update_leds():
     """Draw the GUI LEDs from sr.gui_leds. What they show is decided in
     sr.update_indicators() -- this only redraws the ones that changed."""
+    update_status_leds()
     for name, cfg in settings.led_panel_states.items():
         state, cmd = sr.gui_leds.get(name, (0, 0))
         if state != cfg["state"] or cmd != cfg["cmd"]:
@@ -912,9 +947,22 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                         
                     with dpg.group(horizontal=True):
                         dpg.add_text("Max Acceleration: 0.0 G", tag="rkt_max_g")
-                        dpg.bind_item_font(dpg.last_item(), settings.xl)    
+                        dpg.bind_item_font(dpg.last_item(), settings.xl)
 
-                    dpg.add_separator()   
+                    dpg.add_separator()
+
+                    # Status LED grid (settings.status_leds, set in sr.update_indicators())
+                    _sl_names = list(settings.status_leds)
+                    _sl_cols = settings.STATUS_LED_COLS
+                    with dpg.table(header_row=False, tag="status_led_table", policy=dpg.mvTable_SizingStretchSame):
+                        for _ in range(_sl_cols):
+                            dpg.add_table_column()
+                        for _r in range(0, len(_sl_names), _sl_cols):
+                            with dpg.table_row():
+                                for _name in _sl_names[_r:_r + _sl_cols]:
+                                    dpg.add_button(label="", tag=f"sled_{_name}", width=-1, height=settings.STATUS_LED_H)
+                                    dpg.bind_item_font(dpg.last_item(), settings.status_led)
+                                    _apply_status_led(_name, settings.status_leds[_name])
                     
                     
                 with dpg.tab(label="Debug"):
@@ -1038,7 +1086,7 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
     # ERROR window
     with dpg.child_window(width=layout["error_window"]["size"][0], height=layout["error_window"]["size"][1], pos=layout["error_window"]["pos"], tag="error_window", show=True):
         dpg.add_text("Error Info")
-        with dpg.table(tag="error_table", header_row=False, borders_innerH=True, 
+        with dpg.table(tag="error_table", header_row=False, borders_innerH=True,
                borders_outerH=True, borders_outerV=True):
             dpg.add_table_column()
         

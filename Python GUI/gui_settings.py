@@ -38,6 +38,32 @@ led_panel_states = {
     "MOV":    {"state": 0, "cmd": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "color_cmd": (255, 170, 0),  "label_on": "OPEN",   "label_off": "CLOSED"},
 }
 
+# Status LED grid in the Live Info tab, below Max Acceleration. Laid out
+# left-to-right, top-to-bottom in STATUS_LED_COLS columns, in this order. Set
+# each one in serial_reader.update_indicators() with set_gui_led(name, on) --
+# the names share that namespace with led_panel_states above. label_on/
+# label_off let one LED show two states (e.g. PYRO 1 / PYRO 2).
+# Each LED is a button filling its column; the text uses a font loaded at
+# exactly STATUS_LED_TEXT_SIZE so it stays sharp. 3 columns x 3 rows fits
+# the space; the 9th cell is free for one more LED.
+STATUS_LED_H    = 44
+STATUS_LED_COLS = 3
+STATUS_LED_TEXT_SIZE = 30
+
+_SL_ON, _SL_OFF = (0, 200, 0), (45, 45, 45)
+status_leds = {
+    # row 1
+    "CAMERA_ON":    {"state": 0, "label_on": "CAMERA ON",    "label_off": "CAMERA ON",    "color_on": _SL_ON,          "color_off": _SL_OFF},
+    "RADIO_ON":     {"state": 0, "label_on": "RADIO ON",     "label_off": "RADIO ON",     "color_on": _SL_ON,          "color_off": _SL_OFF},
+    "AUTO_FIRE":    {"state": 0, "label_on": "AUTO-FIRE",    "label_off": "AUTO-FIRE",    "color_on": (255, 115, 0),   "color_off": _SL_OFF},
+    "PYRO_CH":      {"state": 0, "label_on": "PYRO 1",       "label_off": "PYRO 2",       "color_on": (0, 200, 255),   "color_off": (0, 200, 255)},
+    # row 2
+    "PWR_GOOD":     {"state": 0, "label_on": "PWR GOOD",     "label_off": "PWR GOOD",     "color_on": _SL_ON,          "color_off": (255, 0, 0)},
+    "PROP_GOOD":    {"state": 0, "label_on": "PROP GOOD",    "label_off": "PROP GOOD",    "color_on": _SL_ON,          "color_off": (255, 0, 0)},
+    "NAV_GOOD":     {"state": 0, "label_on": "NAV GOOD",     "label_off": "NAV GOOD",     "color_on": _SL_ON,          "color_off": (255, 0, 0)},
+    "STATION_GOOD": {"state": 0, "label_on": "STN GOOD",     "label_off": "STN GOOD",     "color_on": _SL_ON,          "color_off": (255, 0, 0)},
+}
+
 EVENTS_WINDOW_SIZE = (150,400)
 EVENTS_WINDOW_POS = (WINDOW_DIM[0] - EVENTS_WINDOW_SIZE[0], STATUS_BAR_SIZE[1] + 10)
 
@@ -363,11 +389,12 @@ def show_right_window(tag):
     dpg.show_item(tag)
     
 def createFonts():
-    global small, default, medium, large, xl
+    global small, default, medium, large, xl, status_led
     with dpg.font_registry():
         small = dpg.add_font("Assets/RobotoMono-Regular.ttf", 14)
         default = dpg.add_font("Assets/RobotoMono-Regular.ttf", 18)
         medium = dpg.add_font("Assets/RobotoMono-Regular.ttf", 25)
         large = dpg.add_font("Assets/RobotoMono-Regular.ttf", 30)
         xl = dpg.add_font("Assets/RobotoMono-Regular.ttf", 40)
+        status_led = dpg.add_font("Assets/RobotoMono-Regular.ttf", STATUS_LED_TEXT_SIZE)
     

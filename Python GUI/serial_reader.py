@@ -539,6 +539,16 @@ def update_indicators():
     set_gui_led("VENT", fb["VENT"], cmd=t.stationSw_VentVlv)
     set_gui_led("MOV",  fb["MOV"],  cmd=t.stationSw_MOV)
 
+    # GUI status LEDs beside the error list (settings.status_leds)
+    set_gui_led("CAMERA_ON", t.stationSw_CameraEnable)     # TODO: camera feedback once it exists
+    set_gui_led("AUTO_FIRE", t.stationSw_Auto_FireEnable)
+    set_gui_led("PYRO_CH",   t.stationSw_PyroChannel)      # on = "PYRO 1", off = "PYRO 2"
+    set_gui_led("RADIO_ON",  t.stationSw_TMEnable)
+    set_gui_led("PWR_GOOD",     0)   # TODO
+    set_gui_led("PROP_GOOD",    0)   # TODO
+    set_gui_led("NAV_GOOD",     0)   # TODO
+    set_gui_led("STATION_GOOD", 0)   # TODO
+
 
 _leds_written = {}   # panel LED signal -> last level successfully written
 _led_errors = set()  # panel LED signals whose last write failed (report once)
