@@ -28,9 +28,10 @@ LED_BORDER_THICKNESS = 6
 # states (fill/vent/mov_state).
 VALVE_FEEDBACK_FROM_SWITCHES = True
 
-# Centre = valve feedback from the serial stream (color_on/color_off).
-# Border = switch panel command: color_cmd while the switch commands open,
-# otherwise the same as the centre.
+# GUI "LEDs" (drawn top to bottom in this order). What each one shows is set
+# in serial_reader.update_indicators() with set_gui_led(name, on, cmd=...):
+# centre = color_on/color_off, border = color_cmd while cmd is 1, otherwise
+# the same as the centre. To add one: add an entry here + one set_gui_led line.
 led_panel_states = {
     "FILL":   {"state": 0, "cmd": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "color_cmd": (255, 170, 0),  "label_on": "OPEN",   "label_off": "CLOSED"},
     "VENT":   {"state": 0, "cmd": 0, "color_on": (0, 200, 255),   "color_off": (0, 40, 60),  "color_cmd": (255, 170, 0),  "label_on": "OPEN",   "label_off": "CLOSED"},
@@ -287,6 +288,46 @@ TCA9555_CHIPS = {
             "P17": {"name": "",                 "mode": "in",   "init": 0, "invert": False},
         },
     },
+}
+
+# ---------------- Raspberry Pi 5 GPIO (40-pin header) ----------------
+# Applied when the GUI starts. Keys are BCM GPIO numbers (the "GPIOxx" names,
+# not physical pin numbers -- those are in the comments).
+#   "name": optional signal name, so code can use gpio_write("MY_SIGNAL", 1)
+#   "mode": "off" = leave the pin alone, "in", or "out"
+#   "init": 0/1 level driven at startup (outputs only)
+#   "pull": "up", "down" or None -- internal pull resistor (inputs only)
+# Not listed because they're already in use: GPIO2/3 (I2C1 SDA/SCL, all the
+# I2C chips), GPIO12/13 (pwm-2chan overlay, GPIO13 = buzzer). GPIO0/1 are the
+# HAT ID EEPROM pins -- avoid them.
+# Pins marked SPI0/UART0 below are owned by the kernel while that interface
+# is enabled in /boot/firmware/config.txt (dtparam=spi=on -> GPIO7-11,
+# dtparam=uart0=on -> GPIO14/15); using them here then fails with "GPIO busy".
+PI_GPIO_ENABLED = True
+
+PI_GPIO_PINS = {
+    4:  {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 7
+    5:  {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 29
+    6:  {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 31
+    7:  {"name": "BMS_PS_EN",   "mode": "out", "init": 0, "pull": None},   # pin 26  (SPI0 CE1)
+    8:  {"name": "RADIO_EN",    "mode": "out", "init": 0, "pull": None},   # pin 24  (SPI0 CE0)
+    9:  {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 21  (SPI0 MISO)
+    10: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 19  (SPI0 MOSI)
+    11: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 23  (SPI0 SCLK)
+    14: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 8   (UART0 TX)
+    15: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 10  (UART0 RX)
+    16: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 36
+    17: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 11
+    18: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 12
+    19: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 35
+    20: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 38
+    21: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 40
+    22: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 15
+    23: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 16
+    24: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 18
+    25: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 22
+    26: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 37
+    27: {"name": "",            "mode": "off", "init": 0, "pull": None},   # pin 13
 }
 
 GPS_MAPS = [

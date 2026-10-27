@@ -344,16 +344,10 @@ def _led_style(cfg):
     return border, fill, label, text_color
 
 def update_leds():
-    t = sr.streamTelem
-    fb = sr.valve_open_feedback(t)
-    new_states = {   # name: (switch panel command, serial feedback)
-        "FILL": (t.stationSw_FillVlv, fb["FILL"]),
-        "VENT": (t.stationSw_VentVlv, fb["VENT"]),
-        "MOV":  (t.stationSw_MOV,     fb["MOV"]),
-    }
-    for name, (cmd, state) in new_states.items():
-        cfg = settings.led_panel_states[name]
-        cmd, state = int(bool(cmd)), int(bool(state))
+    """Draw the GUI LEDs from sr.gui_leds. What they show is decided in
+    sr.update_indicators() -- this only redraws the ones that changed."""
+    for name, cfg in settings.led_panel_states.items():
+        state, cmd = sr.gui_leds.get(name, (0, 0))
         if state != cfg["state"] or cmd != cfg["cmd"]:
             cfg["state"], cfg["cmd"] = state, cmd
             border, fill, label, text_color = _led_style(cfg)

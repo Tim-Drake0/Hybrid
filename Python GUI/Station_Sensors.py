@@ -20,6 +20,7 @@ if ON_PI:
     from ina219 import DeviceRangeError
     from rpi_hardware_pwm import HardwarePWM
     from smbus2 import SMBus, i2c_msg
+    from gpiozero import DigitalOutputDevice, DigitalInputDevice
 else:
     print("Station_Sensors: no Pi I2C bus found -- using simulated station hardware")
 
@@ -734,3 +735,112 @@ def io_cached(signal):
 
 
 init_io_expanders()
+
+
+# ---------------- Pi 5 header GPIO ----------------
+class PiGPIO:
+    """The Pi's own header GPIO, configured from gui_settings.PI_GPIO_PINS:
+    outputs are driven to their "init" level and inputs get their pull
+    resistor as soon as this is created. Pins can be addressed by BCM number
+    or by the signal name given in settings. Off the Pi the pins are
+    simulated in memory (sim_set_input() stands in for an external signal).
+
+    gpiozero (lgpio backend on the Pi 5) holds the pins only while the GUI
+    process is running.
+    """
+
+    # Pins already claimed by other hardware in this project.
+    RESERVED = {2: "I2C1 SDA", 3: "I2C1 SCL", 12: "pwm-2chan overlay", 13: "buzzer PWM"}
+
+    def __init__(self, pins_cfg):
+        self._cfg = {pin: p for pin, p in self.validate(pins_cfg).items() if p["mode"] != "off"}
+        self._names = {p["name"]: pin for pin, p in self._cfg.items() if p["name"]}
+        self._dev = {}    # pin -> gpiozero device (Pi)
+        self._sim = {}    # pin -> level (simulated)
+        for pin, p in self._cfg.items():
+            if ON_PI:
+                try:
+                    if p["mode"] == "out":
+                        self._dev[pin] = DigitalOutputDevice(pin, initial_value=bool(p["init"]))
+                    else:
+                        pull_up = {"up": True, "down": False, None: None}[p["pull"]]
+                        # active_state is required by gpiozero when there's no pull;
+                        # reads below use the raw pin level either way.
+                        self._dev[pin] = DigitalInputDevice(pin, pull_up=pull_up,
+                                                            active_state=True if pull_up is None else None)
+                except Exception as e:
+                    raise RuntimeError(
+                        f"PI_GPIO_PINS: couldn't claim GPIO{pin} ({p['name'] or 'unnamed'}): {e}. "
+                        f"Something else owns it -- run `gpioinfo | grep -w GPIO{pin}` to see what. "
+                        f"Usually a kernel driver enabled in /boot/firmware/config.txt "
+                        f"(dtparam=spi=on holds GPIO7-11, UART0 holds GPIO14/15).") from None
+            else:
+                self._sim[pin] = p["init"] if p["mode"] == "out" else int(p["pull"] == "up")
+
+    @classmethod
+    def validate(cls, pins_cfg):
+        """Raise ValueError naming the offending pin if anything is invalid."""
+        names = set()
+        for pin, p in pins_cfg.items():
+            where = f"PI_GPIO_PINS[{pin!r}]"
+            if not isinstance(pin, int) or not 0 <= pin <= 27:
+                raise ValueError(f"{where}: key must be a BCM GPIO number 0-27")
+            if p["mode"] not in ("off", "in", "out"):
+                raise ValueError(f"{where}['mode'] = {p['mode']!r}, must be 'off', 'in' or 'out'")
+            if p["mode"] == "off":
+                continue
+            if pin in cls.RESERVED:
+                raise ValueError(f"{where}: GPIO{pin} is already used for {cls.RESERVED[pin]}")
+            if p["init"] not in (0, 1):
+                raise ValueError(f"{where}['init'] = {p['init']!r}, must be 0 or 1")
+            if p["pull"] not in ("up", "down", None):
+                raise ValueError(f"{where}['pull'] = {p['pull']!r}, must be 'up', 'down' or None")
+            if p["name"]:
+                if p["name"] in names:
+                    raise ValueError(f"PI_GPIO_PINS: signal name {p['name']!r} used on more than one pin")
+                names.add(p["name"])
+        return pins_cfg
+
+    def _pin(self, key):
+        pin = self._names.get(key, key)
+        if pin not in self._cfg:
+            raise KeyError(f"Pi GPIO: no configured pin or signal named {key!r}")
+        return pin
+
+    def pins(self):
+        """{pin: settings entry} for every configured (non-"off") pin."""
+        return dict(self._cfg)
+
+    def read(self, key):
+        """Raw pin level 0/1 (outputs read back their driven level)."""
+        pin = self._pin(key)
+        return int(self._dev[pin].pin.state) if ON_PI else self._sim[pin]
+
+    def write(self, key, value):
+        pin = self._pin(key)
+        if self._cfg[pin]["mode"] != "out":
+            raise ValueError(f"Pi GPIO: GPIO{pin} is configured as an input")
+        if ON_PI:
+            self._dev[pin].value = bool(value)
+        else:
+            self._sim[pin] = int(bool(value))
+
+    def sim_set_input(self, key, value):
+        """Simulated pins only: set the level an input reads."""
+        pin = self._pin(key)
+        if ON_PI or self._cfg[pin]["mode"] != "in":
+            raise ValueError(f"Pi GPIO: GPIO{pin} is not a simulated input")
+        self._sim[pin] = int(bool(value))
+
+
+pi_gpio = PiGPIO(settings.PI_GPIO_PINS) if settings.PI_GPIO_ENABLED else None
+
+
+def gpio_write(signal, value):
+    """Drive a Pi header output by BCM number or settings name, e.g. gpio_write("MY_SIGNAL", 1)."""
+    pi_gpio.write(signal, value)
+
+
+def gpio_read(signal):
+    """Read a Pi header pin by BCM number or settings name."""
+    return pi_gpio.read(signal)

@@ -498,49 +498,158 @@ def valve_open_feedback(t=None):
         # Placeholder until the serial feedback is implemented: treat each
         # valve as open whenever its switch commands it open.
         return {
-            "FILL": int(bool(t.stationSw_FillVlv)),
-            "VENT": int(bool(t.stationSw_VentVlv)),
-            "MOV":  int(bool(t.stationSw_MOV)),
+            "FILL":  int(bool(t.stationSw_FillVlv)),
+            "VENT":  int(bool(t.stationSw_VentVlv)),
+            "MOV":   int(bool(t.stationSw_MOV)),
+            "SPARE": int(bool(t.stationSw_SpareVlv)),
+            "ARM":   int(bool(t.stationSw_Arm)),
         }
     return {
-        "FILL": int(t.fill_state),
-        "VENT": int(not t.vent_state),
-        "MOV":  int(t.mov_state),
+        "FILL":  int(t.fill_state),
+        "VENT":  int(not t.vent_state),
+        "MOV":   int(t.mov_state),
+        "SPARE": 0,   # no spare-valve bit in the serial stream yet
+        "ARM":   int(t.arm_state),
     }
 
-# valve name -> (switch-panel LED signal, streamTelem field mirroring it)
-SWITCH_PANEL_LEDS = {
-    "FILL": ("LED_FILL", "stationLED_FillVlv"),
-    "VENT": ("LED_VENT", "stationLED_VentVlv"),
-    "MOV":  ("LED_MOV",  "stationLED_MOV"),
-}
+# ---------------- LEDs ----------------
+def update_indicators():
+    """THE place to decide what every LED shows -- both the physical
+    switch-panel LEDs and the "LEDs" drawn in the GUI. Called from
+    sensor_loop several times a second; just set each one from whatever
+    should drive it:
 
-def update_switch_panel_leds(written):
-    """Light each switch-panel valve LED while its feedback says open. Only
-    writes on change; `written` holds what's been successfully written, so a
-    failed write is retried on the next call."""
-    for valve, is_open in valve_open_feedback().items():
-        signal, field = SWITCH_PANEL_LEDS[valve]
-        if written.get(signal) == is_open:
-            continue
-        try:
-            snsrs.io_write(signal, is_open)
-        except KeyError:      # LED not on any enabled chip
-            continue
-        except Exception as e:
-            print(f"Switch panel {signal} write error:", e)
-            continue
-        written[signal] = is_open
-        setattr(streamTelem, field, is_open)
+        set_led("LED_NAME", condition)                    # switch panel (TCA9555 output name)
+        set_gui_led("NAME", condition, cmd=condition)     # GUI LED (key in settings.led_panel_states)
 
-# streamTelem field -> TCA9555 signal name (gui_settings.TCA9555_CHIPS)
-SWITCH_PANEL_SIGNALS = {
+    Both only do work when the value actually changes, so call them freely.
+    """
+    t = streamTelem
+    fb = valve_open_feedback(t)
+
+    # Switch panel
+    set_led("LED_FILL",      fb["FILL"])
+    set_led("LED_VENT",      fb["VENT"])
+    set_led("LED_MOV",       fb["MOV"])
+    set_led("LED_SPARE_VLV", fb["SPARE"])
+    set_led("LED_ARM",       fb["ARM"])
+
+    # GUI (centre = feedback, border = switch command)
+    set_gui_led("FILL", fb["FILL"], cmd=t.stationSw_FillVlv)
+    set_gui_led("VENT", fb["VENT"], cmd=t.stationSw_VentVlv)
+    set_gui_led("MOV",  fb["MOV"],  cmd=t.stationSw_MOV)
+
+
+_leds_written = {}   # panel LED signal -> last level successfully written
+_led_errors = set()  # panel LED signals whose last write failed (report once)
+
+def set_led(signal, on):
+    """Drive a switch-panel LED (any TCA9555 output, by its settings name).
+    Only touches I2C when the level changes, and a failed write is retried
+    on the next call. Signals not on an enabled chip are ignored."""
+    on = int(bool(on))
+    if _leds_written.get(signal) == on:
+        return
+    try:
+        snsrs.io_write(signal, on)
+    except KeyError:
+        return
+    except Exception as e:
+        if signal not in _led_errors:
+            print(f"LED {signal} write error:", e)
+            _led_errors.add(signal)
+        return
+    _led_errors.discard(signal)
+    _leds_written[signal] = on
+
+
+gui_leds = {}   # GUI LED name -> (on, cmd); drawn by gui2.update_leds()
+
+def set_gui_led(name, on, cmd=0):
+    """Set a GUI LED: `on` lights the centre, `cmd` lights the border in
+    color_cmd. `name` is a key in settings.led_panel_states."""
+    gui_leds[name] = (int(bool(on)), int(bool(cmd)))
+
+
+# streamTelem field -> TCA9555 signal name (gui_settings.TCA9555_CHIPS),
+# copied from each IO-expander poll. Outputs read back their driven level.
+IOX_TELEM_SIGNALS = {
     "stationSw_FillVlv":  "SW_FILL",
     "stationSw_VentVlv":  "SW_VENT",
     "stationSw_MOV":      "SW_MOV",
-    "stationSw_SpareVlv": "SW_SPARE_VALVE",
-    "stationLED_Pwr":     "LED_PWR_ON",      # output; reads back the driven level
+    "stationSw_SpareVlv": "SW_SPARE_VLV",
+    "stationSw_Arm":             "SW_ARM",
+    "stationSw_PyroFire":        "SW_PYRO_FIRE",
+    "stationSw_PyroChannel":     "SW_PYRO_CH",
+    "stationSw_RecordEnable":    "SW_REC_EN",
+    "stationSw_CameraEnable":    "SW_CAMERA_EN",
+    "stationSw_Spare1Enable":    "SW_SPARE1",
+    "stationSw_Spare2Enable":    "SW_SPARE2",
+    "stationSw_Auto_FireEnable": "SW_AUTO_FIRE_EN",
+    "stationSw_TMEnable":        "SW_TM_EN",
+    "stationLED_Pwr":            "LED_PWR_ON",
+    "stationLED_FillVlv":        "LED_FILL",
+    "stationLED_VentVlv":        "LED_VENT",
+    "stationLED_MOV":            "LED_MOV",
+    "stationLED_SpareVlv":       "LED_SPARE_VLV",
+    "stationLED_Arm":            "LED_ARM",
 }
+
+# Named input pins on these chips call on_switch_change() when they flip.
+SWITCH_EVENT_CHIPS = ("IOX1", "IOX2")
+
+
+def on_switch_change(signal, state):
+    """Called from sensor_loop whenever a switch on SWITCH_EVENT_CHIPS changes.
+    signal = settings signal name, state = new level (1 = switch on, after
+    the pin's polarity inversion). Runs on the sensor thread, so keep it
+    quick -- anything slow should be handed off to another thread."""
+    print(f"[SWITCH] {signal} -> {'ON' if state else 'OFF'}")
+
+    if signal == "SW_ARM":
+        pass  # TODO: arm (1) / safe (0)
+    elif signal == "SW_PYRO_FIRE":
+        pass  # TODO: fire the selected pyro channel on 1
+    elif signal == "SW_PYRO_CH":
+        pass  # TODO: select pyro channel (1 = channel 1, 0 = channel 2)
+    elif signal == "SW_REC_EN":
+        pass  # TODO: start (1) / stop (0) recording
+    elif signal == "SW_CAMERA_EN":
+        pass  # TODO: camera on (1) / off (0)
+    elif signal == "SW_AUTO_FIRE_EN":
+        pass  # TODO: enable (1) / disable (0) auto fire
+    elif signal == "SW_TM_EN":
+        # Enable radio power if switch is enabled
+        snsrs.gpio_write("RADIO_EN", state)
+    elif signal == "SW_SPARE1":
+        pass
+    elif signal == "SW_SPARE2":
+        pass
+
+
+def check_switch_events(last):
+    """Call on_switch_change() for every SWITCH_EVENT_CHIPS switch whose
+    level differs from `last` (signal -> level, updated in place). The first
+    reading of each switch only sets the baseline, so switches already on at
+    startup don't fire. A chip that isn't responding is skipped, and its
+    switches are compared against their last good level when it's back."""
+    for chip in SWITCH_EVENT_CHIPS:
+        if chip not in snsrs.io_expanders:
+            continue
+        for p in settings.TCA9555_CHIPS[chip]["pins"].values():
+            signal = p["name"]
+            if p["mode"] != "in" or not signal:
+                continue
+            state = snsrs.io_cached(signal)
+            if state is None:
+                continue
+            prev = last.get(signal)
+            last[signal] = state
+            if prev is not None and state != prev:
+                try:
+                    on_switch_change(signal, state)
+                except Exception as e:
+                    print(f"Switch handler error ({signal}):", e)
 
 def sensor_loop():
     lastTimeINA = 0
@@ -548,7 +657,7 @@ def sensor_loop():
     lastTimeIox = 0
     lastTimeIoxRead = 0
     chgrOk = True   # only report charger errors on the ok -> failing transition, not every poll
-    panelLedsWritten = {}   # switch-panel LED signal -> last level written
+    switchLevels = {}       # IOX1/IOX2 switch signal -> last level seen (check_switch_events)
     lastSOC = 100 # update to read from memory or text file
     while True:
         try:
@@ -603,12 +712,19 @@ def sensor_loop():
             lastTimeIoxRead = time.time()
             snsrs.poll_io_expanders()
             # Switch-panel valve commands (0 if the switch's chip isn't responding)
-            for field, signal in SWITCH_PANEL_SIGNALS.items():
+            for field, signal in IOX_TELEM_SIGNALS.items():
                 try:
                     setattr(streamTelem, field, snsrs.io_cached(signal) or 0)
                 except KeyError:   # signal not on any enabled chip
                     setattr(streamTelem, field, 0)
-            update_switch_panel_leds(panelLedsWritten)
+            check_switch_events(switchLevels)
+
+        # Runs even with no IO expanders, so the GUI LEDs still update. A
+        # mistake in update_indicators() shouldn't take down sensor_loop.
+        try:
+            update_indicators()
+        except Exception as e:
+            print("update_indicators error:", e)
 
 
 def gps_loop():
