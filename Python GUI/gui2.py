@@ -19,10 +19,8 @@ ROTATE_ENABLED = True
 valid_connection = False
 last_timestamp = 0
 last_packet_time = time.time()
-disconnect_timeout = 3 # seconds 
+disconnect_timeout = sr.ECU_LINK_TIMEOUT_S # seconds, shared with the feedback LEDs
 last_appended_timestamp = 0
-abort_counter = 0
-abort_counter_started = 0
 fill_started = 0
 fill_time = 0
 fill_min = 0
@@ -47,9 +45,9 @@ lastCmdTime = 0
 # Get current timestamp as starting point
 
 # rolling buffers, pre-filled with starting timestamp
-timestamps = deque([sr.streamTelem.tsy_timestamp], maxlen=MAX_POINTS)
-pt1_list = deque([sr.streamTelem.pt1], maxlen=MAX_POINTS)
-pt4_list = deque([sr.streamTelem.pt4], maxlen=MAX_POINTS)
+timestamps = deque([sr.ecuTelem.timestamp], maxlen=MAX_POINTS)
+pt1_list = deque([sr.ecuTelem.pt1], maxlen=MAX_POINTS)
+pt4_list = deque([sr.ecuTelem.pt4], maxlen=MAX_POINTS)
 fill_live_time = []
 fill_pt1_list = []
 fill_pt4_list = []
@@ -151,34 +149,24 @@ def _log(sender, app_data, user_data):
 
 def updateStatusBar():
     global fill_started, fill_time, fill_min, fill_sec
-    global abort_counter_started
-    global abort_counter
-    
+
     # Connection status
     if not snsrs.ON_PI:
         conn_color = [0, 200, 255]
         conn_label = "SIMULATION"
         conn_pos = [26, draw_y // 2 - 19]
     elif valid_connection == True:
-        dpg.configure_item("state_modal", show=False)
-        abort_counter_started = 0
         conn_color = [0, 255, 0]
         conn_label = "CONNECTED"
         conn_pos = [31, draw_y // 2 - 19]
-    else: 
-        if sr.streamTelem.tsy_timestamp > 0 and not abort_counter_started:
-            abort_counter = time.time()
-            abort_counter_started = 1
+    else:
         conn_color = [255, 0, 0]
         conn_label = "DISCONNECTED"
         conn_pos = [6, draw_y // 2 - 17]
         
     # Safe, Arm, Fired status
-    # Same source as the ARM LED: the arm switch while
-    # VALVE_FEEDBACK_FROM_SWITCHES is on, the rocket's arm_state otherwise.
-    if sr.valve_open_feedback()["ARM"]:
-        pyro_fired = bool(sr.streamTelem.py1_state) or bool(sr.streamTelem.py2_state)
-        if pyro_fired:
+    if sr.ecuTelem.armStatus_b:
+        if sr.ecuTelem.pyroFireStatus_b:
             arm_color = [255, 30, 30]
             arm_label = "FIRED"
             arm_pos = [28, draw_y // 2 - 20]
@@ -193,14 +181,14 @@ def updateStatusBar():
 
     # Uptime counter
     if valid_connection == True:
-        stampSecs = sr.streamTelem.tsy_timestamp / 1000
+        stampSecs = sr.ecuTelem.timestamp / 1000
         tov_min = (stampSecs / 60) % 60
         tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
         tov_sec = stampSecs % 60
         dpg.set_value("tov", f"Uptime:{int(tov_hour):02d}:{int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
     
     # Fill time counter
-    if sr.streamTelem.fill_state == 1:
+    if sr.ecuTelem.fillVlvStatus_b == 1:
         if not fill_started:
             fill_time = time.time()  # (re)start timer
             fill_started = True
@@ -209,7 +197,7 @@ def updateStatusBar():
         fill_min = int(elapsed / 60) % 60
         fill_sec = int(elapsed) % 60
 
-    elif sr.streamTelem.fill_state == 0:
+    elif sr.ecuTelem.fillVlvStatus_b == 0:
         if fill_started:
             fill_started = False  # stop timer, freeze display (fill_min/fill_sec unchanged)
     dpg.set_value("live_fill_time", f"Fill Time:{fill_min:02}:{fill_sec:02}")
@@ -226,7 +214,7 @@ def updateStatusBar():
         gps_pos = [4, draw_y // 2 - 20]
     
     # Radio Status      
-    rssi_bars = rssi_to_bars(sr.streamTelem.stationRSSI)
+    rssi_bars = rssi_to_bars(sr.ecuTelem.rssi)
 
     NUM_BARS    = 5
     BAR_W       = 11
@@ -244,7 +232,7 @@ def updateStatusBar():
                            color=color, fill=color, rounding=2,
                            tag=f"rssi_ctrl_bar_{i}", parent="rssi_drawlist")
 
-    dpg.configure_item("rssi_ctrl_label", text=f"{sr.streamTelem.stationRSSI}dBm")
+    dpg.configure_item("rssi_ctrl_label", text=f"{sr.ecuTelem.rssi}dBm")
     
     # Battery Status    
 
@@ -286,10 +274,6 @@ def updateStatusBar():
 
 
 
-    # show pop up if abort countdown started
-    if valid_connection == False and sr.streamTelem.tsy_timestamp > 0:
-        show_modal(f"ABORT")
-        
     if sr.logging_enabled:
         dpg.configure_item("rec_button", label="Stop Rec")
     else:
@@ -393,37 +377,7 @@ def update_leds():
             dpg.configure_item(f"led_name_{name}",   color=text_color)
             dpg.configure_item(f"led_status_{name}", text=label, color=text_color)
       
-def show_modal(message: str):
-    secs = int(time.time()-abort_counter)
-    stampSecs = 60 - secs
-    tov_min = (stampSecs / 60) % 60
-    tov_hour = round(round(stampSecs / 60, 0) / 60, 0)
-    tov_sec = stampSecs % 60
-    dpg.set_value("abort_tov", f"ABORT IN {int(tov_min):02d}:{int(tov_sec):02d}") # make this the serial timestamp
-    dpg.configure_item("state_modal", show=True)
-    
 def updateDebugWindow():
-    # dpg.set_value("ctrl_timestamp",         f"Ctrl timestamp: {sr.streamTelem.ctrl_timestamp} ms")
-    # dpg.set_value("stationRSSI",              f"Ctrl RSSI: {sr.streamTelem.stationRSSI} dBm")
-    # dpg.set_value("ctrl_looptime",          f"Ctrl looptime: {sr.streamTelem.ctrl_looptime} us")
-    # dpg.set_value("ctrl_sendtime",          f"Ctrl sendtime: {sr.streamTelem.ctrl_sendtime} us")
-    # dpg.set_value("ctrl_waittime",          f"Ctrl waittime: {sr.streamTelem.ctrl_waittime} us")
-    # dpg.set_value("daq_timestamp",          f"DAQ timestamp: {sr.streamTelem.daq_timestamp} ms")
-    # dpg.set_value("daq_RSSI",               f"DAQ RSSI: {sr.streamTelem.RSSI} dBm")
-    # dpg.set_value("daq_looptime",           f"DAQ looptime: {sr.streamTelem.daq_looptime} us")
-    # dpg.set_value("tsy_timestamp",          f"Teensy timestamp: {sr.streamTelem.tsy_timestamp} ms")
-    # dpg.set_value("tsy_looptime",           f"Teensy looptime: {sr.streamTelem.tsy_looptime} us")
-    # dpg.set_value("valve_states",           f"Valve states: {sr.streamTelem.valve_states:08b}")
-    # dpg.set_value("pyro_states",            f"Pyro states: {sr.streamTelem.pyro_states:08b}")
-    # dpg.set_value("arm_state",              f"Arm state: {sr.streamTelem.arm_state}")
-    # dpg.set_value("dbg_sensor_state",       f"Sensor state: {sr.streamTelem.sensor_states:08b}")
-    # dpg.set_value("pt1",                    f"PT1: {round(sr.streamTelem.pt1, 4)} PSI")
-    # dpg.set_value("pt2",                    f"PT2: {round(sr.streamTelem.pt2, 4)} PSI")
-    # dpg.set_value("pt3",                    f"PT3: {round(sr.streamTelem.pt3, 4)} PSI")
-    # dpg.set_value("pt4",                    f"PT4: {round(sr.streamTelem.pt4, 4)} PSI")
-    # dpg.set_value("battVolts",              f"Battery voltage: {round(sr.streamTelem.rktECUVolts, 4)} V")
-    # dpg.set_value("batt_current",           f"Battery current: {round(sr.streamTelem.battCurrent/1000, 4)} A")
-    # dpg.set_value("batt_perc",              f"Battery: {lipo_2s_percent(sr.streamTelem.rktECUVolts)}%  ({round(sr.streamTelem.rktECUVolts, 2)}V)")
     dpg.set_value("cpu_temp",               f"Ground Station CPU Temp: {sr.streamTelem.cpuTemp_c}°C")
     dpg.set_value("station_temp",           f"Ground Station Temp: {sr.streamTelem.stationTemp_c:0.2f}°C")
     dpg.set_value("station_alt",            f"Ground Station Altitude: {sr.streamTelem.stationBaroAlt_m:0.2f} m")
@@ -613,21 +567,21 @@ def updatePressPlot(now):
 
 def updateLiveInfoWindow():
     global pt1_list, pt4_list, batt_rem_time
-    dpg.set_value("rkt_tank_pressure", f"{sr.streamTelem.pt4:.1f} psi")
-    dpg.set_value("rkt_bottle_pressure", f"{sr.streamTelem.pt1:.1f} psi")
-    dpg.set_value("rkt_chamber_pressure", f"{sr.streamTelem.pt3:.1f} psi")
-    dpg.set_value("rkt_ecu_temp", f"ECU Temp: {sr.streamTelem.rktECUTemp:.1f}°C")
-    dpg.set_value("rkt_ecu_batt_volts", f"Battery Voltage: {sr.streamTelem.rktECUVolts:.1f}V")
-    dpg.set_value("rkt_alt_ft", f"Altitude: {sr.streamTelem.rktAlt:.1f} ft")
-    dpg.set_value("rkt_vert_vel", f"Vertical Velocity: {sr.streamTelem.rktVerticalVelocity:.1f} ft/s")
-    dpg.set_value("rkt_max_vel", f"Max Speed: {sr.streamTelem.rktMaxVel:.1f} ft/s ({sr.streamTelem.rktMaxMach}M)")
-    dpg.set_value("rkt_max_alt", f"Max Altitude: {sr.streamTelem.rktMaxAlt:.1f} ft")
-    dpg.set_value("rkt_max_g", f"Max Acceleration: {sr.streamTelem.rktMaxG:.1f}G")
+    dpg.set_value("rkt_tank_pressure", f"{sr.ecuTelem.pt4:.1f} psi")
+    dpg.set_value("rkt_bottle_pressure", f"{sr.ecuTelem.pt1:.1f} psi")
+    dpg.set_value("rkt_chamber_pressure", f"{sr.ecuTelem.pt3:.1f} psi")
+    dpg.set_value("rkt_ecu_temp", f"ECU Temp: {sr.ecuTelem.boardTemp_c:.1f}°C")
+    dpg.set_value("rkt_ecu_batt_volts", f"Battery Voltage: {sr.ecuTelem.battery_V:.1f}V")
+    dpg.set_value("rkt_alt_ft", f"Altitude: {sr.ecuTelem.altitude_ft:.1f} ft")
+    dpg.set_value("rkt_vert_vel", f"Vertical Velocity: {sr.ecuTelem.verticalVelocity_fps:.1f} ft/s")
+    dpg.set_value("rkt_max_vel", f"Max Speed: {sr.ecuTelem.maxVel_fps:.1f} ft/s ({sr.ecuTelem.maxMach}M)")
+    dpg.set_value("rkt_max_alt", f"Max Altitude: {sr.ecuTelem.maxAlt_ft:.1f} ft")
+    dpg.set_value("rkt_max_g", f"Max Acceleration: {sr.ecuTelem.maxG:.1f}G")
 
 def update_error_table():
     errors = {
         "sd_card": ("SD CARD ERROR", sr.streamTelem.sd_state == 0),
-        "rkt_low_batt": ("LOW ECU BATTERY", sr.streamTelem.rktECUVolts < 7.4),
+        "rkt_low_batt": ("LOW ECU BATTERY", sr.ecuTelem.battery_V < 7.4),
         "station_low_batt": ("LOW STATION BATTERY", sr.streamTelem.stationADCBattVolts < 7.4),
         "high_cpu_temp": (f"GROUND STATION CPU TEMP HIGH)", sr.streamTelem.cpuTemp_c >= settings.CPU_TEMP_WARN_C),
     }
@@ -1223,13 +1177,6 @@ with dpg.window(tag="main_window", label="Hybrid Rocket Data Viewer", width=sett
                     with dpg.child_window(width=layout["dynamic_plots_window"]["size"][0], height=layout["dynamic_plots_window"]["size"][1], pos=layout["dynamic_plots_window"]["pos"], tag="dynamic_plots_window", border=False):
                         dc.build_panel("dynamic_plots_window", sr.streamTelem)
 
-    # Abort modal screen
-    with dpg.window(label="ABORT WARNING", modal=True, show=False, tag="state_modal", 
-                    no_resize=True, width=300, height=120):
-        
-        abort_tov = dpg.add_text(" ", tag="abort_tov")
-        dpg.bind_item_font(abort_tov,settings.xl)
-
 
 def on_key_released(sender, key):
     global lastCmdTime 
@@ -1274,27 +1221,26 @@ try:
             dpg.add_key_press_handler(callback=on_key_released)
             
     while dpg.is_dearpygui_running():
-        if sr.streamTelem.tsy_timestamp == last_timestamp:
-            last_timestamp = sr.streamTelem.tsy_timestamp
+        # A new ECU packet changes its timestamp; no new packet for
+        # disconnect_timeout seconds = link lost.
+        if sr.ecuTelem.timestamp != last_timestamp:
+            last_timestamp = sr.ecuTelem.timestamp
             last_packet_time = time.time()
             valid_connection = True
-        else:
-            if time.time() - last_packet_time > disconnect_timeout:
-                valid_connection = False
-        
-        last_timestamp = sr.streamTelem.tsy_timestamp
+        elif time.time() - last_packet_time > disconnect_timeout:
+            valid_connection = False
         
         frameTime = time.time()
         # Append latest data
-        if sr.streamTelem.tsy_timestamp != last_appended_timestamp:
-            last_appended_timestamp = sr.streamTelem.tsy_timestamp
-            timestamps.append(sr.streamTelem.tsy_timestamp/1000)
-            pt1_list.append(sr.streamTelem.pt1)
-            pt4_list.append(sr.streamTelem.pt4)
+        if sr.ecuTelem.timestamp != last_appended_timestamp:
+            last_appended_timestamp = sr.ecuTelem.timestamp
+            timestamps.append(sr.ecuTelem.timestamp/1000)
+            pt1_list.append(sr.ecuTelem.pt1)
+            pt4_list.append(sr.ecuTelem.pt4)
             press_t.append(frameTime - press_t0)
-            press_tank.append(sr.streamTelem.pt4)
-            press_bottle.append(sr.streamTelem.pt1)
-            press_chamber.append(sr.streamTelem.pt3)
+            press_tank.append(sr.ecuTelem.pt4)
+            press_bottle.append(sr.ecuTelem.pt1)
+            press_chamber.append(sr.ecuTelem.pt3)
             _press_dirty = True
                 
         

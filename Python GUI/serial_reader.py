@@ -32,6 +32,8 @@ MAX_POINTS = 500
 TELEM_HEADER = (0xAB, 0xCD)
 CMD_HEADER   = (0xDE, 0xAD)
 FRAME_END    = (0xEF, 0xBE)
+ECU_TELEM_ID = 0x20   # ECURadioTelem (0x69 is the legacy DAQ telemetry -> streamTelem)
+ECU_LINK_TIMEOUT_S = 3  # no ECU packet for this long = link lost (feedback LEDs go off, GUI shows DISCONNECTED)
 # ---------------------------------------
 
 ser = None
@@ -293,30 +295,9 @@ class StreamTelem:
     chgrFlagCbTopOv_b:      int   = 0
     chgrFlagCbBotOv_b:      int   = 0
     chgrFlagCbOverCurrent_b: int  = 0
-    
-    # Switch Panel Commands / LEDs
-    stationSw_PwrSwStatus:      int   = 0 # 1 = power switch in on position, 0 = off
-    stationLED_Pwr:             int   = 0 # 1 = LED on, 0 = off
-    stationLED_Radio:           int   = 0 # 1 = LED on, 0 = off
-    stationSw_FillVlv:          int   = 0 # 1 = valve open, 0 = valve closed
-    stationSw_VentVlv:          int   = 0 # 1 = valve open, 0 = valve closed
-    stationLED_FillVlv:         int   = 0 # 1 = LED on, 0 = off
-    stationLED_VentVlv:         int   = 0 # 1 = LED on, 0 = off
-    stationSw_MOV:              int   = 0 # 1 = valve open, 0 = valve closed
-    stationSw_SpareVlv:         int   = 0 # 1 = valve open, 0 = valve closed
-    stationLED_MOV:             int   = 0 # 1 = LED on, 0 = off
-    stationLED_SpareVlv:        int   = 0 # 1 = LED on, 0 = off
-    stationSw_TMEnable:         int   = 0 # 1 = On, 0 = off
-    stationSw_CameraEnable:     int   = 0 # 1 = On, 0 = off
-    stationSw_Spare1Enable:     int   = 0 # 1 = On, 0 = off
-    stationSw_Auto_FireEnable:  int   = 0 # 1 = On, 0 = off
-    stationSw_RecordEnable:     int   = 0 # 1 = On, 0 = off
-    stationSw_Spare2Enable:     int   = 0 # 1 = On, 0 = off
-    stationLED_Arm:             int   = 0 # 1 = LED on, 0 = off
-    stationSw_Arm:              int   = 0 # 1 = Arm, 0 = Safe
-    stationSw_PyroChannel:      int   = 0 # 1 = Channel 1, 0 = Channel 2
-    stationSw_PyroFire:         int   = 0 # 1 = Fire, 0 = off
-    
+
+    # Switch-panel commands live in serial_writer.gndTelem (*Cmd_b).
+
     # GPS (MAX-M10S, via NMEA GGA/RMC)
     gpsFixValid_b:      int   = 0     # True once a GGA/RMC sentence reports a valid fix
     gpsLat:             float = 0.0   # signed decimal degrees, +N/-S
@@ -375,9 +356,104 @@ class StreamTelem:
         self.ina219_state   = (self.sensor_states >> 1) & 1
         self.ads1115_state  = (self.sensor_states >> 2) & 1
 
-
-    
 streamTelem = StreamTelem()     
+
+@dataclass      
+class ECURadioTelem:
+    header:                 int   = 43962
+    packet:                 bytes = field(default_factory=bytes)
+    timestamp:              int   = 0
+    ecuStatus_e:            int   = 0
+    pt1:                    float = 0.0
+    pt2:                    float = 0.0
+    pt3:                    float = 0.0
+    pt4:                    float = 0.0
+    rssi:                   int   = 0
+    boardTemp_c:            float = 0.0 # temp of the Engine control unit
+    battery_V:              float = 0.0
+    batteryCurrent_A:       float = 0.0
+    altitude_ft:            int   = 0
+    verticalVelocity_fps:   int   = 0
+    maxVel_fps:             int   = 0
+    maxMach:                int   = 0
+    maxAlt_ft:              int   = 0
+    maxG:                   int   = 0
+    gpsFixValid_b:          int   = 0     # True once a GGA/RMC sentence reports a valid fix
+    gpsLat_deg:             float = 0.0   # signed decimal degrees, +N/-S
+    gpsLon_deg:             float = 0.0   # signed decimal degrees, +E/-W
+    gpsAlt_ft:              float = 0.0   # altitude above mean sea level, from GGA [ft]
+    gpsNumSV:               int   = 0     # satellites in use, from GGA
+    gpsHDOP:                float = 0.0   # horizontal dilution of precision, from GGA
+    
+    # ecuStatus_e bit field enumeration:
+    fillVlvStatus_b:        int   = 0 # b0,  1 = valve open, 0 = valve closed
+    ventVlvStatus_b:        int   = 0 # b1,  1 = valve open, 0 = valve closed
+    movVlvStatus_b:         int   = 0 # b2,  1 = valve open, 0 = valve closed
+    spareVlvStatus_b:       int   = 0 # b3,  1 = valve open, 0 = valve closed
+    radioEnableStatus_b:    int   = 0 # b4,  1 = On, 0 = off
+    cameraEnableStatus_b:   int   = 0 # b5,  1 = On, 0 = off
+    autoFireEnableStatus_b: int   = 0 # b6,  1 = On, 0 = off
+    recordEnableStatus_b:   int   = 0 # b7,  1 = On, 0 = off
+    spare1EnableStatus_b:   int   = 0 # b8,  1 = On, 0 = off
+    spare2EnableStatus_b:   int   = 0 # b9,  1 = On, 0 = off
+    armStatus_b:            int   = 0 # b10, 1 = Arm, 0 = Safe
+    pyroFireStatus_b:       int   = 0 # b11, 1 = Fire, 0 = off
+    pyroChannelStatus_b:    int   = 0 # b12, 1 = Channel 1, 0 = Channel 2
+    pwrGoodStatus_b:        int   = 0 # b13, 1 = Good 1, 0 = Bad
+    propGoodStatus_b:       int   = 0 # b14, 1 = Good 1, 0 = Bad
+    navGoodStatus_b:        int   = 0 # b15, 1 = Good 1, 0 = Bad
+
+    def readBuffer(self):
+        # ECU -> ground station, telemetry frame (AB CD) ID ECU_TELEM_ID,
+        # 77-byte payload, little-endian, packed. Matches ECU_Payload in
+        # tools/switch_packet_test.
+        (self.timestamp,                # uint32 ms
+        self.ecuStatus_e,               # uint16 bitfield
+        self.pt1,
+        self.pt2,
+        self.pt3,
+        self.pt4,
+        self.rssi,                      # int8 dBm
+        self.boardTemp_c,
+        self.battery_V,
+        self.batteryCurrent_A,
+        self.altitude_ft,               # int32
+        self.verticalVelocity_fps,
+        self.maxVel_fps,
+        self.maxMach,
+        self.maxAlt_ft,
+        self.maxG,
+        self.gpsFixValid_b,             # uint8
+        self.gpsLat_deg,                # float32: ~1 m resolution at these latitudes
+        self.gpsLon_deg,
+        self.gpsAlt_ft,
+        self.gpsNumSV,                  # uint8
+        self.gpsHDOP) = struct.unpack_from("<IHffffbfffiiiiiiBfffBf", bytes(self.packet))
+
+        self.fillVlvStatus_b        = (self.ecuStatus_e >> 0)  & 1
+        self.ventVlvStatus_b        = (self.ecuStatus_e >> 1)  & 1
+        self.movVlvStatus_b         = (self.ecuStatus_e >> 2)  & 1
+        self.spareVlvStatus_b       = (self.ecuStatus_e >> 3)  & 1
+        self.radioEnableStatus_b    = (self.ecuStatus_e >> 4)  & 1
+        self.cameraEnableStatus_b   = (self.ecuStatus_e >> 5)  & 1
+        self.autoFireEnableStatus_b = (self.ecuStatus_e >> 6)  & 1
+        self.recordEnableStatus_b   = (self.ecuStatus_e >> 7)  & 1
+        self.spare1EnableStatus_b   = (self.ecuStatus_e >> 8)  & 1
+        self.spare2EnableStatus_b   = (self.ecuStatus_e >> 9)  & 1
+        self.armStatus_b            = (self.ecuStatus_e >> 10) & 1
+        self.pyroFireStatus_b       = (self.ecuStatus_e >> 11) & 1
+        self.pyroChannelStatus_b    = (self.ecuStatus_e >> 12) & 1
+        self.pwrGoodStatus_b        = (self.ecuStatus_e >> 13) & 1
+        self.propGoodStatus_b       = (self.ecuStatus_e >> 14) & 1
+        self.navGoodStatus_b        = (self.ecuStatus_e >> 15) & 1
+
+ecuTelem = ECURadioTelem()
+ecu_last_rx = 0.0   # time.monotonic() of the last good ECU packet
+
+
+def ecu_link_ok():
+    """True while ECU packets are still arriving (within ECU_LINK_TIMEOUT_S)."""
+    return time.monotonic() - ecu_last_rx < ECU_LINK_TIMEOUT_S
 
 
 def find_serial():
@@ -462,13 +538,20 @@ def read_serial_loop():
 
 def telem_loop():
     """Parses telemetry packets from the queue."""
+    global ecu_last_rx
     while True:
         try:
             resp_id, length, payload, crc_b = telem_queue.get()
+            if resp_id == ECU_TELEM_ID:
+                ecuTelem.packet = payload
+                ecuTelem.readBuffer()
+                ecu_last_rx = time.monotonic()
+                continue
+
             streamTelem.packet = payload
             streamTelem.readBuffer()
             if logging_enabled:
-                log_telem(streamTelem) 
+                log_telem(streamTelem)
                 
         except Exception as e:
             import traceback; traceback.print_exc()
@@ -490,28 +573,6 @@ def cmd_loop():
         except Exception as e:
             print("CMD error:", e)           
 
-def valve_open_feedback(t=None):
-    """Valve name -> 1 if the serial stream reports it open. Shared by the GUI
-    valve LEDs and the switch-panel LEDs so they always agree."""
-    t = t or streamTelem
-    if settings.VALVE_FEEDBACK_FROM_SWITCHES:
-        # Placeholder until the serial feedback is implemented: treat each
-        # valve as open whenever its switch commands it open.
-        return {
-            "FILL":  int(bool(t.stationSw_FillVlv)),
-            "VENT":  int(bool(t.stationSw_VentVlv)),
-            "MOV":   int(bool(t.stationSw_MOV)),
-            "SPARE": int(bool(t.stationSw_SpareVlv)),
-            "ARM":   int(bool(t.stationSw_Arm)),
-        }
-    return {
-        "FILL":  int(t.fill_state),
-        "VENT":  int(not t.vent_state),
-        "MOV":   int(t.mov_state),
-        "SPARE": 0,   # no spare-valve bit in the serial stream yet
-        "ARM":   int(t.arm_state),
-    }
-
 # ---------------- LEDs ----------------
 def update_indicators():
     """THE place to decide what every LED shows -- both the physical
@@ -523,31 +584,41 @@ def update_indicators():
         set_gui_led("NAME", condition, cmd=condition)     # GUI LED (key in settings.led_panel_states)
 
     Both only do work when the value actually changes, so call them freely.
+    Feedback comes from ecuTelem, switch commands from sw.gndTelem.
     """
-    t = streamTelem
-    fb = valve_open_feedback(t)
+    # Once ECU packets stop (e.g. radio commanded off), its last packet is
+    # stale -- show all feedback as off instead of frozen at the last value.
+    ecu = ecuTelem if ecu_link_ok() else ECURadioTelem()
+    gnd = sw.gndTelem
 
     # Switch panel
-    set_led("LED_FILL",      fb["FILL"])
-    set_led("LED_VENT",      fb["VENT"])
-    set_led("LED_MOV",       fb["MOV"])
-    set_led("LED_SPARE_VLV", fb["SPARE"])
-    set_led("LED_ARM",       fb["ARM"])
+    set_led("LED_FILL",      ecu.fillVlvStatus_b)
+    set_led("LED_VENT",      ecu.ventVlvStatus_b)
+    set_led("LED_MOV",       ecu.movVlvStatus_b)
+    set_led("LED_SPARE_VLV", ecu.spareVlvStatus_b)
+    set_led("LED_ARM",       ecu.armStatus_b)
 
-    # GUI (centre = feedback, border = switch command)
-    set_gui_led("FILL", fb["FILL"], cmd=t.stationSw_FillVlv)
-    set_gui_led("VENT", fb["VENT"], cmd=t.stationSw_VentVlv)
-    set_gui_led("MOV",  fb["MOV"],  cmd=t.stationSw_MOV)
+    # GUI valve LEDs (centre = feedback, border = switch command)
+    set_gui_led("FILL", ecu.fillVlvStatus_b, cmd=gnd.fillVlvCmd_b)
+    set_gui_led("VENT", ecu.ventVlvStatus_b, cmd=gnd.ventVlvCmd_b)
+    set_gui_led("MOV",  ecu.movVlvStatus_b,  cmd=gnd.movVlvCmd_b)
 
-    # GUI status LEDs beside the error list (settings.status_leds)
-    set_gui_led("CAMERA_ON", t.stationSw_CameraEnable)     # TODO: camera feedback once it exists
-    set_gui_led("AUTO_FIRE", t.stationSw_Auto_FireEnable)
-    set_gui_led("PYRO_CH",   t.stationSw_PyroChannel)      # on = "PYRO 1", off = "PYRO 2"
-    set_gui_led("RADIO_ON",  t.stationSw_TMEnable)
-    set_gui_led("PWR_GOOD",     0)   # TODO
-    set_gui_led("PROP_GOOD",    0)   # TODO
-    set_gui_led("NAV_GOOD",     0)   # TODO
-    set_gui_led("STATION_GOOD", 0)   # TODO
+    # GUI status LEDs (settings.status_leds)
+    set_gui_led("CAMERA_ON", ecu.cameraEnableStatus_b)
+    set_gui_led("AUTO_FIRE", ecu.autoFireEnableStatus_b)
+    set_gui_led("PYRO_CH",   ecu.pyroChannelStatus_b)   # on = "PYRO 1", off = "PYRO 2"
+    set_gui_led("RADIO_ON",  ecu.radioEnableStatus_b)
+    set_gui_led("PWR_GOOD",     ecu.pwrGoodStatus_b)
+    set_gui_led("PROP_GOOD",    ecu.propGoodStatus_b)
+    set_gui_led("NAV_GOOD",     ecu.navGoodStatus_b)
+    set_gui_led("STATION_GOOD", station_good())
+
+# TO DO =================
+def station_good():
+    """1 if the ground station itself is healthy. Placeholder -- always 1
+    for now; add the real checks here (station battery, CPU temp, IO
+    expanders responding, ...)."""
+    return 1
 
 
 _leds_written = {}   # panel LED signal -> last level successfully written
@@ -581,29 +652,32 @@ def set_gui_led(name, on, cmd=0):
     gui_leds[name] = (int(bool(on)), int(bool(cmd)))
 
 
-# streamTelem field -> TCA9555 signal name (gui_settings.TCA9555_CHIPS),
-# copied from each IO-expander poll. Outputs read back their driven level.
-IOX_TELEM_SIGNALS = {
-    "stationSw_FillVlv":  "SW_FILL",
-    "stationSw_VentVlv":  "SW_VENT",
-    "stationSw_MOV":      "SW_MOV",
-    "stationSw_SpareVlv": "SW_SPARE_VLV",
-    "stationSw_Arm":             "SW_ARM",
-    "stationSw_PyroFire":        "SW_PYRO_FIRE",
-    "stationSw_PyroChannel":     "SW_PYRO_CH",
-    "stationSw_RecordEnable":    "SW_REC_EN",
-    "stationSw_CameraEnable":    "SW_CAMERA_EN",
-    "stationSw_Spare1Enable":    "SW_SPARE1",
-    "stationSw_Spare2Enable":    "SW_SPARE2",
-    "stationSw_Auto_FireEnable": "SW_AUTO_FIRE_EN",
-    "stationSw_TMEnable":        "SW_TM_EN",
-    "stationLED_Pwr":            "LED_PWR_ON",
-    "stationLED_FillVlv":        "LED_FILL",
-    "stationLED_VentVlv":        "LED_VENT",
-    "stationLED_MOV":            "LED_MOV",
-    "stationLED_SpareVlv":       "LED_SPARE_VLV",
-    "stationLED_Arm":            "LED_ARM",
-}
+def read_switch(signal):
+    """A switch's level from the last IO-expander poll (TCA9555 signal name
+    in gui_settings.TCA9555_CHIPS); 0 if its chip isn't responding or the
+    signal isn't on an enabled chip."""
+    try:
+        return snsrs.io_cached(signal) or 0
+    except KeyError:
+        return 0
+
+
+def read_switch_commands():
+    """Copy the switch panel into the ground station payload (sw.gndTelem)."""
+    gnd = sw.gndTelem
+    gnd.fillVlvCmd_b        = read_switch("SW_FILL")
+    gnd.ventVlvCmd_b        = read_switch("SW_VENT")
+    gnd.movVlvCmd_b         = read_switch("SW_MOV")
+    gnd.spareVlvCmd_b       = read_switch("SW_SPARE_VLV")
+    gnd.radioEnableCmd_b    = read_switch("SW_TM_EN")
+    gnd.cameraEnableCmd_b   = read_switch("SW_CAMERA_EN")
+    gnd.autoFireEnableCmd_b = read_switch("SW_AUTO_FIRE_EN")
+    gnd.recordEnableCmd_b   = read_switch("SW_REC_EN")
+    gnd.spare1EnableCmd_b   = read_switch("SW_SPARE1")
+    gnd.spare2EnableCmd_b   = read_switch("SW_SPARE2")
+    gnd.armCmd_b            = read_switch("SW_ARM")
+    gnd.pyroFireCmd_b       = read_switch("SW_PYRO_FIRE")
+    gnd.pyroChannel_b       = read_switch("SW_PYRO_CH")
 
 # Named input pins on these chips call on_switch_change() when they flip.
 SWITCH_EVENT_CHIPS = ("IOX1", "IOX2")
@@ -668,7 +742,7 @@ def sensor_loop():
     lastTimeIoxRead = 0
     chgrOk = True   # only report charger errors on the ok -> failing transition, not every poll
     switchLevels = {}       # IOX1/IOX2 switch signal -> last level seen (check_switch_events)
-    lastSwitchBits = None   # last switch bitfield sent on the radio link
+    lastSwitchBits = None   # last commands_e sent on the radio link
     lastSwitchTx = 0
     lastSOC = 100 # update to read from memory or text file
     while True:
@@ -723,12 +797,7 @@ def sensor_loop():
         if snsrs.io_expanders and time.time() - lastTimeIoxRead > settings.TCA9555_READ_INTERVAL_S:
             lastTimeIoxRead = time.time()
             snsrs.poll_io_expanders()
-            # Switch-panel valve commands (0 if the switch's chip isn't responding)
-            for field, signal in IOX_TELEM_SIGNALS.items():
-                try:
-                    setattr(streamTelem, field, snsrs.io_cached(signal) or 0)
-                except KeyError:   # signal not on any enabled chip
-                    setattr(streamTelem, field, 0)
+            read_switch_commands()
             check_switch_events(switchLevels)
 
         # Runs even with no IO expanders, so the GUI LEDs still update. A
@@ -738,14 +807,15 @@ def sensor_loop():
         except Exception as e:
             print("update_indicators error:", e)
 
-        # Switch states out on the radio link: on any change, else every
-        # SWITCH_PACKET_INTERVAL_S. A switch whose chip isn't answering reads 0.
+        # Ground station telemetry (switch commands) out on the radio link: on
+        # any change, else every SWITCH_PACKET_INTERVAL_S. A switch whose chip
+        # isn't answering reads 0.
         if settings.SWITCH_PACKET_ENABLED:
-            bits = sw.switch_bits(streamTelem)
+            sw.gndTelem.createPayload()   # refreshes commands_e from the *_b fields
             now = time.time()
-            if bits != lastSwitchBits or now - lastSwitchTx >= settings.SWITCH_PACKET_INTERVAL_S:
-                if sw.send_switch_states(bits):
-                    lastSwitchBits, lastSwitchTx = bits, now
+            if sw.gndTelem.commands_e != lastSwitchBits or now - lastSwitchTx >= settings.SWITCH_PACKET_INTERVAL_S:
+                if sw.send_gnd_telem():
+                    lastSwitchBits, lastSwitchTx = sw.gndTelem.commands_e, now
 
 
 def gps_loop():

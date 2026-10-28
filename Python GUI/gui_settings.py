@@ -23,11 +23,6 @@ LED_COLS = 1
 
 LED_BORDER_THICKNESS = 6
 
-# True = valve "feedback" (LED centres, switch-panel LEDs) just mirrors the
-# switch-panel command. Set False once the serial stream reports real valve
-# states (fill/vent/mov_state).
-VALVE_FEEDBACK_FROM_SWITCHES = True
-
 # GUI "LEDs" (drawn top to bottom in this order). What each one shows is set
 # in serial_reader.update_indicators() with set_gui_led(name, on, cmd=...):
 # centre = color_on/color_off, border = color_cmd while cmd is 1, otherwise
@@ -134,8 +129,9 @@ RADIO_SERIAL_PORT_PI = "/dev/ttyAMA0"
 RADIO_SERIAL_PORT_PC = "COM5"
 RADIO_BAUD_RATE      = 115200
 
-# Switch-state packet (serial_writer.CMD_SWITCH_STATES) sent on the radio
-# link: immediately whenever a switch changes, and at least this often.
+# Ground station telemetry (serial_writer.GroundStationRadioTelem, the switch
+# commands) sent on the radio link: immediately whenever a switch changes,
+# and at least this often.
 SWITCH_PACKET_ENABLED    = True
 SWITCH_PACKET_INTERVAL_S = 0.2
 
